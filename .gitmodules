@@ -1,0 +1,3 @@
+[submodule "third_party/arcdps_unofficial_extras_releases"]
+	path = third_party/arcdps_unofficial_extras_releases
+	url = https://github.com/Krappa322/arcdps_unofficial_extras_releases.git
