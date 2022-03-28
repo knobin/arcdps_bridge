@@ -18,15 +18,33 @@
 #include <sstream>
 #include <string>
 #include <thread>
+#include <filesystem>
 
 // Windows Headers
 #include <windows.h>
+
+// Path to the DLL.
+static std::string DllPath{""};
+static constexpr std::string_view ConfigFile{"arcdps_bridge.ini"};
+
+static struct Config
+{
+    bool enabled{true}; // Should the extension be enabled.
+    bool arcDPS{true}; // Should ArcDPS be used.
+    bool extras{true}; // Should the Unofficial Extras be used.
+    bool logging{true}; // Should debug logging be printed.
+    bool msgLog{false}; // Should messages sent be logged.
+    const std::string_view logFile{"arcdps_bridge.log"};
+} Configs;
 
 #ifdef DEBUG
 
 template<typename... Args>
 static void Print(Args&&... args)
 {
+    if (!Configs.logging)
+        return;
+
     static std::mutex LogMutex;
 
     time_t now = time(0);
@@ -36,21 +54,99 @@ static void Print(Args&&... args)
     strftime(buf, sizeof(buf), "%Y-%m-%d %X", &tstruct);
 
     std::unique_lock<std::mutex> lock(LogMutex);
-    std::ofstream
-        outfile; // Opens file for every call to print. Bad. but fine for debugging purposes.
-    outfile.open("arcdps_bridge.log", std::ios_base::app);
+    std::ofstream outfile; // Opens file for every call to print. Bad. but fine for debugging purposes.
+    outfile.open(DllPath + std::string{Configs.logFile}, std::ios_base::app);
     outfile << "[" << buf << "] ";
     (outfile << ... << args) << '\n';
     outfile.close();
 }
 
 #define DEBUG_LOG(...) Print(__VA_ARGS__)
+#define DEBUG_MSG_LOG(...) if (Configs.msgLog) Print(__VA_ARGS__)
 
 #else
 
 #define DEBUG_LOG(...)
+#define DEBUG_MSG_LOG(...)
 
 #endif
+
+static void CreateConfigFile()
+{
+    const std::string path{DllPath + std::string{ConfigFile}};
+    DEBUG_LOG("Creating Config File \"", path, "\"");
+
+    std::ofstream configFile;
+    configFile.open(path);
+
+    configFile << "[general]\n";
+    configFile << "enabled = " << ((Configs.enabled) ? "true" : "false") << "\n";
+    configFile << "extras = " << ((Configs.extras) ? "true" : "false") << "\n";
+    configFile << "arcDPS = " << ((Configs.extras) ? "true" : "false") << "\n";
+
+    configFile << "[debug]\n";
+    configFile << "logging = " << ((Configs.logging) ? "true" : "false") << "\n";
+    configFile << "msgLog = " << ((Configs.logging) ? "true" : "false") << "\n";
+
+    configFile.close();
+}
+
+static void LoadConfigFile()
+{
+    const std::string path{DllPath + std::string{ConfigFile}};
+    DEBUG_LOG("Loading Config File \"", path, "\"");
+
+    std::ifstream configFile;
+    configFile.open(path, std::ifstream::in);
+
+    std::string line{};
+    unsigned int lineNumber{0};
+    std::string header{};
+    while (std::getline(configFile, line))
+    {
+        ++lineNumber;
+        auto it = std::remove_if(line.begin(), line.end(), ::isspace);
+        line.erase(it, line.end());
+
+        if (!line.empty())
+        {
+            if (line.front() == '[' && line.back() == ']')
+            {
+                header = line.substr(1, line.size() - 2);
+                DEBUG_LOG("Found Config Header \"", header, "\"");
+            }
+            else if (!header.empty())
+            {
+                std::size_t equalPos = line.find('=');
+                if (equalPos != std::string::npos
+                    && equalPos > 0 && equalPos < line.size() - 1)
+                {
+                    std::string name = line.substr(0, equalPos);
+                    std::string value = line.substr(equalPos + 1);
+                    DEBUG_LOG("Found Config Entry \"", name, "\" = ", value);
+
+                    if (header == "general")
+                    {
+                        if (name == "enabled")
+                            Configs.enabled = ((value == "true") ? true : false);
+                        else if (name == "extras")
+                            Configs.extras = ((value == "true") ? true : false);
+                        else if (name == "arcDPS")
+                            Configs.arcDPS = ((value == "true") ? true : false);
+                    }
+                    else if (header == "debug")
+                    {
+                        if (name == "logging")
+                            Configs.logging = ((value == "true") ? true : false);
+                        else if (name == "msgLog")
+                            Configs.msgLog = ((value == "true") ? true : false);
+                    }
+                }
+            }
+        }
+
+    }
+}
 
 /* arcdps export table */
 struct arcdps_exports
@@ -157,28 +253,50 @@ static std::string agToJSON(ag* agent)
 
 enum class ThreadStatus : uint8_t
 {
-    NONE = 0,
+    NONE = 0,                 // Not created.
     WaitingForConnection = 4, // Pipe is created and waiting for connection.
     WaitinForMessage = 8,     // Pipe connection exists.
-    Sending = 16              // Pipe connection exists.
+    Sending = 16              // Pipe connection exists and is sending.
 };
 
 // Variables for thread that is sending data.
-static HANDLE PipeHandle;
-static constexpr std::string_view PipeName{"\\\\.\\pipe\\arcdps-bridge"};
-static ThreadStatus PipeThreadStatus{ThreadStatus::NONE};
-static std::atomic<bool> Run{true};
-static std::thread PipeThread{};
-static std::mutex MsgMutex{};
-static std::condition_variable MsgCV{};
-static std::queue<std::string> MsgQueue{};
+static struct ThreadData
+{
+    HANDLE handle;
+    const std::string_view pipeName{"\\\\.\\pipe\\arcdps-bridge"};
+    ThreadStatus status{ThreadStatus::NONE};
+    std::atomic<bool> run{true};
+    std::thread thread{};
+} PipeThread;
+
+static struct MessageContainer
+{
+    std::mutex mutex{};
+    std::condition_variable cv{};
+    std::queue<std::string> queue{};
+} MsgCont;
 
 // Information about the bridge.
-static bool ExtraEnabled{false};
-static std::string ExtraVersion{""};
-static std::string Version{"1.0"};
-static bool ArcLoaded{false};
-static std::string arcvers{""};
+static struct Info
+{
+    const std::string_view version{"1.0"}; // Bridge version.
+    std::string extraVersion{""}; // Unofficial Extras version.
+    std::string arcvers{""}; // ArcDPS version.
+    bool arcLoaded{false}; // Is ArcDPS loaded.
+    bool extraLoaded{false}; // Is Unofficial Extras loaded.
+} BridgeInfo;
+
+static std::string BridgeInfoToJSON(ag* agent)
+{
+    std::ostringstream ss{};
+    ss << "{\"type\":\"Info\",";
+    ss << "\"Version\":\"" << std::string{BridgeInfo.version} << "\","
+       << "\"ExtraVersion\":\"" << BridgeInfo.extraVersion << "\","
+       << "\"ArcVersion\":\"" << BridgeInfo.arcvers << "\","
+       << "\"ArcLoaded\":\"" << ((BridgeInfo.arcLoaded) ? "true" : "false") << ","
+       << "\"ExtraLoaded\":\"" << ((BridgeInfo.extraLoaded) ? "true" : "false") << "}";
+    return ss.str();
+}
 
 enum class MessageType : uint8_t
 {
@@ -191,8 +309,8 @@ enum class MessageType : uint8_t
 static void SendToClient(const std::string& msg, MessageType type)
 {
     // Send if pipe has been created and a connection exists.
-    bool send{(PipeThreadStatus != ThreadStatus::NONE &&
-               PipeThreadStatus != ThreadStatus::WaitingForConnection)};
+    bool send{(PipeThread.status != ThreadStatus::NONE &&
+               PipeThread.status != ThreadStatus::WaitingForConnection)};
 
     // If either not created or no connection exists.
     // Only put "Extra" messages on the queue.
@@ -201,46 +319,14 @@ static void SendToClient(const std::string& msg, MessageType type)
 
     if (send)
     {
-        std::unique_lock<std::mutex> lock(MsgMutex);
-        if (MsgQueue.size() < 200)
+        std::unique_lock<std::mutex> lock(MsgCont.mutex);
+        if (MsgCont.queue.size() < 200)
         {
-            DEBUG_LOG("Message of type \"", static_cast<int>(type), "\" queued for sending.");
-            MsgQueue.push(msg);
-            MsgCV.notify_one();
+            DEBUG_MSG_LOG("Message of type \"", static_cast<int>(type), "\" queued for sending.");
+            MsgCont.queue.push(msg);
+            MsgCont.cv.notify_one();
         }
     }
-}
-
-BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved)
-{
-    switch (ul_reason_for_call)
-    {
-        case DLL_PROCESS_ATTACH:
-        case DLL_THREAD_ATTACH:
-        case DLL_THREAD_DETACH:
-        case DLL_PROCESS_DETACH:
-            break;
-    }
-    return TRUE;
-}
-
-/* dll attach -- from winapi */
-static void dll_init(HANDLE hModule)
-{
-    return;
-}
-
-/* dll detach -- from winapi */
-static void dll_exit()
-{
-    return;
-}
-
-/* window callback -- return is assigned to umsg (return zero to not be processed by arcdps or game)
- */
-static uintptr_t mod_wnd(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
-{
-    return uMsg;
 }
 
 /* combat callback -- may be called asynchronously, use id param to keep track of order, first event id will be 2. return ignored */
@@ -278,18 +364,6 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
     return 0;
 }
 
-/*
-static std::string ConnectInfo() {
-  std::ostringstream ss{};
-  ss << "{\"type\":\"Info\"" <<
-  ",\"Version\":\"" << Version << "\"" <<
-  ",\"ArcLoaded\":\"" << ((ArcLoaded) ? "true" : "false") <<
-  ((ArcLoaded) ? ",\"ArcVersion\":\"" + arcvers + "\"" : "") <<
-  ",\"ExtraEnabled\":" << ((ExtraEnabled) ? "true" : "false") <<
-  ((ExtraEnabled) ? ",\"ExtraVersion\":\"" + ExtraVersion + "\"" : "") << "}";
-}
-*/
-
 static void PipeThreadFunc()
 {
     DEBUG_LOG("Started Pipe server!");
@@ -297,24 +371,24 @@ static void PipeThreadFunc()
     bool ShouldClose{false};
     while (!ShouldClose)
     {
-        PipeThreadStatus = ThreadStatus::NONE;
-        CloseHandle(PipeHandle);
+        PipeThread.status = ThreadStatus::NONE;
+        CloseHandle(PipeThread.handle);
 
-        DEBUG_LOG("Creating Named pipe \"", std::string{PipeName}, "\"");
-        PipeHandle = CreateNamedPipe(PipeName.data(), PIPE_ACCESS_DUPLEX, PIPE_TYPE_MESSAGE, 1, 0,
+        DEBUG_LOG("Creating Named pipe \"", std::string{PipeThread.pipeName}, "\"");
+        PipeThread.handle = CreateNamedPipe(PipeThread.pipeName.data(), PIPE_ACCESS_DUPLEX, PIPE_TYPE_MESSAGE, 1, 0,
                                      0, 0, NULL);
 
-        if (PipeHandle == NULL || PipeHandle == INVALID_HANDLE_VALUE)
+        if (PipeThread.handle == NULL || PipeThread.handle == INVALID_HANDLE_VALUE)
         {
             DEBUG_LOG("Error creating pipe with err: ", GetLastError(), "!");
             continue;
         }
 
-        DEBUG_LOG("Created Named pipe \"", std::string{PipeName}, "\"");
+        DEBUG_LOG("Created Named pipe \"", std::string{PipeThread.pipeName}, "\"");
 
         DEBUG_LOG("Waiting for client!");
-        PipeThreadStatus = ThreadStatus::WaitingForConnection;
-        BOOL result = ConnectNamedPipe(PipeHandle, NULL); // Blocking
+        PipeThread.status = ThreadStatus::WaitingForConnection;
+        BOOL result = ConnectNamedPipe(PipeThread.handle, NULL); // Blocking
 
         if (!result)
         {
@@ -324,21 +398,21 @@ static void PipeThreadFunc()
 
         DEBUG_LOG("Client connected!");
 
-        while (Run)
+        while (PipeThread.run)
         {
             DEBUG_LOG("Retrieving message to send.");
             std::string msg{""};
 
             {
-                std::unique_lock<std::mutex> lock(MsgMutex);
-                PipeThreadStatus = ThreadStatus::WaitinForMessage;
+                std::unique_lock<std::mutex> lock(MsgCont.mutex);
+                PipeThread.status = ThreadStatus::WaitinForMessage;
 
                 // Block thread until message is added to queue.
-                while (MsgQueue.empty())
-                    MsgCV.wait(lock);
+                while (MsgCont.queue.empty())
+                    MsgCont.cv.wait(lock);
 
-                msg = MsgQueue.front();
-                MsgQueue.pop();
+                msg = MsgCont.queue.front();
+                MsgCont.queue.pop();
 
                 // Do not send empty message.
                 if (msg.empty())
@@ -349,11 +423,11 @@ static void PipeThreadFunc()
             }
 
             // Send retrieved message.
-            PipeThreadStatus = ThreadStatus::Sending;
+            PipeThread.status = ThreadStatus::Sending;
             DEBUG_LOG("Sending \"", msg, "\" to client!");
             const DWORD length{static_cast<DWORD>(msg.size())};
             DWORD numBytesWritten = 0;
-            result = WriteFile(PipeHandle, msg.c_str(), length, &numBytesWritten, NULL);
+            result = WriteFile(PipeThread.handle, msg.c_str(), length, &numBytesWritten, NULL);
 
             if (!result)
             {
@@ -369,16 +443,123 @@ static void PipeThreadFunc()
             DEBUG_LOG("Data sent to client!");
         }
 
-        if (!Run)
+        if (!PipeThread.run)
         {
             DEBUG_LOG("Pipe server is closing!");
             ShouldClose = true;
         }
     }
 
-    PipeThreadStatus = ThreadStatus::NONE;
-    CloseHandle(PipeHandle);
+    PipeThread.status = ThreadStatus::NONE;
+    CloseHandle(PipeThread.handle);
     DEBUG_LOG("Ended pipe server!");
+}
+
+
+static void GetDllPath(HMODULE hModule)
+{
+    char path[MAX_PATH];
+    if (GetModuleFileName(hModule, path, sizeof(path)) == 0)
+    {
+        DEBUG_LOG("GetModuleFileName failed with error \"", GetLastError(), "\"");
+        return;
+    }
+    std::string spath = std::string{path};
+    std::size_t lastBackslash = spath.find_last_of('\\');
+    if (lastBackslash != std::string::npos)
+        DllPath = spath.substr(0, lastBackslash + 1);
+    DEBUG_LOG("DLL path = \"", DllPath, "\"");
+}
+
+static void StartPipeThread()
+{
+    if (Configs.enabled)
+    {
+        DEBUG_LOG("Creating PipeThread.");
+        PipeThread.run = true;
+        PipeThread.thread = std::thread(PipeThreadFunc);
+    }
+}
+
+static void StopPipeThread()
+{
+    if (Configs.enabled)
+    {
+        DEBUG_LOG("Starting to close PipeThread...");
+
+        // Begin to close PipeThread.
+        PipeThread.run = false;
+
+        // Add empty message in case of blocked waiting.
+        if (PipeThread.status == ThreadStatus::WaitinForMessage)
+        {
+            DEBUG_LOG("PipeThread is waiting for message, attempting to send empty message...");
+            std::unique_lock<std::mutex> lock(MsgCont.mutex);
+            MsgCont.queue.emplace("");
+            MsgCont.cv.notify_one();
+        }
+
+        // No connection exists, create a new connection to exit blocking.
+        if (PipeThread.status == ThreadStatus::WaitingForConnection)
+        {
+            // CancelSynchronousIo(PipeThread.handle);
+            DEBUG_LOG("PipeThread is waiting for a connection, attempting to connect...");
+            HANDLE pipe = CreateFile(PipeThread.pipeName.data(), GENERIC_READ | GENERIC_WRITE, 0, NULL,
+                                     OPEN_EXISTING, 0, NULL);
+            CloseHandle(pipe);
+        }
+
+        DEBUG_LOG("Waiting for PipeThread to join...");
+        PipeThread.thread.join();
+        DEBUG_LOG("PipeThread Closed!");
+    }
+}
+
+BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved)
+{
+    switch (ul_reason_for_call)
+    {
+        case DLL_PROCESS_ATTACH:
+        {
+            GetDllPath(hModule);
+
+            if (std::filesystem::exists(DllPath + std::string{ConfigFile}))
+                LoadConfigFile();
+            else
+                CreateConfigFile();
+
+            StartPipeThread();
+        }
+        case DLL_THREAD_ATTACH:
+        case DLL_THREAD_DETACH:
+            break;
+        case DLL_PROCESS_DETACH:
+        {
+            StopPipeThread();
+            break;
+        }
+
+    }
+    return TRUE;
+}
+
+/* dll attach -- from winapi */
+static void dll_init(HANDLE hModule)
+{
+    return;
+}
+
+/* dll detach -- from winapi */
+static void dll_exit()
+{
+    return;
+}
+
+/* window callback -- return is assigned to umsg (return zero to not be processed by arcdps or game)
+ */
+static uintptr_t mod_wnd(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+    return uMsg;
 }
 
 static arcdps_exports arc_exports;
@@ -386,7 +567,6 @@ static arcdps_exports arc_exports;
 static arcdps_exports* mod_init()
 {
     DEBUG_LOG("Initializing ArcDPS Bridge");
-    ArcLoaded = true;
 
     /* for arcdps */
     memset(&arc_exports, 0, sizeof(arcdps_exports));
@@ -394,14 +574,22 @@ static arcdps_exports* mod_init()
     arc_exports.imguivers = 18000; // IMGUI_VERSION_NUM;
     arc_exports.size = sizeof(arcdps_exports);
     arc_exports.out_name = "ArcDPS Bridge";
-    arc_exports.out_build = "1.0";
+    arc_exports.out_build = BridgeInfo.version.data();
     arc_exports.wnd_nofilter = mod_wnd;
     arc_exports.combat = mod_combat;
-    // arc_exports.size = (uintptr_t)"error message if you decide to not load, sig must be 0";
 
-    DEBUG_LOG("Creating PipeThread.");
-    Run = true;
-    PipeThread = std::thread(PipeThreadFunc);
+    if (Configs.enabled && Configs.arcDPS)
+        BridgeInfo.arcLoaded = true;
+    else
+    {
+        // This will create a warning in the arcdps log.
+        // Will maybe change this later, due to having a silent warning instead.
+        // Since this is not an error, only a way to turn of the extension and
+        // also have it loaded at the same time.
+        arc_exports.sig = 0;
+        arc_exports.size = (uintptr_t)"ArcDPS is disabled by configs!";
+        DEBUG_LOG("ArcDPS is disabled by configs!");
+    }
 
     return &arc_exports;
 }
@@ -410,34 +598,8 @@ static arcdps_exports* mod_init()
 static uintptr_t mod_release()
 {
     DEBUG_LOG("Releasing ArcDPS Bridge");
-    DEBUG_LOG("Starting to close PipeThread...");
-    ArcLoaded = false;
+    BridgeInfo.arcLoaded = false;
 
-    // Begin to close PipeThread.
-    Run = false;
-
-    // Add empty message in case of blocked waiting.
-    if (PipeThreadStatus == ThreadStatus::WaitinForMessage)
-    {
-        DEBUG_LOG("PipeThread is waiting for message, attempting to send empty message...");
-        std::unique_lock<std::mutex> lock(MsgMutex);
-        MsgQueue.emplace("");
-        MsgCV.notify_one();
-    }
-
-    // No connection exists, create a new connection to exit blocking.
-    if (PipeThreadStatus == ThreadStatus::WaitingForConnection)
-    {
-        // CancelSynchronousIo(PipeHandle);
-        DEBUG_LOG("PipeThread is waiting for a connection, attempting to connect...");
-        HANDLE pipe = CreateFile(PipeName.data(), GENERIC_READ | GENERIC_WRITE, 0, NULL,
-                                 OPEN_EXISTING, 0, NULL);
-        CloseHandle(pipe);
-    }
-
-    DEBUG_LOG("Waiting for PipeThread to join...");
-    PipeThread.join();
-    DEBUG_LOG("PipeThread Closed!");
     return 0;
 }
 
@@ -446,14 +608,14 @@ extern "C" __declspec(dllexport) void* get_init_addr(char* arcversionstr, void* 
                                                      void* dxptr, HMODULE new_arcdll,
                                                      void* mallocfn, void* freefn, UINT dxver)
 {
-    arcvers = std::string{arcversionstr};
+    BridgeInfo.arcvers = std::string{arcversionstr};
     return mod_init;
 }
 
 /* export -- arcdps looks for this exported function and calls the address it returns on client exit */
 extern "C" __declspec(dllexport) void* get_release_addr()
 {
-    arcvers = "";
+    BridgeInfo.arcvers = "";
     return mod_release;
 }
 
@@ -484,6 +646,12 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
 extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(
     const ExtrasAddonInfo* pExtrasInfo, ExtrasSubscriberInfo* pSubscriberInfo)
 {
+    if (!Configs.enabled && !Configs.extras)
+    {
+        DEBUG_LOG("Unofficial Extras is disabled.");
+        return;
+    }
+
     if (pExtrasInfo->ApiVersion != 1)
     {
         DEBUG_LOG("Extra api version error, expected 1 and got ", pExtrasInfo->ApiVersion);
@@ -491,8 +659,8 @@ extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(
     }
 
     DEBUG_LOG("Enabled arcdps extra hook");
-    ExtraEnabled = true;
-    ExtraVersion = std::string{pExtrasInfo->StringVersion};
+    BridgeInfo.extraLoaded = true;
+    BridgeInfo.extraVersion = std::string{pExtrasInfo->StringVersion};
 
     pSubscriberInfo->SubscriberName = "ArcDPS Bridge";
     pSubscriberInfo->SquadUpdateCallback = squad_update_callback;
