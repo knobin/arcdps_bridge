@@ -19,6 +19,7 @@
 #include <string>
 #include <thread>
 #include <filesystem>
+#include <array>
 
 // Windows Headers
 #include <windows.h>
@@ -298,26 +299,92 @@ static std::string BridgeInfoToJSON(ag* agent)
     return ss.str();
 }
 
+static struct PlayerContainer
+{
+    struct PlayerInfo
+    {
+        std::string accountName{};
+        std::string json{};
+        bool valid{false};
+    };
+    std::string self{};
+    std::array<PlayerInfo, 50> players{};
+
+    void add(const std::string& accountName, const std::string& json)
+    {
+        auto player = std::find_if(players.begin(), players.end(), [&accountName](const PlayerInfo& p) {
+            return (accountName == p.accountName);
+        });
+        bool updated = player != players.end();
+        if (player == players.end())
+        {
+            player = std::find_if(players.begin(), players.end(), [](const PlayerInfo& p) {
+                return !p.valid;
+            });
+        }
+
+        if (player != players.end())
+        {
+            DEBUG_LOG(((updated) ? "Updated" : "Added"), " \"", accountName, "\" ", ((updated) ? "in" : "to"), " squad.");
+            player->accountName = accountName;
+            player->json = json;
+            player->valid = true;
+            return;
+        }
+
+        DEBUG_LOG("Exceeding squad limit of 50 players trying to add \"", accountName, "\".");
+    }
+
+    void remove(const std::string& accountName)
+    {
+        if (accountName == self)
+        {
+            DEBUG_LOG("Self \"", accountName, "\" left squad, removing all players.");
+            for (std::size_t i{0}; i < players.size(); ++i)
+                players[i].valid = false;
+        }
+        else
+        {
+            DEBUG_LOG("Removing \"", accountName, "\" from squad.");
+            auto player = std::find_if(players.begin(), players.end(), [&accountName](const PlayerInfo& p) {
+                return (accountName == p.accountName);
+            });
+            if (player != players.end())
+                player->valid = false;
+        }
+    }
+
+    std::string toJSON() const
+    {
+        std::ostringstream ss{};
+        ss << "{\"type\":\"Squad\",";
+        ss << "\"members\":[";
+
+        uint8_t added{0};
+        for (std::size_t i{0}; i < players.size(); ++i)
+            if (players[i].valid)
+                ss << ((added++ > 0) ? "," : "") << players[i].json;
+
+        ss << "]}";
+        return ss.str();
+    }
+
+} PlayerCollection;
+
 enum class MessageType : uint8_t
 {
     NONE = 0,
     Info = 1,
     Combat = 2,
-    Extra = 4
+    Extra = 4,
+    Squad = 8
 };
 
 static void SendToClient(const std::string& msg, MessageType type)
 {
     // Send if pipe has been created and a connection exists.
-    bool send{(PipeThread.status != ThreadStatus::NONE &&
-               PipeThread.status != ThreadStatus::WaitingForConnection)};
-
-    // If either not created or no connection exists.
-    // Only put "Extra" messages on the queue.
-    if (!send && (type == MessageType::Extra))
-        send = true;
-
-    if (send)
+    if (PipeThread.status != ThreadStatus::NONE
+        && PipeThread.status != ThreadStatus::WaitingForConnection)
     {
         std::unique_lock<std::mutex> lock(MsgCont.mutex);
         if (MsgCont.queue.size() < 200)
@@ -566,8 +633,6 @@ static arcdps_exports arc_exports;
 /* initialize mod -- return table that arcdps will use for callbacks */
 static arcdps_exports* mod_init()
 {
-    DEBUG_LOG("Initializing ArcDPS Bridge");
-
     /* for arcdps */
     memset(&arc_exports, 0, sizeof(arcdps_exports));
     arc_exports.sig = 0x1EB0697;
@@ -579,7 +644,10 @@ static arcdps_exports* mod_init()
     arc_exports.combat = mod_combat;
 
     if (Configs.enabled && Configs.arcDPS)
+    {
         BridgeInfo.arcLoaded = true;
+        DEBUG_LOG("ArcDPS is enabled.");
+    }
     else
     {
         // This will create a warning in the arcdps log.
@@ -625,7 +693,7 @@ static std::string ExtraDataToJSON(const UserInfo* user)
     ss << "{\"type\":\"Extra\","
        << "\"extra\":{\"AccountName\":\"" << std::string{user->AccountName} << "\","
        << "\"Role\":" << static_cast<uint64_t>(static_cast<uint8_t>(user->Role)) << ","
-       << "\"Subgroup\":" << static_cast<uint64_t>(user->Subgroup) << "}}\0";
+       << "\"Subgroup\":" << static_cast<uint64_t>(user->Subgroup) << "}}";
     return ss.str();
 }
 
@@ -634,10 +702,17 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
 {
     for (uint64_t i{0}; i < updatedUsersCount; ++i)
     {
-        const UserInfo* info{&updatedUsers[i]};
-        if (info)
+        const UserInfo* uinfo{&updatedUsers[i]};
+        if (uinfo)
         {
-            SendToClient(ExtraDataToJSON(info), MessageType::Extra);
+            std::string data{ExtraDataToJSON(uinfo)};
+
+            if (uinfo->Role == UserRole::None)
+                PlayerCollection.remove(std::string{uinfo->AccountName});
+            else
+                PlayerCollection.add(std::string{uinfo->AccountName}, data);
+
+            SendToClient(data, MessageType::Extra);
         }
     }
 }
@@ -664,4 +739,7 @@ extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(
 
     pSubscriberInfo->SubscriberName = "ArcDPS Bridge";
     pSubscriberInfo->SquadUpdateCallback = squad_update_callback;
+
+    PlayerCollection.self = pExtrasInfo->SelfAccountName;
+    DEBUG_LOG("Self account name: \"", PlayerCollection.self, "\"");
 }
