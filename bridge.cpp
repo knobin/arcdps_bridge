@@ -20,6 +20,7 @@
 #include <thread>
 #include <filesystem>
 #include <array>
+#include <type_traits>
 
 // Windows Headers
 #include <windows.h>
@@ -256,8 +257,9 @@ enum class ThreadStatus : uint8_t
 {
     NONE = 0,                 // Not created.
     WaitingForConnection = 4, // Pipe is created and waiting for connection.
-    WaitinForMessage = 8,     // Pipe connection exists.
-    Sending = 16              // Pipe connection exists and is sending.
+    Reading = 8,              // Pipe is reading / waiting for a message from the client.
+    WaitingForMessage = 16,   // Pipe connection exists and is waiting for a message to be queued.
+    Sending = 32              // Pipe connection exists and is sending.
 };
 
 // Variables for thread that is sending data.
@@ -287,30 +289,37 @@ static struct Info
     bool extraLoaded{false}; // Is Unofficial Extras loaded.
 } BridgeInfo;
 
-static std::string BridgeInfoToJSON(ag* agent)
+static std::string BridgeInfoToJSON()
 {
     std::ostringstream ss{};
     ss << "{\"type\":\"Info\",";
     ss << "\"Version\":\"" << std::string{BridgeInfo.version} << "\","
        << "\"ExtraVersion\":\"" << BridgeInfo.extraVersion << "\","
        << "\"ArcVersion\":\"" << BridgeInfo.arcvers << "\","
-       << "\"ArcLoaded\":\"" << ((BridgeInfo.arcLoaded) ? "true" : "false") << ","
-       << "\"ExtraLoaded\":\"" << ((BridgeInfo.extraLoaded) ? "true" : "false") << "}";
+       << "\"ArcLoaded\":" << ((BridgeInfo.arcLoaded) ? "true" : "false") << ","
+       << "\"ExtraLoaded\":" << ((BridgeInfo.extraLoaded) ? "true" : "false") << "}";
     return ss.str();
 }
+
+static struct EventTracking
+{
+    bool combat{false};
+    bool extra{false};
+} UseEvents;
 
 static struct PlayerContainer
 {
     struct PlayerInfo
     {
         std::string accountName{};
-        std::string json{};
+        std::string arc{};
+        std::string extra{};
         bool valid{false};
     };
     std::string self{};
     std::array<PlayerInfo, 50> players{};
 
-    void add(const std::string& accountName, const std::string& json)
+    PlayerInfo* add(const std::string& accountName)
     {
         auto player = std::find_if(players.begin(), players.end(), [&accountName](const PlayerInfo& p) {
             return (accountName == p.accountName);
@@ -327,12 +336,11 @@ static struct PlayerContainer
         {
             DEBUG_LOG(((updated) ? "Updated" : "Added"), " \"", accountName, "\" ", ((updated) ? "in" : "to"), " squad.");
             player->accountName = accountName;
-            player->json = json;
-            player->valid = true;
-            return;
+            return &(*player);
         }
 
         DEBUG_LOG("Exceeding squad limit of 50 players trying to add \"", accountName, "\".");
+        return nullptr;
     }
 
     void remove(const std::string& accountName)
@@ -357,15 +365,23 @@ static struct PlayerContainer
     std::string toJSON() const
     {
         std::ostringstream ss{};
-        ss << "{\"type\":\"Squad\",";
+        ss << "{\"type\":\"Squad\",\"squad\":{";
+        ss << "\"self\":\"" << self << "\",";
         ss << "\"members\":[";
 
         uint8_t added{0};
         for (std::size_t i{0}; i < players.size(); ++i)
             if (players[i].valid)
-                ss << ((added++ > 0) ? "," : "") << players[i].json;
+            {
+                const PlayerInfo& player{players[i]};
+                ss << ((added++ > 0) ? "," : "") << "{"
+                   << "\"arc\":" << ((!player.arc.empty()) ? player.arc : "null")
+                   << "\"extra\":" << ((!player.extra.empty()) ? player.extra : "null")
+                   << "}";
+            }
 
-        ss << "]}";
+
+        ss << "]}}";
         return ss.str();
     }
 
@@ -401,6 +417,9 @@ static void SendToClient(const std::string& msg, MessageType type)
 static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uint64_t id,
                             uint64_t revision)
 {
+    if (!UseEvents.combat)
+        return 0;
+
     // Combat event.
     std::ostringstream ss{};
     ss << "{\"type\":\"Combat\",";
@@ -431,6 +450,66 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
     return 0;
 }
 
+struct SendStatus
+{
+    DWORD numBytesWritten{0};
+    DWORD error{0};
+    BOOL success{false};
+};
+
+static SendStatus WriteToPipe(HANDLE handle, const std::string& msg)
+{
+    DEBUG_MSG_LOG("Sending \"", msg, "\" to client!");
+    const DWORD length{static_cast<DWORD>(msg.size())};
+    SendStatus status{};
+    status.success = WriteFile(handle, msg.c_str(), length, &status.numBytesWritten, NULL);
+    if (!status.success)
+    {
+        status.error = GetLastError();
+        DEBUG_LOG("Error sending data with err: ", status.error, "!");
+    }
+    return status;
+}
+
+struct ReadStatus
+{
+    DWORD numBytesRead{0};
+    DWORD error{0};
+    BOOL success{false};
+    std::string data{};
+};
+
+#define BUFSIZE 512
+
+static ReadStatus ReadFromPipe(HANDLE handle)
+{
+    DEBUG_LOG("Reading data from client!");
+    ReadStatus status{};
+    TCHAR buffer[BUFSIZE];
+
+    do
+    {
+        status.success = ReadFile(handle, buffer, BUFSIZE*sizeof(TCHAR), &status.numBytesRead, NULL);
+        status.error = GetLastError();
+        if (!status.success && status.error != ERROR_MORE_DATA)
+            break;
+
+        if (status.numBytesRead < BUFSIZE)
+            buffer[status.numBytesRead] = '\0';
+
+        status.data += std::string{buffer};
+    } while (!status.success);
+
+    if (!status.success)
+    {
+        status.error = GetLastError();
+        DEBUG_LOG("Error reading data with err: ", status.error, "!");
+        return status;
+    }
+    DEBUG_MSG_LOG("Retrieved \"", status.data, "\" from client!");
+    return status;
+}
+
 static void PipeThreadFunc()
 {
     DEBUG_LOG("Started Pipe server!");
@@ -442,8 +521,8 @@ static void PipeThreadFunc()
         CloseHandle(PipeThread.handle);
 
         DEBUG_LOG("Creating Named pipe \"", std::string{PipeThread.pipeName}, "\"");
-        PipeThread.handle = CreateNamedPipe(PipeThread.pipeName.data(), PIPE_ACCESS_DUPLEX, PIPE_TYPE_MESSAGE, 1, 0,
-                                     0, 0, NULL);
+        PipeThread.handle = CreateNamedPipe(PipeThread.pipeName.data(), PIPE_ACCESS_DUPLEX, PIPE_TYPE_MESSAGE,
+                                            1, 0, 0, 0, NULL);
 
         if (PipeThread.handle == NULL || PipeThread.handle == INVALID_HANDLE_VALUE)
         {
@@ -463,16 +542,67 @@ static void PipeThreadFunc()
             continue;
         }
 
-        DEBUG_LOG("Client connected!");
+        DEBUG_LOG("Client connected, sending bridge information...");
+        std::string msg = BridgeInfoToJSON();
+        PipeThread.status = ThreadStatus::Sending;
+        SendStatus sendStatus = WriteToPipe(PipeThread.handle, msg);
+        if (!result)
+            continue;
+
+        DEBUG_LOG("Waiting for client to subscribe...");
+        PipeThread.status = ThreadStatus::Reading;
+        ReadStatus readStatus = ReadFromPipe(PipeThread.handle);
+        if (!result)
+            continue;
+
+        // Expecting: {"subscribe":15}
+        // The number is the MessageType's you want to recieved. 15 in this case is all of them.
+        // This was to extract the number should probably change in the future.
+        std::size_t firstDigit = readStatus.data.find_first_of("0123456789");
+        using MessageTypeU = std::underlying_type_t<MessageType>;
+        MessageTypeU filter = 0;
+        if (firstDigit != std::string::npos)
+        {
+            std::size_t lastDigit = readStatus.data.find_first_not_of("0123456789", firstDigit);
+            if (lastDigit != std::string::npos && lastDigit > firstDigit)
+            {
+                DEBUG_LOG("substr: \"", readStatus.data.substr(firstDigit, lastDigit - firstDigit), "\"");
+                std::istringstream iss{readStatus.data.substr(firstDigit, lastDigit - firstDigit)};
+                int i = 0;
+                iss >> i;
+                filter = static_cast<MessageTypeU>(i);
+                DEBUG_LOG("Recieved filter \"", static_cast<int>(filter), "\" from client.", i);
+            }
+        }
+
+        if (filter == 0)
+        {
+            DEBUG_LOG("Filter is 0!");
+            continue;
+        }
+        else if ((filter & 8) == 8)
+        {
+            PipeThread.status = ThreadStatus::Sending;
+            DEBUG_LOG("Sending Squad information to client...");
+            SendStatus sendStatus = WriteToPipe(PipeThread.handle, PlayerCollection.toJSON());
+        }
+
+        MessageTypeU combatValue = static_cast<MessageTypeU>(MessageType::Combat);
+        UseEvents.combat = ((filter & combatValue) == combatValue);
+        DEBUG_LOG("Client has subscribed to \"Combat\": ", UseEvents.combat);
+
+        MessageTypeU extraValue = static_cast<MessageTypeU>(MessageType::Extra);
+        UseEvents.extra = ((filter & extraValue) == extraValue);
+        DEBUG_LOG("Client has subscribed to \"Extra\": ", UseEvents.extra);
 
         while (PipeThread.run)
         {
-            DEBUG_LOG("Retrieving message to send.");
-            std::string msg{""};
+            DEBUG_MSG_LOG("Retrieving message to send.");
+            msg = "";
 
             {
                 std::unique_lock<std::mutex> lock(MsgCont.mutex);
-                PipeThread.status = ThreadStatus::WaitinForMessage;
+                PipeThread.status = ThreadStatus::WaitingForMessage;
 
                 // Block thread until message is added to queue.
                 while (MsgCont.queue.empty())
@@ -491,23 +621,18 @@ static void PipeThreadFunc()
 
             // Send retrieved message.
             PipeThread.status = ThreadStatus::Sending;
-            DEBUG_LOG("Sending \"", msg, "\" to client!");
-            const DWORD length{static_cast<DWORD>(msg.size())};
-            DWORD numBytesWritten = 0;
-            result = WriteFile(PipeThread.handle, msg.c_str(), length, &numBytesWritten, NULL);
+            sendStatus = WriteToPipe(PipeThread.handle, msg);
 
-            if (!result)
+            if (!sendStatus.success)
             {
-                DWORD err = GetLastError();
-                DEBUG_LOG("Error sending data with err: ", err, "!");
-                if (err == ERROR_BROKEN_PIPE || err == ERROR_NO_DATA)
+                if (sendStatus.error == ERROR_BROKEN_PIPE || sendStatus.error == ERROR_NO_DATA)
                 {
                     DEBUG_LOG("Client unexpectedly disconnected!");
                     break;
                 }
             }
 
-            DEBUG_LOG("Data sent to client!");
+            DEBUG_MSG_LOG("Data sent to client!");
         }
 
         if (!PipeThread.run)
@@ -558,7 +683,7 @@ static void StopPipeThread()
         PipeThread.run = false;
 
         // Add empty message in case of blocked waiting.
-        if (PipeThread.status == ThreadStatus::WaitinForMessage)
+        if (PipeThread.status == ThreadStatus::WaitingForConnection)
         {
             DEBUG_LOG("PipeThread is waiting for message, attempting to send empty message...");
             std::unique_lock<std::mutex> lock(MsgCont.mutex);
@@ -690,10 +815,9 @@ extern "C" __declspec(dllexport) void* get_release_addr()
 static std::string ExtraDataToJSON(const UserInfo* user)
 {
     std::ostringstream ss{};
-    ss << "{\"type\":\"Extra\","
-       << "\"extra\":{\"AccountName\":\"" << std::string{user->AccountName} << "\","
+    ss << "{\"AccountName\":\"" << std::string{user->AccountName} << "\","
        << "\"Role\":" << static_cast<uint64_t>(static_cast<uint8_t>(user->Role)) << ","
-       << "\"Subgroup\":" << static_cast<uint64_t>(user->Subgroup) << "}}";
+       << "\"Subgroup\":" << static_cast<uint64_t>(user->Subgroup) << "}";
     return ss.str();
 }
 
@@ -710,9 +834,23 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
             if (uinfo->Role == UserRole::None)
                 PlayerCollection.remove(std::string{uinfo->AccountName});
             else
-                PlayerCollection.add(std::string{uinfo->AccountName}, data);
+            {
+                PlayerInfo *player{PlayerCollection.add(std::string{uinfo->AccountName})}
+                if (player)
+                {
+                    player->extra = data;
+                    player->valid = true;
+                }
+            }
 
-            SendToClient(data, MessageType::Extra);
+            if (UseEvents.extra)
+            {
+                std::ostringstream ss{};
+                ss << "{\"type\":\"Extra\","
+                   << "\"extra\":" << data << "}";
+                SendToClient(ss.str(), MessageType::Extra);
+            }
+
         }
     }
 }
