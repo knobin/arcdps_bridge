@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.12.4)
 project(arcdps_bridge VERSION 1 DESCRIPTION "ArcDPS Extension which sends the events over a named pipe.")
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
 set(THREADS_PREFER_PTHREAD_FLAG TRUE)
 

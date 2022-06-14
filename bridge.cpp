@@ -49,16 +49,16 @@ static void Print(Args&&... args)
 
     static std::mutex LogMutex;
 
-    time_t now = time(0);
-    struct tm tstruct;
-    char buf[80];
-    tstruct = *localtime(&now);
-    strftime(buf, sizeof(buf), "%Y-%m-%d %X", &tstruct);
+    std::time_t timer{0};
+    std::tm bt{};
+    localtime_s(&bt, &timer);
+    char time_buf[80];
+    std::string time_str{time_buf, std::strftime(time_buf, sizeof(time_buf), "%F %T", &bt)};
 
     std::unique_lock<std::mutex> lock(LogMutex);
     std::ofstream outfile; // Opens file for every call to print. Bad. but fine for debugging purposes.
     outfile.open(DllPath + std::string{Configs.logFile}, std::ios_base::app);
-    outfile << "[" << buf << "] ";
+    outfile << "[" << time_str << "] ";
     (outfile << ... << args) << '\n';
     outfile.close();
 }
@@ -373,7 +373,7 @@ static struct PlayerContainer
         for (std::size_t i{0}; i < players.size(); ++i)
             if (players[i].valid)
             {
-                const PlayerInfo& player{players[i]};
+                const PlayerContainer::PlayerInfo& player{players[i]};
                 ss << ((added++ > 0) ? "," : "") << "{"
                    << "\"arc\":" << ((!player.arc.empty()) ? player.arc : "null")
                    << "\"extra\":" << ((!player.extra.empty()) ? player.extra : "null")
@@ -835,7 +835,7 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
                 PlayerCollection.remove(std::string{uinfo->AccountName});
             else
             {
-                PlayerInfo *player{PlayerCollection.add(std::string{uinfo->AccountName})}
+                PlayerContainer::PlayerInfo *player{PlayerCollection.add(std::string{uinfo->AccountName})};
                 if (player)
                 {
                     player->extra = data;
@@ -855,9 +855,15 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
     }
 }
 
+// arcDPS unofficial extras init data.
+static ExtrasSubscriberInfoV1 ExtrasInfo{
+    .SubscriberName = "ArcDPS Bridge", 
+    .SquadUpdateCallback = squad_update_callback
+};
+
 // Exported init function for arcDPS unofficial extras API.
 extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(
-    const ExtrasAddonInfo* pExtrasInfo, ExtrasSubscriberInfo* pSubscriberInfo)
+    const ExtrasAddonInfo* pExtrasInfo, void* pSubscriberInfo)
 {
     if (!Configs.enabled && !Configs.extras)
     {
@@ -875,8 +881,7 @@ extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(
     BridgeInfo.extraLoaded = true;
     BridgeInfo.extraVersion = std::string{pExtrasInfo->StringVersion};
 
-    pSubscriberInfo->SubscriberName = "ArcDPS Bridge";
-    pSubscriberInfo->SquadUpdateCallback = squad_update_callback;
+    pSubscriberInfo = static_cast<void*>(&ExtrasInfo);
 
     PlayerCollection.self = pExtrasInfo->SelfAccountName;
     DEBUG_LOG("Self account name: \"", PlayerCollection.self, "\"");
