@@ -312,8 +312,8 @@ static struct PlayerContainer
     struct PlayerInfo
     {
         std::string accountName{};
-        std::string arc{};
-        std::string extra{};
+        UserRole role{};
+        uint8_t subgroup{};
         bool valid{false};
     };
     std::string self{};
@@ -382,8 +382,9 @@ static struct PlayerContainer
             {
                 const PlayerContainer::PlayerInfo& player{players[i]};
                 ss << ((added++ > 0) ? "," : "") << "{"
-                   << "\"arc\":" << ((!player.arc.empty()) ? player.arc : "null")
-                   << ",\"extra\":" << ((!player.extra.empty()) ? player.extra : "null")
+                   << "\"AccountName\":\"" << player.accountName << "\","
+                   << "\"Role\":" << static_cast<int>(player.role) << ","
+                   << "\"Subgroup\":" << static_cast<int>(player.subgroup)
                    << "}";
             }
 
@@ -689,15 +690,6 @@ static void StopPipeThread()
         // Begin to close PipeThread.
         PipeThread.run = false;
 
-        // Add empty message in case of blocked waiting.
-        if (PipeThread.status == ThreadStatus::WaitingForConnection)
-        {
-            DEBUG_LOG("PipeThread is waiting for message, attempting to send empty message...");
-            std::unique_lock<std::mutex> lock(MsgCont.mutex);
-            MsgCont.queue.emplace("");
-            MsgCont.cv.notify_one();
-        }
-
         // No connection exists, create a new connection to exit blocking.
         if (PipeThread.status == ThreadStatus::WaitingForConnection)
         {
@@ -706,6 +698,15 @@ static void StopPipeThread()
             HANDLE pipe = CreateFile(PipeThread.pipeName.data(), GENERIC_READ | GENERIC_WRITE, 0, NULL,
                                      OPEN_EXISTING, 0, NULL);
             CloseHandle(pipe);
+        }
+
+        // Add empty message in case of blocked waiting.
+        if (PipeThread.status == ThreadStatus::WaitingForMessage)
+        {
+            DEBUG_LOG("PipeThread is waiting for message, attempting to send empty message...");
+            std::unique_lock<std::mutex> lock(MsgCont.mutex);
+            MsgCont.queue.emplace("");
+            MsgCont.cv.notify_one();
         }
 
         DEBUG_LOG("Waiting for PipeThread to join...");
@@ -845,7 +846,9 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
                 PlayerContainer::PlayerInfo *player{PlayerCollection.add(std::string{uinfo->AccountName})};
                 if (player)
                 {
-                    player->extra = data;
+                    player->accountName = uinfo->AccountName;
+                    player->role = uinfo->Role;
+                    player->subgroup = uinfo->Subgroup;
                     player->valid = true;
                 }
             }
