@@ -49,7 +49,7 @@ static void Print(Args&&... args)
 
     static std::mutex LogMutex;
 
-    std::time_t timer{0};
+    std::time_t timer{std::time(0)};
     std::tm bt{};
     localtime_s(&bt, &timer);
     char time_buf[80];
@@ -318,9 +318,12 @@ static struct PlayerContainer
     };
     std::string self{};
     std::array<PlayerInfo, 50> players{};
+    mutable std::mutex mutex{};
 
     PlayerInfo* add(const std::string& accountName)
     {
+        std::unique_lock<std::mutex> lock(mutex);
+
         auto player = std::find_if(players.begin(), players.end(), [&accountName](const PlayerInfo& p) {
             return (accountName == p.accountName);
         });
@@ -345,6 +348,8 @@ static struct PlayerContainer
 
     void remove(const std::string& accountName)
     {
+        std::unique_lock<std::mutex> lock(mutex);
+
         if (accountName == self)
         {
             DEBUG_LOG("Self \"", accountName, "\" left squad, removing all players.");
@@ -364,6 +369,8 @@ static struct PlayerContainer
 
     std::string toJSON() const
     {
+        std::unique_lock<std::mutex> lock(mutex);
+
         std::ostringstream ss{};
         ss << "{\"type\":\"Squad\",\"squad\":{";
         ss << "\"self\":\"" << self << "\",";
@@ -376,7 +383,7 @@ static struct PlayerContainer
                 const PlayerContainer::PlayerInfo& player{players[i]};
                 ss << ((added++ > 0) ? "," : "") << "{"
                    << "\"arc\":" << ((!player.arc.empty()) ? player.arc : "null")
-                   << "\"extra\":" << ((!player.extra.empty()) ? player.extra : "null")
+                   << ",\"extra\":" << ((!player.extra.empty()) ? player.extra : "null")
                    << "}";
             }
 
@@ -855,12 +862,6 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
     }
 }
 
-// arcDPS unofficial extras init data.
-static ExtrasSubscriberInfoV1 ExtrasInfo{
-    .SubscriberName = "ArcDPS Bridge", 
-    .SquadUpdateCallback = squad_update_callback
-};
-
 // Exported init function for arcDPS unofficial extras API.
 extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(
     const ExtrasAddonInfo* pExtrasInfo, void* pSubscriberInfo)
@@ -871,18 +872,28 @@ extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(
         return;
     }
 
-    if (pExtrasInfo->ApiVersion != 1)
+    if (pExtrasInfo->ApiVersion != 2)
     {
-        DEBUG_LOG("Extra api version error, expected 1 and got ", pExtrasInfo->ApiVersion);
+        DEBUG_LOG("Extra api version error, expected 2 and got ", pExtrasInfo->ApiVersion);
         return;
     }
 
-    DEBUG_LOG("Enabled arcdps extra hook");
-    BridgeInfo.extraLoaded = true;
-    BridgeInfo.extraVersion = std::string{pExtrasInfo->StringVersion};
+    if (pExtrasInfo->MaxInfoVersion == 1)
+    {
+        DEBUG_LOG("Enabled arcdps extra hook");
+        BridgeInfo.extraLoaded = true;
+        BridgeInfo.extraVersion = std::string{pExtrasInfo->StringVersion};
 
-    pSubscriberInfo = static_cast<void*>(&ExtrasInfo);
+        ExtrasSubscriberInfoV1 extrasInfo{};
+        extrasInfo.InfoVersion = 1;
+        extrasInfo.SubscriberName = "ArcDPS Bridge";
+        extrasInfo.SquadUpdateCallback = squad_update_callback;
+        *static_cast<ExtrasSubscriberInfoV1*>(pSubscriberInfo) = extrasInfo;
 
-    PlayerCollection.self = pExtrasInfo->SelfAccountName;
-    DEBUG_LOG("Self account name: \"", PlayerCollection.self, "\"");
+        PlayerCollection.self = pExtrasInfo->SelfAccountName;
+        DEBUG_LOG("Self account name: \"", PlayerCollection.self, "\"");
+        return;
+    }
+
+    DEBUG_LOG("Extra max info version \"", pExtrasInfo->MaxInfoVersion, "\" is not supported.");
 }
