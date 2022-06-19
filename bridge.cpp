@@ -315,107 +315,12 @@ static std::string BridgeInfoToJSON()
     return ss.str();
 }
 
-static struct EventTracking
-{
-    bool combat{false};
-    bool extra{false};
-} UseEvents;
-
-static struct PlayerContainer
-{
-    struct PlayerInfo
-    {
-        std::string accountName{};
-        UserRole role{};
-        uint8_t subgroup{};
-        bool valid{false};
-    };
-    std::string self{};
-    std::array<PlayerInfo, 50> players{};
-    mutable std::mutex mutex{};
-
-    PlayerInfo* add(const std::string& accountName)
-    {
-        std::unique_lock<std::mutex> lock(mutex);
-
-        auto player = std::find_if(players.begin(), players.end(), [&accountName](const PlayerInfo& p) {
-            return (accountName == p.accountName);
-        });
-        bool updated = player != players.end();
-        if (player == players.end())
-        {
-            player = std::find_if(players.begin(), players.end(), [](const PlayerInfo& p) {
-                return !p.valid;
-            });
-        }
-
-        if (player != players.end())
-        {
-            DEBUG_LOG(((updated) ? "Updated" : "Added"), " \"", accountName, "\" ", ((updated) ? "in" : "to"), " squad.");
-            player->accountName = accountName;
-            return &(*player);
-        }
-
-        DEBUG_LOG("Exceeding squad limit of 50 players trying to add \"", accountName, "\".");
-        return nullptr;
-    }
-
-    void remove(const std::string& accountName)
-    {
-        std::unique_lock<std::mutex> lock(mutex);
-
-        if (accountName == self)
-        {
-            DEBUG_LOG("Self \"", accountName, "\" left squad, removing all players.");
-            for (std::size_t i{0}; i < players.size(); ++i)
-                players[i].valid = false;
-        }
-        else
-        {
-            DEBUG_LOG("Removing \"", accountName, "\" from squad.");
-            auto player = std::find_if(players.begin(), players.end(), [&accountName](const PlayerInfo& p) {
-                return (accountName == p.accountName);
-            });
-            if (player != players.end())
-                player->valid = false;
-        }
-    }
-
-    std::string toJSON() const
-    {
-        std::unique_lock<std::mutex> lock(mutex);
-
-        std::ostringstream ss{};
-        ss << "{\"type\":\"Squad\",\"squad\":{";
-        ss << "\"self\":\"" << self << "\",";
-        ss << "\"members\":[";
-
-        uint8_t added{0};
-        for (std::size_t i{0}; i < players.size(); ++i)
-            if (players[i].valid)
-            {
-                const PlayerContainer::PlayerInfo& player{players[i]};
-                ss << ((added++ > 0) ? "," : "") << "{"
-                   << "\"AccountName\":\"" << player.accountName << "\","
-                   << "\"Role\":" << static_cast<int>(player.role) << ","
-                   << "\"Subgroup\":" << static_cast<int>(player.subgroup)
-                   << "}";
-            }
-
-
-        ss << "]}}";
-        return ss.str();
-    }
-
-} PlayerCollection;
-
 enum class MessageType : uint8_t
 {
     NONE = 0,
-    Info = 1,
-    Combat = 2,
-    Extra = 4,
-    Squad = 8
+    Combat = 1,
+    Extra = 2,
+    Squad = 4
 };
 
 static void SendToClient(const std::string& msg, MessageType type)
@@ -440,11 +345,254 @@ static void SendToClient(const std::string& msg, MessageType type)
     }
 }
 
+static struct EventTracking
+{
+    bool combat{false};
+    bool extra{false};
+    bool squad{false};
+} UseEvents;
+
+static struct PlayerContainer
+{
+    struct BasePlayerInfo
+    {
+        std::string accountName{};
+        std::string characterName{};
+        uint32_t profession{};
+        uint32_t elite{};
+    };
+    struct PlayerInfo : BasePlayerInfo
+    {
+        UserRole role{};
+        uint8_t subgroup{};
+        bool valid{false};
+
+        std::string toJSON() const {
+            std::ostringstream ss{};
+            ss << "{"
+                << "\"AccountName\":\"" << accountName << "\","
+                << "\"CharacterName\":" << ((!characterName.empty()) ? "\"" + characterName + "\"" : "null") << ","
+                << "\"Profession\":" << profession << ","
+                << "\"Elite\":" << elite << ","
+                << "\"Role\":" << static_cast<int>(role) << ","
+                << "\"Subgroup\":" << static_cast<int>(subgroup)
+                << "}";
+            return ss.str();
+        }
+    };
+    BasePlayerInfo self{};
+    std::array<PlayerInfo, 50> players{};
+private: 
+    std::size_t validCount{0};
+public:    
+    mutable std::mutex mutex{};
+
+    std::size_t size() const
+    {
+#ifdef DEBUG
+        std::size_t count{0};
+        for (const PlayerInfo& player : players)
+            if (player.valid)
+                ++count;
+        if (count != validCount)
+            DEBUG_LOG("Size ", validCount, " is not the same as ", count," valid players");
+#endif
+        return validCount;
+    }
+
+    bool updateSelf(const BasePlayerInfo& pself)
+    {
+        std::unique_lock<std::mutex> lock(mutex);
+
+        self = pself;
+        DEBUG_LOG("Updated self \"", pself.accountName, "\" ", "information with character name: \"", self.characterName,"\".");
+
+        // Get self in squad if exists.
+        auto player = std::find_if(players.begin(), players.end(), [&pself](const PlayerInfo& p) {
+            return pself.accountName == p.accountName && p.valid;
+        });
+
+        if (player != players.end())
+        {
+            DEBUG_LOG("Updated (self) \"", pself.accountName, "\" ", "in squad.");
+            player->accountName = self.accountName;
+            player->characterName = self.characterName;
+            player->profession = self.profession;
+            player->elite = self.elite;
+            SendPlayerMsg("update", *player);
+            return true;
+        }
+        
+        return false;
+    }
+
+    std::optional<PlayerInfo> find(const std::string& accountName) const 
+    {
+        std::unique_lock<std::mutex> lock(mutex);
+
+        auto it = std::find_if(players.cbegin(), players.cend(), [&accountName](const PlayerInfo& p) {
+            return accountName == p.accountName && p.valid;
+        });
+
+        if (it != players.cend())
+            return *it;
+
+        return std::nullopt;
+    }
+
+    bool update(const PlayerInfo& playerUpdate)
+    {
+        std::unique_lock<std::mutex> lock(mutex);
+
+        // Get player if exists already.
+        auto player = std::find_if(players.begin(), players.end(), [&playerUpdate](const PlayerInfo& p) {
+            return playerUpdate.accountName == p.accountName && p.valid;
+        });
+
+        if (player != players.end())
+        {
+            DEBUG_LOG("Updated \"", playerUpdate.accountName, "\" ", "in squad.");
+            *player = playerUpdate;
+            SendPlayerMsg("update", *player);
+            return true;
+        }
+
+        DEBUG_LOG("Could not update player with \"", playerUpdate.accountName, "\" due to not being found.");
+        return false;
+    }
+
+    bool add(const PlayerInfo& playerAdd)
+    {
+        std::unique_lock<std::mutex> lock(mutex);
+
+        // Get player if exists already.
+        auto player = std::find_if(players.begin(), players.end(), [&playerAdd](const PlayerInfo& p) {
+            return playerAdd.accountName == p.accountName && p.valid;
+        });
+
+        // Add or Update status.
+        const bool updated = player != players.end();
+
+        // Player does not exist.
+        if (player == players.end())
+        {
+            // Finds an empty slot to use.
+            player = std::find_if(players.begin(), players.end(), [](const PlayerInfo& p) {
+                return !p.valid;
+            });
+        }
+
+        // Add or Update player.
+        if (player != players.end())
+        {
+            DEBUG_LOG(((updated) ? "Updated" : "Added"), " \"", playerAdd.accountName, "\" ", ((updated) ? "in" : "to"), " squad.");
+            *player = playerAdd;
+            if (playerAdd.accountName == self.accountName)
+            {
+                player->accountName = self.accountName;
+                player->characterName = self.characterName;
+                player->profession = self.profession;
+                player->elite = self.elite;
+            }
+            player->valid = true;
+            SendPlayerMsg(((updated) ? "update" : "add"), *player);
+            return true;
+        }
+
+        DEBUG_LOG("Exceeding squad limit of 50 players trying to add \"", playerAdd.accountName, "\".");
+        return false;
+    }
+
+    void remove(const std::string& accountName)
+    {
+        std::unique_lock<std::mutex> lock(mutex);
+
+        if (accountName == self.accountName)
+        {
+            DEBUG_LOG("Self \"", accountName, "\" left squad, removing all players.");
+            for (std::size_t i{0}; i < players.size(); ++i)
+                players[i] = PlayerInfo{};
+        }
+        else
+        {
+            DEBUG_LOG("Removing \"", accountName, "\" from squad.");
+            auto player = std::find_if(players.begin(), players.end(), [&accountName](const PlayerInfo& p) {
+                return (accountName == p.accountName);
+            });
+            if (player != players.end())
+            {
+                SendPlayerMsg("remove", *player);
+                *player = PlayerInfo{};
+            }
+                
+        }
+    }
+
+    std::string toJSON() const
+    {
+        std::unique_lock<std::mutex> lock(mutex);
+
+        std::ostringstream ss{};
+        ss << "{\"type\":\"Squad\",\"squad\":{";
+        ss << "\"trigger\":\"status\",";
+        ss << "\"self\":\"" << self.accountName << "\",";
+        ss << "\"members\":[";
+
+        uint8_t added{0};
+        for (std::size_t i{0}; i < players.size(); ++i)
+            if (players[i].valid)
+            {
+                const PlayerContainer::PlayerInfo& player{players[i]};
+                ss << ((added++ > 0) ? "," : "") << player.toJSON();
+            }
+
+        ss << "]}}";
+        return ss.str();
+    }
+
+private:
+    void SendPlayerMsg(const std::string& trigger, const PlayerInfo& player) const
+    {
+        if (UseEvents.squad)
+        {
+            std::ostringstream ss{};
+            ss << "{\"type\":\"Squad\",\"squad\":{";
+            ss << "\"trigger\":\"" << trigger << "\",";
+            ss << "\"member\":" << player.toJSON() << "}}";
+            SendToClient(ss.str(), MessageType::Squad);
+        }
+    }
+
+} PlayerCollection;
+
 /* combat callback -- may be called asynchronously, use id param to keep track of order, first event id will be 2. return ignored */
 /* at least one participant will be party/squad or minion of, or a buff applied by squad in the case of buff remove. not all statechanges present, see evtc statechange enum */
 static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uint64_t id,
                             uint64_t revision)
 {
+    // Add character name, profession, and elite to PlayerInfo.
+    if (!ev && !src->elite && src->prof)
+    {
+        std::string accountName{dst->name};
+        if (auto player = PlayerCollection.find(accountName))
+        {
+            player->characterName = std::string{src->name};
+            player->profession = dst->prof;
+            player->elite = dst->elite;
+            PlayerCollection.update(*player);
+            DEBUG_LOG("mod_combat: Updated player \"", accountName, "\" with character name \"", player->characterName, "\".");
+        }
+        else if (dst->self)
+        {
+            PlayerContainer::BasePlayerInfo player{};
+            player.accountName = dst->name;
+            player.characterName = std::string{src->name};
+            player.profession = dst->prof;
+            player.elite = dst->elite;
+            PlayerCollection.updateSelf(player);
+        }
+    }
+
     if (!UseEvents.combat)
         return 0;
 
@@ -608,12 +756,6 @@ static void PipeThreadFunc()
             DEBUG_LOG("Filter is 0!");
             continue;
         }
-        else if ((filter & 8) == 8)
-        {
-            PipeThread.status = ThreadStatus::Sending;
-            DEBUG_LOG("Sending Squad information to client...");
-            SendStatus sendStatus = WriteToPipe(PipeThread.handle, PlayerCollection.toJSON());
-        }
 
         MessageTypeU combatValue = static_cast<MessageTypeU>(MessageType::Combat);
         UseEvents.combat = ((filter & combatValue) == combatValue);
@@ -622,6 +764,17 @@ static void PipeThreadFunc()
         MessageTypeU extraValue = static_cast<MessageTypeU>(MessageType::Extra);
         UseEvents.extra = ((filter & extraValue) == extraValue);
         DEBUG_LOG("Client has subscribed to \"Extra\": ", UseEvents.extra);
+
+        MessageTypeU squadValue = static_cast<MessageTypeU>(MessageType::Squad);
+        UseEvents.squad = ((filter & squadValue) == squadValue);
+        DEBUG_LOG("Client has subscribed to \"Squad\": ", UseEvents.squad);
+
+        if (UseEvents.squad)
+        {
+            PipeThread.status = ThreadStatus::Sending;
+            DEBUG_LOG("Sending Squad information to client...");
+            SendStatus sendStatus = WriteToPipe(PipeThread.handle, PlayerCollection.toJSON());
+        }
 
         while (PipeThread.run)
         {
@@ -857,24 +1010,21 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
         const UserInfo* uinfo{&updatedUsers[i]};
         if (uinfo)
         {
-            std::string data{ExtraDataToJSON(uinfo)};
-
             if (uinfo->Role == UserRole::None)
                 PlayerCollection.remove(std::string{uinfo->AccountName});
             else
             {
-                PlayerContainer::PlayerInfo *player{PlayerCollection.add(std::string{uinfo->AccountName})};
-                if (player)
-                {
-                    player->accountName = uinfo->AccountName;
-                    player->role = uinfo->Role;
-                    player->subgroup = uinfo->Subgroup;
-                    player->valid = true;
-                }
+                PlayerContainer::PlayerInfo player{};
+                player.accountName = uinfo->AccountName;
+                player.role = uinfo->Role;
+                player.subgroup = uinfo->Subgroup;
+
+                PlayerCollection.add(player);
             }
 
             if (UseEvents.extra)
             {
+                const std::string data{ExtraDataToJSON(uinfo)};
                 std::ostringstream ss{};
                 ss << "{\"type\":\"Extra\","
                    << "\"extra\":" << data << "}";
@@ -913,8 +1063,8 @@ extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(
         extrasInfo.SquadUpdateCallback = squad_update_callback;
         *static_cast<ExtrasSubscriberInfoV1*>(pSubscriberInfo) = extrasInfo;
 
-        PlayerCollection.self = pExtrasInfo->SelfAccountName;
-        DEBUG_LOG("Self account name: \"", PlayerCollection.self, "\"");
+        PlayerCollection.self.accountName = pExtrasInfo->SelfAccountName;
+        DEBUG_LOG("Self account name: \"", PlayerCollection.self.accountName, "\"");
         return;
     }
 
