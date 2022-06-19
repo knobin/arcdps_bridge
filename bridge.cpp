@@ -34,6 +34,7 @@ static struct Config
     bool enabled{true}; // Should the extension be enabled.
     bool arcDPS{true}; // Should ArcDPS be used.
     bool extras{true}; // Should the Unofficial Extras be used.
+    std::size_t msgQueueSize{500}; // How many messages can be queued before being dropped.
     bool logging{true}; // Should debug logging be printed.
     bool msgLog{false}; // Should messages sent be logged.
     const std::string_view logFile{"arcdps_bridge.log"};
@@ -84,11 +85,12 @@ static void CreateConfigFile()
     configFile << "[general]\n";
     configFile << "enabled = " << ((Configs.enabled) ? "true" : "false") << "\n";
     configFile << "extras = " << ((Configs.extras) ? "true" : "false") << "\n";
-    configFile << "arcDPS = " << ((Configs.extras) ? "true" : "false") << "\n";
+    configFile << "arcDPS = " << ((Configs.arcDPS) ? "true" : "false") << "\n";
+    configFile << "msgQueueSize = " << Configs.msgQueueSize << "\n";
 
     configFile << "[debug]\n";
     configFile << "logging = " << ((Configs.logging) ? "true" : "false") << "\n";
-    configFile << "msgLog = " << ((Configs.logging) ? "true" : "false") << "\n";
+    configFile << "msgLog = " << ((Configs.msgLog) ? "true" : "false") << "\n";
 
     configFile.close();
 }
@@ -135,6 +137,18 @@ static void LoadConfigFile()
                             Configs.extras = ((value == "true") ? true : false);
                         else if (name == "arcDPS")
                             Configs.arcDPS = ((value == "true") ? true : false);
+                        else if (name == "msgQueueSize")
+                        {
+                            std::istringstream iss(value);
+                            iss >> Configs.msgQueueSize;
+#ifdef DEBUG
+                            if (iss.fail())
+                            {
+                                DEBUG_LOG("Failed to convert \"", value, "\" to std::size_t");   
+                            }
+#endif
+                            
+                        }
                     }
                     else if (header == "debug")
                     {
@@ -411,12 +425,18 @@ static void SendToClient(const std::string& msg, MessageType type)
         && PipeThread.status != ThreadStatus::WaitingForConnection)
     {
         std::unique_lock<std::mutex> lock(MsgCont.mutex);
-        if (MsgCont.queue.size() < 200)
+        if (MsgCont.queue.size() < 1000)
         {
             DEBUG_MSG_LOG("Message of type \"", static_cast<int>(type), "\" queued for sending.");
             MsgCont.queue.push(msg);
             MsgCont.cv.notify_one();
         }
+#ifdef DEBUG
+        else
+        {
+            DEBUG_LOG("Message of type \"", static_cast<int>(type), "\" dropped due to size of container.");
+        }
+#endif
     }
 }
 
