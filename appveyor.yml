@@ -13,5 +13,5 @@ install:
 build_script:
   - mkdir build
   - cd build
-  - cmake -G "Visual Studio 17 2022" -A x64  ..
-  - cmake --build .
+  - cmake -DCMAKE_BUILD_TYPE=%CONFIGURATION% -G "Visual Studio 17 2022" -A x64  ..
+  - cmake --build . --config %CONFIGURATION%
