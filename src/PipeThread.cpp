@@ -251,8 +251,11 @@ void PipeThread::sendMessage(const std::string& msg, MessageType type)
     if (send)
     {
         std::unique_lock<std::mutex> lock(m_msgCont.mutex);
-        m_msgCont.queue.push(msg);
-        m_msgCont.cv.notify_one();
+        if (m_msgCont.queue.size() < m_appData.Config.msgQueueSize)
+        {
+            m_msgCont.queue.push(msg);
+            m_msgCont.cv.notify_one();
+        }
     }
 }
 

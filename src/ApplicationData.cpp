@@ -49,11 +49,6 @@ void CreateConfigFile(const std::string& filepath)
     configFile << "extras = " << ((config.extras) ? "true" : "false") << "\n";
     configFile << "arcDPS = " << ((config.arcDPS) ? "true" : "false") << "\n";
     configFile << "msgQueueSize = " << config.msgQueueSize << "\n";
-
-    configFile << "[debug]\n";
-    configFile << "logging = " << ((config.logging) ? "true" : "false") << "\n";
-    configFile << "msgLog = " << ((config.msgLog) ? "true" : "false") << "\n";
-
     configFile.close();
 }
 
@@ -110,13 +105,6 @@ Configs LoadConfigFile(const std::string& filepath)
                             }
 #endif
                         }
-                    }
-                    else if (header == "debug")
-                    {
-                        if (name == "logging")
-                            config.logging = ((value == "true") ? true : false);
-                        else if (name == "msgLog")
-                            config.msgLog = ((value == "true") ? true : false);
                     }
                 }
             }

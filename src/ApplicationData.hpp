@@ -30,8 +30,6 @@ struct Configs
     bool arcDPS{true}; // Should ArcDPS be used.
     bool extras{true}; // Should the Unofficial Extras be used.
     std::size_t msgQueueSize{500}; // How many messages can be queued before being dropped.
-    bool logging{true}; // Should debug logging be printed.
-    bool msgLog{false}; // Should messages sent be logged.
 };
 
 struct ApplicationData
