@@ -25,9 +25,10 @@ Start by cloning the repository:
 $ git clone --recursive https://github.com/knobin/arcdps_bridge.git
 ```
 
-Create a build directory and enter it:
+Step into the repository, and create a build directory then enter it:
 
 ```shell
+$ cd arcdps_bridge
 $ mkdir build
 $ cd build
 ```
