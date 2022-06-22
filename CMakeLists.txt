@@ -6,11 +6,11 @@ set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
 set(THREADS_PREFER_PTHREAD_FLAG TRUE)
 
 # Build Type
-set(LOG_FILES Log.hpp)
+set(LOG_FILES src/Log.hpp)
 if (CMAKE_BUILD_TYPE MATCHES Debug)
     add_definitions(-DBRIDGE_DEBUG)
     set(BUILD_TYPE "Debug")
-    set(LOG_FILES Log.hpp Log.cpp)
+    set(LOG_FILES src/Log.hpp src/Log.cpp)
 elseif (CMAKE_BUILD_TYPE MATCHES Release)
     set(BUILD_TYPE "Release")
 else()
@@ -22,13 +22,13 @@ message(STATUS "build type: ${BUILD_TYPE}")
 include_directories("third_party/arcdps_unofficial_extras_releases")
 
 # Library
-add_library(arcdps_bridge SHARED Entry.cpp
-    ApplicationData.hpp
-    ApplicationData.cpp
+add_library(arcdps_bridge SHARED src/Entry.cpp
+    src/ApplicationData.hpp
+    src/ApplicationData.cpp
     ${LOG_FILES}
-    PipeHandler.hpp
-    PipeHandler.cpp
-    PipeThread.hpp
-    PipeThread.cpp
-    PlayerContainer.hpp
-    PlayerContainer.cpp)
+    src/PipeHandler.hpp
+    src/PipeHandler.cpp
+    src/PipeThread.hpp
+    src/PipeThread.cpp
+    src/PlayerContainer.hpp
+    src/PlayerContainer.cpp)

@@ -184,10 +184,10 @@ void PipeThread::start()
             BRIDGE_MSG_INFO("Data sent to client!");
         }
 
-        BRIDGE_INFO("Pipe server is closing!");
+        BRIDGE_INFO("PipeThread is closing!");
         handler->m_status = Status::NONE;
         CloseHandle(handler->m_handle);
-        BRIDGE_INFO("Ended pipe server!");
+        BRIDGE_INFO("Ended PipeThread!");
         handler->m_run = false;
     }); 
 }
@@ -200,8 +200,6 @@ void PipeThread::stop()
 
     if (m_run)
     {
-        m_run = false;
-
         // Add empty message in case of blocked waiting.
         if (m_status == Status::WaitingForMessage)
         {
@@ -216,6 +214,7 @@ void PipeThread::stop()
     m_thread.join();
     BRIDGE_INFO("PipeThread joined.");
     BRIDGE_INFO("PipeThread Closed!");
+    m_run = false;
 }
 
 void PipeThread::sendMessage(const std::string& msg, MessageType type)

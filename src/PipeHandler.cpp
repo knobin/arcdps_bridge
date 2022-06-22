@@ -69,12 +69,12 @@ void PipeHandler::start()
 
             BRIDGE_INFO("Client connected, starting a PipeThread instance...");
 
+            handler->cleanup();
+
             if (auto t = handler->dispatchPipeThread(handle))
                 t->start();
             else
                 CloseHandle(handle);
-
-            handler->cleanup();
         }
         handler->m_run = false;
     });
@@ -96,7 +96,10 @@ void PipeHandler::cleanup()
     for (auto it = m_threads.begin(); it != m_threads.end();)
     {
         if (!(*it)->running())
+        {
+            (*it)->stop();
             it = m_threads.erase(it);
+        }
         else
             ++it;
     }
