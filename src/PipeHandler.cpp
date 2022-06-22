@@ -20,8 +20,7 @@ PipeHandler::PipeHandler(const std::string pipeName, const ApplicationData& appd
 
 PipeHandler::~PipeHandler()
 {
-    if (m_run || !m_threads.empty())
-        stop();
+    BRIDGE_INFO("~PipeHandler, running: ", m_run, " threads: ", m_threads.size());
 }
 
 void PipeHandler::start()
@@ -92,17 +91,22 @@ void PipeHandler::cleanup()
 {
     std::unique_lock<std::mutex> lock(m_mutex);
 
+    BRIDGE_INFO("PipeHandler cleanup started.");
+
     // Remove threads that are not running.
     for (auto it = m_threads.begin(); it != m_threads.end();)
     {
         if (!(*it)->running())
         {
+            BRIDGE_INFO("Removing closed PipeThread.");
             (*it)->stop();
             it = m_threads.erase(it);
         }
         else
             ++it;
     }
+
+    BRIDGE_INFO("PipeHandler cleanup finished.");
 }
 
 void PipeHandler::stop()
@@ -113,8 +117,6 @@ void PipeHandler::stop()
 
     if (m_run)
     {
-        m_run = false;
-
         if (m_waitingForConnection)
         {
             // CancelSynchronousIo(PipeThread.handle);
@@ -136,15 +138,19 @@ void PipeHandler::stop()
     }
 
     BRIDGE_INFO("PipeHandler stopped.");
+    m_run = false;
 }
 
 void PipeHandler::sendMessage(const std::string& msg, MessageType type)
 {
     std::unique_lock<std::mutex> lock(m_mutex);
 
-    for (std::unique_ptr<PipeThread>& pt : m_threads) 
-        if (pt->running())
-            pt->sendMessage(msg, type);
+    if (m_run)
+    {
+        for (std::unique_ptr<PipeThread>& pt : m_threads) 
+            if (pt->running())
+                pt->sendMessage(msg, type);
+    }
 }
 
 bool PipeHandler::trackingEvent(MessageType mt) const

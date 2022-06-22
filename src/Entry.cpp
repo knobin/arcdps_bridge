@@ -45,12 +45,14 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
     {
         case DLL_PROCESS_ATTACH:
         {
+            BRIDGE_INFO("Starting Bridge service.");
             std::string dllPath = GetDllPath(hModule);
             BRIDGE_LOG_INIT(dllPath + std::string{AppData.LogFile});
             std::string configFile = dllPath + std::string{AppData.ConfigFile};
             AppData.Config = InitConfigs(configFile);
 
             Server.start();
+            break;
         }
         case DLL_THREAD_ATTACH:
         case DLL_THREAD_DETACH:
@@ -58,6 +60,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
         case DLL_PROCESS_DETACH:
         {
             Server.stop();
+            BRIDGE_INFO("Ended Bridge service.");
             break;
         }
 

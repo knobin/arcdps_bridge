@@ -22,8 +22,7 @@ PipeThread::PipeThread(void* handle, TrackedEvents* te, const ApplicationData& a
 
 PipeThread::~PipeThread()
 {
-    if (m_run)
-        stop();
+    BRIDGE_INFO("~PipeThread, running: ", m_run);
 }
 
 void PipeThread::start()
@@ -189,6 +188,14 @@ void PipeThread::start()
         CloseHandle(handler->m_handle);
         BRIDGE_INFO("Ended PipeThread!");
         handler->m_run = false;
+        
+        // Untrack events.
+        if (handler->m_eventTrack.combat)
+            handler->m_te->untrack(MessageType::Combat);
+        if (handler->m_eventTrack.extra)
+            handler->m_te->untrack(MessageType::Extra);
+        if (handler->m_eventTrack.squad)
+            handler->m_te->untrack(MessageType::Squad);
     }); 
 }
 
@@ -214,6 +221,7 @@ void PipeThread::stop()
     m_thread.join();
     BRIDGE_INFO("PipeThread joined.");
     BRIDGE_INFO("PipeThread Closed!");
+
     m_run = false;
 }
 
