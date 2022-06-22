@@ -108,8 +108,9 @@ std::optional<PlayerContainer::PlayerInfo> PlayerContainer::remove(const std::st
     {
         BRIDGE_INFO("Removing \"", accountName, "\" from squad.");
         it->first = false;
+        PlayerInfo copy = it->second;
         it->second = PlayerInfo{};
-        return it->second;
+        return copy;
     }
     return std::nullopt;
 }
