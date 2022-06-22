@@ -1,5 +1,5 @@
 //
-//  Log.hpp
+//  src/Log.hpp
 //  ArcDPS Bridge
 //
 //  Created by Robin Gustafsson on 2022-06-21.
