@@ -9,6 +9,9 @@ An ArcDPS Extension which sends the events over a named pipe.
 - Supports any programming language that can interface with Windows NamedPipe, and parse JSON.
 - Multiple clients can be connected at the same time.
 
+For example clients see:
+* [Examples](examples)
+
 ## Installation
 
 Requires [ArcDPS](https://www.deltaconnected.com/arcdps/), and [ArcDPS Unofficial Extras](https://github.com/Krappa322/arcdps_unofficial_extras_releases).
