@@ -1,3 +1,10 @@
+#
+#  examples/client.py
+#  ArcDPS Bridge
+#
+#  Created by Robin Gustafsson on 2022-06-22.
+#
+
 import time
 import sys
 import win32pipe, win32file, pywintypes
