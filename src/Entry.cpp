@@ -369,6 +369,7 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
                     player.accountName = uinfo->AccountName;
                     player.role = static_cast<uint8_t>(uinfo->Role);
                     player.subgroup = uinfo->Subgroup;
+                    player.joinTime = uinfo->JoinTime;
 
                     if (auto pi = AppData.Squad.add(player))
                         SendPlayerMsg("add", "extra", *pi);
@@ -378,6 +379,8 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
                     // If already added, update role and subgroup.
                     exists->role = static_cast<uint8_t>(uinfo->Role);
                     exists->subgroup = uinfo->Subgroup;
+                    if (exists->joinTime != 0 && uinfo->JoinTime != 0)
+                        exists->joinTime = uinfo->JoinTime;
 
                     if (auto pi = AppData.Squad.add(*exists))
                         SendPlayerMsg("update", "extra", *pi);
