@@ -41,6 +41,7 @@ void PipeThread::start()
         {
             CloseHandle(handler->m_handle);
             handler->m_handle = nullptr;
+            handler->m_run = false;
             BRIDGE_INFO("Failed to send bridge information.");
             return;
         }
@@ -52,6 +53,7 @@ void PipeThread::start()
         {
             CloseHandle(handler->m_handle);
             handler->m_handle = nullptr;
+            handler->m_run = false;
             BRIDGE_INFO("Failed to read bridge information.");
             return;
         }
@@ -72,16 +74,8 @@ void PipeThread::start()
                 int i = 0;
                 iss >> i;
                 filter = static_cast<MessageTypeU>(i);
-                BRIDGE_INFO("Recieved filter \"", static_cast<int>(filter), "\" from client.", i);
+                BRIDGE_INFO("Recieved filter \"", static_cast<int>(filter), "\" from client.");
             }
-        }
-
-        if (filter == 0)
-        {
-            BRIDGE_INFO("Filter is 0, Closing PipeThread.");
-            CloseHandle(handler->m_handle);
-            handler->m_handle = nullptr;
-            return;
         }
 
         MessageTypeU combatValue = static_cast<MessageTypeU>(MessageType::Combat);
@@ -106,6 +100,18 @@ void PipeThread::start()
         BRIDGE_INFO("Client has subscribed to \"Combat\": ", handler->m_eventTrack.combat);
         BRIDGE_INFO("Client has subscribed to \"Extra\": ", handler->m_eventTrack.extra);
         BRIDGE_INFO("Client has subscribed to \"Squad\": ", handler->m_eventTrack.squad);
+
+        if (!(handler->m_eventTrack.combat || handler->m_eventTrack.extra || handler->m_eventTrack.squad))
+        {
+            WriteToPipe(handler->m_handle, "{\"success\":false,\"error\":\"no subscription\"}");
+            BRIDGE_INFO("No subscription, Closing PipeThread.");
+            CloseHandle(handler->m_handle);
+            handler->m_handle = nullptr;
+            handler->m_run = false;
+            return;
+        }
+
+        WriteToPipe(handler->m_handle, "{\"success\":true}");
 
         if (handler->m_eventTrack.squad)
         {

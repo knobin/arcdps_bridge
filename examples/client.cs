@@ -131,7 +131,14 @@ namespace BridgeHandler
             public PlayerInfo[] Members { get; set; }
         }
 
-        public enum MessageType : Byte
+        public class Subscribe
+        {
+            public bool Combat { get; set; }
+            public bool Extra { get; set; }
+            public bool Squad { get; set; }
+        }
+
+        private enum MessageType : Byte
         {
             NONE = 0,
             Combat = 1,
@@ -160,19 +167,29 @@ namespace BridgeHandler
             public NamedPipeClientStream ClientStream = null;
             public Handler Handle = null;
             public bool Run { get; set; }
+            public bool Connected { get; set; }
             public Byte EnabledTypes { get; set; }
         }
 
         private Thread _t;
         private ThreadData _tData;
 
-        public void Start(Byte EnabledMessageTypes)
+        public void Start(Subscribe subscribe)
         {
             _t = new Thread(PipeThreadMain);
             _tData = new ThreadData();
             _tData.Handle = this;
-            _tData.EnabledTypes = EnabledMessageTypes;
+
+            _tData.EnabledTypes = (Byte)MessageType.NONE;
+            if (subscribe.Combat)
+                _tData.EnabledTypes |= (Byte)MessageType.Combat;
+            if (subscribe.Extra)
+                _tData.EnabledTypes |= (Byte)MessageType.Extra;
+            if (subscribe.Squad)
+                _tData.EnabledTypes |= (Byte)MessageType.Squad;
+            
             _tData.Run = true;
+            _tData.Connected = false;
             _t.Start(_tData);
         }
 
@@ -188,60 +205,94 @@ namespace BridgeHandler
             _t.Join();
         }
 
+        public bool IsConnected()
+        {
+            return _tData.Connected;
+        }
+
+        public bool IsRunning()
+        {
+            return _tData.Run;
+        }
+
+        private class SubscribeStatus
+        {
+            public bool success { get; set; }
+            public string error { get; set; }
+        }
+
         private static void PipeThreadMain(Object parameterData)
         {
             ThreadData tData = (ThreadData)parameterData;
             while (tData.Run)
             {
-                if (tData.ClientStream != null)
-                    tData.ClientStream.Close();
-
                 tData.ClientStream = new NamedPipeClientStream(".", "arcdps-bridge", PipeDirection.InOut, PipeOptions.None, TokenImpersonationLevel.Impersonation);
+                if (tData.ClientStream == null)
+                    continue;
+                
                 tData.ClientStream.Connect();
                 tData.ClientStream.ReadMode = PipeTransmissionMode.Message;
 
-                if (tData.ClientStream != null && tData.ClientStream.IsConnected)
+                if (!tData.ClientStream.IsConnected)
                 {
-                    String infoData = ReadFromPipe(tData.ClientStream);
-                    if (infoData != "")
-                    {
-                        Byte subscribe = tData.EnabledTypes; // id for squad messages.
-                        BridgeInfo bInfo = JsonSerializer.Deserialize<BridgeInfo>(infoData)!;
-                        if (bInfo != null)
-                        {
-                            if (!bInfo.ArcLoaded && !bInfo.ExtraLoaded)
-                            {
-                                // Both ArcDPS and Unofficial Extras is needed for squad events.
-                                tData.Run = false;
-                                continue;
-                            }
-                        }
-
-                        // Send subscribe data to server.
-                        String sub = "{\"subscribe\":" + subscribe.ToString() + "}";
-                        WriteToPipe(tData.ClientStream, sub);
-                    }
+                    tData.ClientStream.Close();
+                    tData.ClientStream = null;
+                    continue;
                 }
 
-                while (tData.ClientStream != null && tData.ClientStream.IsConnected)
+                // ClientStream is connected here.
+                tData.Connected = true;
+
+                // Read BridgeInfo.
+                String infoData = ReadFromPipe(tData.ClientStream);
+                BridgeInfo bInfo = JsonSerializer.Deserialize<BridgeInfo>(infoData)!;
+                if (!bInfo.ArcLoaded && !bInfo.ExtraLoaded)
+                {
+                    // Both ArcDPS and Unofficial Extras is needed for squad events.
+                    tData.Run = false;
+                    tData.ClientStream.Close();
+                    tData.ClientStream = null;
+                    tData.Connected = false;
+                    continue; // Thread will close after this.
+                }
+
+                // Send subscribe data to server.
+                Byte subscribe = tData.EnabledTypes; // id for squad messages.
+                String sub = "{\"subscribe\":" + subscribe.ToString() + "}";
+                WriteToPipe(tData.ClientStream, sub);
+
+                // Read return status.
+                String statusStr = ReadFromPipe(tData.ClientStream);
+                SubscribeStatus status = JsonSerializer.Deserialize<SubscribeStatus>(statusStr)!;
+                if (!status.success)
+                {
+                    // Server closes pipe here.
+                    // Error message is in status.error
+                    tData.ClientStream.Close();
+                    tData.ClientStream = null;
+                    tData.Connected = false;
+                    continue;
+                }
+
+                while (tData.Run && tData.ClientStream.IsConnected)
                 {
                     String data = ReadFromPipe(tData.ClientStream);
-                    if (data != "")
-                    {
-                        BridgeEvent evt = JsonSerializer.Deserialize<BridgeEvent>(data)!;
-                        if (evt != null)
-                            tData.Handle.HandleBrideEvent(evt, tData);
-
-                        if (!tData.Run)
-                            break;
-                    }
+                    BridgeEvent evt = JsonSerializer.Deserialize<BridgeEvent>(data)!;
+                    tData.Handle.HandleBrideEvent(evt, tData);
                 }
+
+                // Stream is not connected here, or tData.Run is false.
+                tData.ClientStream.Close();
+                tData.ClientStream = null;
+                tData.Connected = false;
             }
 
+            // Thread is ending, close stream if open.
             if (tData.ClientStream != null)
             {
                 tData.ClientStream.Close();
                 tData.ClientStream = null;
+                tData.Connected = false;
             }
         }
         private static class EventType

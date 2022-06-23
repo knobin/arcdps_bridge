@@ -27,6 +27,13 @@ def bridge_info(handle):
     print(f"Bride info: {info}")
     # Send subscription to Server.
     win32file.WriteFile(handle, str.encode(subscribe_message()))
+    # Server will send a success message.
+    result, msg = win32file.ReadFile(handle, 64*1024)
+    data = json.loads(msg)
+    if data["success"] == False:
+        err = data["error"]
+        print(f"Server return with error msg: {err}")
+    return data["success"]
 
 
 def squad_message(data):
@@ -67,20 +74,19 @@ def pipe_client():
         
         # Pipe is connected to server.
         # Server will send Bridge Information, and expects a subscribe return.
-        bridge_info(handle)
-
-        # Server will now send events to client.
-        while True:
-            result, msg = win32file.ReadFile(handle, 64*1024)
-            data = json.loads(msg)
-            if (data["type"] == "Squad"):
-                squad_message(data["squad"])
+        if bridge_info(handle):
+            # Subscribed to events successfully.
+            # Server will now send events to client.
+            while True:
+                result, msg = win32file.ReadFile(handle, 64*1024)
+                data = json.loads(msg)
+                if (data["type"] == "Squad"):
+                    squad_message(data["squad"])
 
     except pywintypes.error as e:
         print("Exception caught: ", str(e))
         if e.args[0] == 2:
             print("No pipe!")
-            time.sleep(1)
         elif e.args[0] == 109:
             print("Pipe is broken!")
     print("Ended Pipe Client.")
