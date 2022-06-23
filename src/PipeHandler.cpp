@@ -15,7 +15,6 @@
 PipeHandler::PipeHandler(const std::string pipeName, const ApplicationData& appdata)
     : m_pipeName{pipeName}, m_appData{appdata}
 {
-
 }
 
 PipeHandler::~PipeHandler()
@@ -36,10 +35,9 @@ void PipeHandler::start()
         {
             BRIDGE_INFO("Creating NamedPipe \"", handler->m_pipeName, "\"");
 
-            HANDLE handle = CreateNamedPipe(handler->m_pipeName.c_str(), PIPE_ACCESS_DUPLEX,
-                                            PIPE_TYPE_MESSAGE,
+            HANDLE handle = CreateNamedPipe(handler->m_pipeName.c_str(), PIPE_ACCESS_DUPLEX, PIPE_TYPE_MESSAGE,
                                             PIPE_UNLIMITED_INSTANCES, 0, 0, 0, NULL);
-            
+
             if (handle == NULL || handle == INVALID_HANDLE_VALUE)
             {
                 BRIDGE_INFO("Error creating pipe with err: ", GetLastError(), "!");
@@ -121,8 +119,7 @@ void PipeHandler::stop()
         {
             // CancelSynchronousIo(PipeThread.handle);
             BRIDGE_INFO("PipeHandler thread is waiting for a connection, attempting to connect...");
-            HANDLE pipe = CreateFile(m_pipeName.c_str(), GENERIC_READ | GENERIC_WRITE, 0, NULL,
-                                     OPEN_EXISTING, 0, NULL);
+            HANDLE pipe = CreateFile(m_pipeName.c_str(), GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
             CloseHandle(pipe);
         }
     }
@@ -133,7 +130,7 @@ void PipeHandler::stop()
 
     if (!m_threads.empty())
     {
-        for (std::unique_ptr<PipeThread>& pt : m_threads) 
+        for (std::unique_ptr<PipeThread>& pt : m_threads)
             pt->stop(); // Will call join() on internal thread.
     }
 
@@ -147,7 +144,7 @@ void PipeHandler::sendMessage(const std::string& msg, MessageType type)
 
     if (m_run)
     {
-        for (std::unique_ptr<PipeThread>& pt : m_threads) 
+        for (std::unique_ptr<PipeThread>& pt : m_threads)
             if (pt->running())
                 pt->sendMessage(msg, type);
     }
@@ -162,19 +159,19 @@ void TrackedEvents::startTracking(MessageType mt)
 {
     switch (mt)
     {
-    case MessageType::NONE:
-        break;
-    case MessageType::Combat:
-        ++m_combat;
-        break;
-    case MessageType::Extra:
-        ++m_extra;
-        break;
-    case MessageType::Squad:
-        ++m_squad;
-        break;
-    default:
-        break;
+        case MessageType::NONE:
+            break;
+        case MessageType::Combat:
+            ++m_combat;
+            break;
+        case MessageType::Extra:
+            ++m_extra;
+            break;
+        case MessageType::Squad:
+            ++m_squad;
+            break;
+        default:
+            break;
     }
 }
 
@@ -182,19 +179,19 @@ void TrackedEvents::untrack(MessageType mt)
 {
     switch (mt)
     {
-    case MessageType::NONE:
-        break;
-    case MessageType::Combat:
-        --m_combat;
-        break;
-    case MessageType::Extra:
-        --m_extra;
-        break;
-    case MessageType::Squad:
-        --m_squad;
-        break;
-    default:
-        break;
+        case MessageType::NONE:
+            break;
+        case MessageType::Combat:
+            --m_combat;
+            break;
+        case MessageType::Extra:
+            --m_extra;
+            break;
+        case MessageType::Squad:
+            --m_squad;
+            break;
+        default:
+            break;
     }
 }
 
@@ -204,19 +201,19 @@ bool TrackedEvents::isTracking(MessageType mt) const
 
     switch (mt)
     {
-    case MessageType::NONE:
-        break;
-    case MessageType::Combat:
-        ret = static_cast<bool>(m_combat);
-        break;
-    case MessageType::Extra:
-        ret = static_cast<bool>(m_extra);
-        break;
-    case MessageType::Squad:
-        ret = static_cast<bool>(m_squad);
-        break;
-    default:
-        break;
+        case MessageType::NONE:
+            break;
+        case MessageType::Combat:
+            ret = static_cast<bool>(m_combat);
+            break;
+        case MessageType::Extra:
+            ret = static_cast<bool>(m_extra);
+            break;
+        case MessageType::Squad:
+            ret = static_cast<bool>(m_squad);
+            break;
+        default:
+            break;
     }
 
     return ret;

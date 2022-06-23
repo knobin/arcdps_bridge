@@ -27,12 +27,12 @@ void Logger::writeToFile(const std::string& str) const
 {
     if (!valid)
         return;
-    
+
     static std::mutex WriteMutex;
     std::unique_lock<std::mutex> lock(WriteMutex);
-    
+
     std::ofstream outfile; // Opens file for every call to print. Bad. but fine for debugging purposes.
     outfile.open(m_filepath, std::ios_base::app);
     outfile << str << std::endl;
     outfile.close();
-} 
+}

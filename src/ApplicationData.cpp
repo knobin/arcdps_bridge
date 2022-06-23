@@ -18,7 +18,6 @@ Configs InitConfigs(const std::string& filepath)
 {
     if (std::filesystem::exists(filepath))
         return LoadConfigFile(filepath);
-    
 
     CreateConfigFile(filepath);
     return Configs{};
@@ -79,8 +78,7 @@ Configs LoadConfigFile(const std::string& filepath)
             else if (!header.empty())
             {
                 std::size_t equalPos = line.find('=');
-                if (equalPos != std::string::npos
-                    && equalPos > 0 && equalPos < line.size() - 1)
+                if (equalPos != std::string::npos && equalPos > 0 && equalPos < line.size() - 1)
                 {
                     std::string name = line.substr(0, equalPos);
                     std::string value = line.substr(equalPos + 1);
@@ -101,7 +99,7 @@ Configs LoadConfigFile(const std::string& filepath)
 #ifdef BRIDGE_DEBUG
                             if (iss.fail())
                             {
-                                BRIDGE_INFO("Failed to convert \"", value, "\" to std::size_t");   
+                                BRIDGE_INFO("Failed to convert \"", value, "\" to std::size_t");
                             }
 #endif
                         }
@@ -109,7 +107,6 @@ Configs LoadConfigFile(const std::string& filepath)
                 }
             }
         }
-
     }
 
     return config;

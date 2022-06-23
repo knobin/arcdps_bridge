@@ -4,7 +4,7 @@ AccessModifierOffset: -4
 AllowShortFunctionsOnASingleLine: None
 AlwaysBreakTemplateDeclarations: Yes
 BreakBeforeBraces: Allman
-ColumnLimit: 100
+ColumnLimit: 120
 DerivePointerAlignment: false
 FixNamespaceComments: true
 IndentCaseLabels: true

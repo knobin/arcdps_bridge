@@ -7,8 +7,8 @@
 
 // Local Headers
 #include "PipeThread.hpp"
-#include "PipeHandler.hpp"
 #include "Log.hpp"
+#include "PipeHandler.hpp"
 
 // C++ Headers
 #include <cstdint>
@@ -17,7 +17,6 @@
 PipeThread::PipeThread(void* handle, TrackedEvents* te, const ApplicationData& appdata)
     : m_handle{handle}, m_te{te}, m_appData{appdata}
 {
-    
 }
 
 PipeThread::~PipeThread()
@@ -155,7 +154,7 @@ void PipeThread::start()
                     }
                     BRIDGE_INFO("Client is connected.");
                 }
-                
+
                 // Client has disconnected.
                 if (broken)
                     break;
@@ -194,7 +193,7 @@ void PipeThread::start()
         CloseHandle(handler->m_handle);
         BRIDGE_INFO("Ended PipeThread!");
         handler->m_run = false;
-        
+
         // Untrack events.
         if (handler->m_eventTrack.combat)
             handler->m_te->untrack(MessageType::Combat);
@@ -202,7 +201,7 @@ void PipeThread::start()
             handler->m_te->untrack(MessageType::Extra);
         if (handler->m_eventTrack.squad)
             handler->m_te->untrack(MessageType::Squad);
-    }); 
+    });
 }
 
 void PipeThread::stop()
@@ -239,19 +238,19 @@ void PipeThread::sendMessage(const std::string& msg, MessageType type)
 
     switch (type)
     {
-    case MessageType::NONE:
-        break;
-    case MessageType::Combat:
-        send = m_eventTrack.combat;
-        break;
-    case MessageType::Extra:
-        send = m_eventTrack.extra;
-        break;
-    case MessageType::Squad:
-        send = m_eventTrack.squad;
-        break;
-    default:
-        break;
+        case MessageType::NONE:
+            break;
+        case MessageType::Combat:
+            send = m_eventTrack.combat;
+            break;
+        case MessageType::Extra:
+            send = m_eventTrack.extra;
+            break;
+        case MessageType::Squad:
+            send = m_eventTrack.squad;
+            break;
+        default:
+            break;
     }
 
     if (send)
@@ -289,7 +288,7 @@ ReadStatus ReadFromPipe(HANDLE handle)
 
     do
     {
-        status.success = ReadFile(handle, buffer, BUFSIZE*sizeof(TCHAR), &status.numBytesRead, NULL);
+        status.success = ReadFile(handle, buffer, BUFSIZE * sizeof(TCHAR), &status.numBytesRead, NULL);
         status.error = GetLastError();
         if (!status.success && status.error != ERROR_MORE_DATA)
             break;

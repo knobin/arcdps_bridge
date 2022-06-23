@@ -13,10 +13,10 @@
 
 // C++ Headers
 #include <atomic>
-#include <thread>
 #include <mutex>
 #include <queue>
 #include <string>
+#include <thread>
 
 // Windows Headers
 #include <windows.h>
@@ -47,7 +47,7 @@ public:
         bool combat{false};
         bool extra{false};
         bool squad{false};
-    }; 
+    };
 
 public:
     PipeThread() = delete;
@@ -56,10 +56,16 @@ public:
 
     void start();
     void stop();
-    bool running() const { return m_run; }
+    bool running() const
+    {
+        return m_run;
+    }
 
     void sendMessage(const std::string& msg, MessageType type);
-    EventTracking eventTracking() const { return m_eventTrack; }
+    EventTracking eventTracking() const
+    {
+        return m_eventTrack;
+    }
 
 private:
     MessageContainer m_msgCont{};

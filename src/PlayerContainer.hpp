@@ -9,11 +9,11 @@
 #define BRIDGE_PLAYERCONTAINER_HPP
 
 // C++ Headers
-#include <cstdint>
-#include <string>
 #include <array>
-#include <optional>
+#include <cstdint>
 #include <mutex>
+#include <optional>
+#include <string>
 #include <utility>
 
 class PlayerContainer
@@ -33,7 +33,6 @@ public:
     };
 
 public:
-
     std::optional<PlayerInfo> find(const std::string& accountName) const;
     std::optional<PlayerContainer::PlayerInfo> update(const PlayerInfo& player);
     std::optional<PlayerContainer::PlayerInfo> add(const PlayerInfo& player);

@@ -7,15 +7,15 @@
 
 // Local Headers
 #include "ApplicationData.hpp"
-#include "PipeHandler.hpp"
 #include "Log.hpp"
+#include "PipeHandler.hpp"
 
 // ArcDPS Unofficial Extras Header
 #include "Definitions.h"
 
 // C++ Headers
-#include <string>
 #include <cstddef>
+#include <string>
 
 // Windows Headers
 #include <windows.h>
@@ -63,7 +63,6 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
             BRIDGE_INFO("Ended Bridge service.");
             break;
         }
-
     }
     return TRUE;
 }
@@ -87,22 +86,25 @@ static uintptr_t mod_wnd(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     return uMsg;
 }
 
-
 /* arcdps export table */
 struct arcdps_exports
 {
-    uintptr_t size; /* size of exports table */
-    uint32_t sig;   /* pick a number between 0 and uint32_t max that isn't used by other modules */
+    uintptr_t size;        /* size of exports table */
+    uint32_t sig;          /* pick a number between 0 and uint32_t max that isn't used by other modules */
     uint32_t imguivers;    /* set this to IMGUI_VERSION_NUM. if you don't use imgui, 18000 (as of 2021-02-02) */
     const char* out_name;  /* name string */
     const char* out_build; /* build string */
-    void* wnd_nofilter; /* wndproc callback, fn(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam), return assigned to umsg */
-    void* combat; /* combat event callback, fn(cbtevent* ev, ag* src, ag* dst, char* skillname, uint64_t id, uint64_t revision) */
-    void* imgui; /* ::present callback, before imgui::render, fn(uint32_t not_charsel_or_loading) */
-    void* options_end; /* ::present callback, appending to the end of options window in arcdps, fn() */
-    void* combat_local; /* combat event callback like area but from chat log, fn(cbtevent* ev, ag* src, ag* dst, char* skillname, uint64_t id, uint64_t revision) */
-    void* wnd_filter; /* wndproc callback like wnd_nofilter above, input filered using modifiers */
-    void* options_windows; /* called once per 'window' option checkbox, with null at the end, non-zero return disables arcdps drawing that checkbox, fn(char* windowname) */
+    void* wnd_nofilter; /* wndproc callback, fn(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam), return assigned to
+                           umsg */
+    void* combat; /* combat event callback, fn(cbtevent* ev, ag* src, ag* dst, char* skillname, uint64_t id, uint64_t
+                     revision) */
+    void* imgui;  /* ::present callback, before imgui::render, fn(uint32_t not_charsel_or_loading) */
+    void* options_end;  /* ::present callback, appending to the end of options window in arcdps, fn() */
+    void* combat_local; /* combat event callback like area but from chat log, fn(cbtevent* ev, ag* src, ag* dst, char*
+                           skillname, uint64_t id, uint64_t revision) */
+    void* wnd_filter;   /* wndproc callback like wnd_nofilter above, input filered using modifiers */
+    void* options_windows; /* called once per 'window' option checkbox, with null at the end, non-zero return disables
+                              arcdps drawing that checkbox, fn(char* windowname) */
 };
 
 /* combat event - see evtc docs for details, revision param in combat cb is equivalent of revision byte header */
@@ -191,7 +193,8 @@ static std::string agToJSON(ag* agent)
     return ss.str();
 }
 
-static void SendPlayerMsg(const std::string& trigger, const std::string& sType, const PlayerContainer::PlayerInfo& player)
+static void SendPlayerMsg(const std::string& trigger, const std::string& sType,
+                          const PlayerContainer::PlayerInfo& player)
 {
     if (Server.trackingEvent(MessageType::Squad))
     {
@@ -204,17 +207,18 @@ static void SendPlayerMsg(const std::string& trigger, const std::string& sType, 
     }
 }
 
-/* combat callback -- may be called asynchronously, use id param to keep track of order, first event id will be 2. return ignored */
-/* at least one participant will be party/squad or minion of, or a buff applied by squad in the case of buff remove. not all statechanges present, see evtc statechange enum */
-static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uint64_t id,
-                            uint64_t revision)
+/* combat callback -- may be called asynchronously, use id param to keep track of order, first event id will be 2.
+ * return ignored */
+/* at least one participant will be party/squad or minion of, or a buff applied by squad in the case of buff remove. not
+ * all statechanges present, see evtc statechange enum */
+static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uint64_t id, uint64_t revision)
 {
     // Add character name, profession, and elite to PlayerInfo.
     if (!ev && !src->elite && src->prof)
     {
         std::string accountName{dst->name};
         auto exists = AppData.Squad.find(accountName);
-        
+
         if (exists)
         {
             exists->characterName = std::string{src->name};
@@ -298,7 +302,7 @@ static arcdps_exports* mod_init()
         // Since this is not an error, only a way to turn of the extension and
         // also have it loaded at the same time.
         arc_exports.sig = 0;
-        arc_exports.size = (uintptr_t)"ArcDPS is disabled by configs!";
+        arc_exports.size = (uintptr_t) "ArcDPS is disabled by configs!";
         BRIDGE_INFO("ArcDPS is disabled by configs!");
     }
 
@@ -315,9 +319,8 @@ static uintptr_t mod_release()
 }
 
 /* export -- arcdps looks for this exported function and calls the address it returns on client load */
-extern "C" __declspec(dllexport) void* get_init_addr(char* arcversionstr, void* imguicontext,
-                                                     void* dxptr, HMODULE new_arcdll,
-                                                     void* mallocfn, void* freefn, UINT dxver)
+extern "C" __declspec(dllexport) void* get_init_addr(char* arcversionstr, void* imguicontext, void* dxptr,
+                                                     HMODULE new_arcdll, void* mallocfn, void* freefn, UINT dxver)
 {
     AppData.Info.arcvers = std::string{arcversionstr};
     return mod_init;
@@ -335,10 +338,9 @@ static std::string ExtraDataToJSON(const UserInfo* user)
     std::ostringstream ss{};
     ss << "{\"AccountName\":\"" << std::string{user->AccountName} << "\","
        << "\"Role\":" << static_cast<int>(static_cast<uint8_t>(user->Role)) << ","
-       << "\"Subgroup\":" << static_cast<int>(user->Subgroup)  << ","
-       << "\"JoinTime\":" << user->JoinTime  << ","
-       << "\"ReadyStatus\":" << ((user->ReadyStatus) ? "true" : "false")
-       << "}";
+       << "\"Subgroup\":" << static_cast<int>(user->Subgroup) << ","
+       << "\"JoinTime\":" << user->JoinTime << ","
+       << "\"ReadyStatus\":" << ((user->ReadyStatus) ? "true" : "false") << "}";
     return ss.str();
 }
 
@@ -374,7 +376,7 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
                     if (auto pi = AppData.Squad.add(player))
                         SendPlayerMsg("add", "extra", *pi);
                 }
-                else 
+                else
                 {
                     // If already added, update role and subgroup.
                     exists->role = static_cast<uint8_t>(uinfo->Role);
@@ -386,7 +388,7 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
                         SendPlayerMsg("update", "extra", *pi);
                 }
             }
-            
+
             if (Server.trackingEvent(MessageType::Extra))
             {
                 const std::string data{ExtraDataToJSON(uinfo)};
@@ -400,8 +402,8 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
 }
 
 // Exported init function for arcDPS unofficial extras API.
-extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(
-    const ExtrasAddonInfo* pExtrasInfo, void* pSubscriberInfo)
+extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(const ExtrasAddonInfo* pExtrasInfo,
+                                                                               void* pSubscriberInfo)
 {
     if (!AppData.Config.enabled && !AppData.Config.extras)
     {

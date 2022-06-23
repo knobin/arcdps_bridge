@@ -12,23 +12,23 @@
 #include "PlayerContainer.hpp"
 
 // C++ Headers
-#include <string>
 #include <cstdint>
+#include <string>
 
 struct BridgeInfo
 {
     std::string_view version{"1.0.1"}; // Bridge version.
-    std::string extraVersion{""}; // Unofficial Extras version.
-    std::string arcvers{""}; // ArcDPS version.
-    bool arcLoaded{false}; // Is ArcDPS loaded.
-    bool extraLoaded{false}; // Is Unofficial Extras loaded.
+    std::string extraVersion{""};      // Unofficial Extras version.
+    std::string arcvers{""};           // ArcDPS version.
+    bool arcLoaded{false};             // Is ArcDPS loaded.
+    bool extraLoaded{false};           // Is Unofficial Extras loaded.
 };
 
 struct Configs
 {
-    bool enabled{true}; // Should the extension be enabled.
-    bool arcDPS{true}; // Should ArcDPS be used.
-    bool extras{true}; // Should the Unofficial Extras be used.
+    bool enabled{true};            // Should the extension be enabled.
+    bool arcDPS{true};             // Should ArcDPS be used.
+    bool extras{true};             // Should the Unofficial Extras be used.
     std::size_t msgQueueSize{500}; // How many messages can be queued before being dropped.
 };
 
