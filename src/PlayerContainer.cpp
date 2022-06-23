@@ -16,13 +16,13 @@ std::string PlayerContainer::PlayerInfo::toJSON() const
 {
     std::ostringstream ss{};
     ss << "{"
-       << "\"AccountName\":\"" << accountName << "\","
-       << "\"CharacterName\":" << ((!characterName.empty()) ? "\"" + characterName + "\"" : "null") << ","
-       << "\"JoinTime\":" << joinTime << ","
-       << "\"Profession\":" << profession << ","
-       << "\"Elite\":" << elite << ","
-       << "\"Role\":" << static_cast<int>(role) << ","
-       << "\"Subgroup\":" << static_cast<int>(subgroup) << "}";
+       << "\"accountName\":\"" << accountName << "\","
+       << "\"characterName\":" << ((!characterName.empty()) ? "\"" + characterName + "\"" : "null") << ","
+       << "\"joinTime\":" << joinTime << ","
+       << "\"profession\":" << profession << ","
+       << "\"elite\":" << elite << ","
+       << "\"role\":" << static_cast<int>(role) << ","
+       << "\"subgroup\":" << static_cast<int>(subgroup) << "}";
     return ss.str();
 }
 

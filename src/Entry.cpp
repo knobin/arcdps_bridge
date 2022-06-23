@@ -199,10 +199,11 @@ static void SendPlayerMsg(const std::string& trigger, const std::string& sType,
     if (Server.trackingEvent(MessageType::Squad))
     {
         std::ostringstream ss{};
-        ss << "{\"type\":\"Squad\",\"squad\":{";
-        ss << "\"trigger\":\"" << trigger << "\",";
-        ss << "\"source\":\"" << sType << "\",";
-        ss << "\"member\":" << player.toJSON() << "}}";
+        ss << "{\"type\":\"squad\",\"squad\":{"
+           << "\"trigger\":\"" << trigger << "\","
+           << "\"" << trigger << "\":{"
+           << "\"source\":\"" << sType << "\","
+           << "\"member\":" << player.toJSON() << "}}}";
         Server.sendMessage(ss.str(), MessageType::Squad);
     }
 }
@@ -248,7 +249,7 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
 
     // Combat event.
     std::ostringstream ss{};
-    ss << "{\"type\":\"Combat\",\"combat\":{";
+    ss << "{\"type\":\"combat\",\"combat\":{";
 
     ss << "\"id\":" << id << ",\"revision\":" << revision;
 
@@ -336,11 +337,11 @@ extern "C" __declspec(dllexport) void* get_release_addr()
 static std::string ExtraDataToJSON(const UserInfo* user)
 {
     std::ostringstream ss{};
-    ss << "{\"AccountName\":\"" << std::string{user->AccountName} << "\","
-       << "\"Role\":" << static_cast<int>(static_cast<uint8_t>(user->Role)) << ","
-       << "\"Subgroup\":" << static_cast<int>(user->Subgroup) << ","
-       << "\"JoinTime\":" << user->JoinTime << ","
-       << "\"ReadyStatus\":" << ((user->ReadyStatus) ? "true" : "false") << "}";
+    ss << "{\"accountName\":\"" << std::string{user->AccountName} << "\","
+       << "\"role\":" << static_cast<int>(static_cast<uint8_t>(user->Role)) << ","
+       << "\"subgroup\":" << static_cast<int>(user->Subgroup) << ","
+       << "\"joinTime\":" << user->JoinTime << ","
+       << "\"readyStatus\":" << ((user->ReadyStatus) ? "true" : "false") << "}";
     return ss.str();
 }
 
@@ -393,7 +394,7 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
             {
                 const std::string data{ExtraDataToJSON(uinfo)};
                 std::ostringstream ss{};
-                ss << "{\"type\":\"Extra\","
+                ss << "{\"type\":\"extra\","
                    << "\"extra\":" << data << "}";
                 Server.sendMessage(ss.str(), MessageType::Extra);
             }

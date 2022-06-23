@@ -26,12 +26,13 @@ Configs InitConfigs(const std::string& filepath)
 std::string BridgeInfoToJSON(const BridgeInfo& info)
 {
     std::ostringstream ss{};
-    ss << "{\"type\":\"Info\",";
-    ss << "\"Version\":\"" << std::string{info.version} << "\","
-       << "\"ExtraVersion\":\"" << info.extraVersion << "\","
-       << "\"ArcVersion\":\"" << info.arcvers << "\","
-       << "\"ArcLoaded\":" << ((info.arcLoaded) ? "true" : "false") << ","
-       << "\"ExtraLoaded\":" << ((info.extraLoaded) ? "true" : "false") << "}";
+    ss << "{\"type\":\"info\",";
+    ss << "\"info\":{" 
+       << "\"version\":\"" << std::string{info.version} << "\","
+       << "\"extraVersion\":\"" << info.extraVersion << "\","
+       << "\"arcVersion\":\"" << info.arcvers << "\","
+       << "\"arcLoaded\":" << ((info.arcLoaded) ? "true" : "false") << ","
+       << "\"extraLoaded\":" << ((info.extraLoaded) ? "true" : "false") << "}}";
     return ss.str();
 }
 

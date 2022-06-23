@@ -102,7 +102,8 @@ void PipeThread::start()
 
         if (!(handler->m_eventTrack.combat || handler->m_eventTrack.extra || handler->m_eventTrack.squad))
         {
-            WriteToPipe(handler->m_handle, "{\"success\":false,\"error\":\"no subscription\"}");
+            const auto statusObj = "{\"type\":\"status\",\"status\":{\"success\":false,\"error\":\"no subscription\"}}";
+            WriteToPipe(handler->m_handle, statusObj);
             BRIDGE_INFO("No subscription, Closing PipeThread.");
             CloseHandle(handler->m_handle);
             handler->m_handle = nullptr;
@@ -110,18 +111,22 @@ void PipeThread::start()
             return;
         }
 
-        WriteToPipe(handler->m_handle, "{\"success\":true}");
+        {
+            const auto statusObj = "{\"type\":\"status\",\"status\":{\"success\":true}}";
+            WriteToPipe(handler->m_handle, statusObj);
+        }
 
         if (handler->m_eventTrack.squad)
         {
             handler->m_status = Status::Sending;
             BRIDGE_INFO("Sending Squad information to client...");
             std::ostringstream ss{};
-            ss << "{\"type\":\"Squad\",\"squad\":{";
-            ss << "\"trigger\":\"status\",";
-            ss << "\"self\":\"" << handler->m_appData.Self << "\",";
-            ss << "\"members\":" << handler->m_appData.Squad.toJSON();
-            ss << "}}";
+            ss << "{\"type\":\"squad\",\"squad\":{"
+               << "\"trigger\":\"status\","
+               << "\"status\":{"
+               << "\"self\":\"" << handler->m_appData.Self << "\","
+               << "\"members\":" << handler->m_appData.Squad.toJSON()
+               << "}}}";
             SendStatus sendStatus = WriteToPipe(handler->m_handle, ss.str());
         }
 

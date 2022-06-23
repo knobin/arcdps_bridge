@@ -30,29 +30,29 @@ def bridge_info(handle):
     # Server will send a success message.
     result, msg = win32file.ReadFile(handle, 64*1024)
     data = json.loads(msg)
-    if data["success"] == False:
-        err = data["error"]
+    if data["status"]["success"] == False:
+        err = data["status"]["error"]
         print(f"Server return with error msg: {err}")
-    return data["success"]
+    return data["status"]["success"]
 
 
 def squad_message(data):
     if (data["trigger"] == "status"):
         # Initial Squad information.
-        print("Self: ", data["self"])
+        print("Self: ", data["status"]["self"])
         members = []
-        for member in data["members"]:
-            members.append(member["AccountName"])
+        for member in data["status"]["members"]:
+            members.append(member["accountName"])
         print("Squad members: ", members)
     if (data["trigger"] == "add"):
         # Player has been added to squad.
-        print("Added \"", data["member"]["AccountName"], "\" to squad!")
+        print("Added \"", data["add"]["member"]["accountName"], "\" to squad!")
     if (data["trigger"] == "update"):
         # Player has been updated in squad.
-        print("Updated \"", data["member"]["AccountName"], "\" in squad!")
+        print("Updated \"", data["update"]["member"]["accountName"], "\" in squad!")
     if (data["trigger"] == "remove"):
         # Player has been removed from squad.
-        print("Removed \"", data["member"]["AccountName"], "\" from squad!")
+        print("Removed \"", data["remove"]["member"]["accountName"], "\" from squad!")
 
 
 def pipe_client():
@@ -80,7 +80,8 @@ def pipe_client():
             while True:
                 result, msg = win32file.ReadFile(handle, 64*1024)
                 data = json.loads(msg)
-                if (data["type"] == "Squad"):
+                if (data["type"] == "squad"):
+                    print(data);
                     squad_message(data["squad"])
 
     except pywintypes.error as e:
