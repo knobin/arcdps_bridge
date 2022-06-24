@@ -201,7 +201,7 @@ void PipeThread::start()
                << "\"self\":\"" << handler->m_appData.Self << "\","
                << "\"members\":" << handler->m_appData.Squad.toJSON()
                << "}}}";
-            SendStatus sendStatus = WriteToPipe(handler->m_handle, ss.str());
+            WriteToPipe(handler->m_handle, ss.str());
         }
 
         while (handler->m_run)
@@ -297,7 +297,7 @@ void PipeThread::stop()
         if (m_status == Status::WaitingForMessage)
         {
             BRIDGE_INFO(BRIDGE_PTID_STR(this), "PipeThread is waiting for message, attempting to send empty message...");
-            std::unique_lock<std::mutex> lock(m_msgCont.mutex);
+            std::unique_lock<std::mutex> msgLock(m_msgCont.mutex);
             m_msgCont.queue.emplace("");
             m_msgCont.cv.notify_one();
         }
@@ -334,7 +334,7 @@ void PipeThread::sendMessage(const std::string& msg, MessageType type)
 
     if (send)
     {
-        std::unique_lock<std::mutex> lock(m_msgCont.mutex);
+        std::unique_lock<std::mutex> msgLock(m_msgCont.mutex);
         if (m_msgCont.queue.size() < m_appData.Config.msgQueueSize)
         {
             m_msgCont.queue.push(msg);

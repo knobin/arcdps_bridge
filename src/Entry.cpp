@@ -39,7 +39,7 @@ static std::string GetDllPath(HMODULE hModule)
     return spath;
 }
 
-BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved)
+BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID)
 {
     switch (ul_reason_for_call)
     {
@@ -67,21 +67,9 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
     return TRUE;
 }
 
-/* dll attach -- from winapi */
-static void dll_init(HANDLE hModule)
-{
-    return;
-}
-
-/* dll detach -- from winapi */
-static void dll_exit()
-{
-    return;
-}
-
 /* window callback -- return is assigned to umsg (return zero to not be processed by arcdps or game)
  */
-static uintptr_t mod_wnd(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+static uintptr_t mod_wnd(HWND, UINT uMsg, WPARAM, LPARAM)
 {
     return uMsg;
 }
@@ -321,8 +309,7 @@ static uintptr_t mod_release()
 }
 
 /* export -- arcdps looks for this exported function and calls the address it returns on client load */
-extern "C" __declspec(dllexport) void* get_init_addr(char* arcversionstr, void* imguicontext, void* dxptr,
-                                                     HMODULE new_arcdll, void* mallocfn, void* freefn, UINT dxver)
+extern "C" __declspec(dllexport) void* get_init_addr(char* arcversionstr, void*, void*, HMODULE, void*, void*, UINT)
 {
     AppData.Info.arcvers = std::string{arcversionstr};
     return mod_init;

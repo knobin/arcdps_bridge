@@ -32,3 +32,11 @@ add_library(arcdps_bridge SHARED src/Entry.cpp
     src/PipeThread.cpp
     src/PlayerContainer.hpp
     src/PlayerContainer.cpp)
+
+if (MSVC)
+    target_compile_options(arcdps_bridge PUBLIC /permissive- /W4 /w14640)
+else()
+    target_compile_options(arcdps_bridge PUBLIC
+            -Wall -Wextra -Wpedantic -fvisibility=hidden -Wshadow -Wnon-virtual-dtor -Wold-style-cast -Wcast-align
+            -Wunused -Woverloaded-virtual -Wconversion -Wsign-conversion -Wdouble-promotion -Wformat=2)
+endif ()
