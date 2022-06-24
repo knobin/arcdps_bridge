@@ -115,6 +115,8 @@ void PipeHandler::stop()
 
     if (m_run)
     {
+        m_run = false;
+
         if (m_waitingForConnection)
         {
             // CancelSynchronousIo(PipeThread.handle);
@@ -130,12 +132,16 @@ void PipeHandler::stop()
 
     if (!m_threads.empty())
     {
-        for (std::unique_ptr<PipeThread>& pt : m_threads)
-            pt->stop(); // Will call join() on internal thread.
+        // Remove all PipeThreads.
+        BRIDGE_INFO("Removing all PipeThreads.");
+        for (auto it = m_threads.begin(); it != m_threads.end();)
+        {
+            (*it)->stop();
+            it = m_threads.erase(it);
+        }
     }
 
     BRIDGE_INFO("PipeHandler stopped.");
-    m_run = false;
 }
 
 void PipeHandler::sendMessage(const std::string& msg, MessageType type)

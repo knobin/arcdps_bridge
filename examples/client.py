@@ -81,7 +81,6 @@ def pipe_client():
                 result, msg = win32file.ReadFile(handle, 64*1024)
                 data = json.loads(msg)
                 if (data["type"] == "squad"):
-                    print(data);
                     squad_message(data["squad"])
 
     except pywintypes.error as e:
