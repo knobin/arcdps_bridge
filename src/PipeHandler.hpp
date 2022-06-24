@@ -24,7 +24,7 @@ public:
 
 private:
     std::atomic<uint32_t> m_combat{false};
-    std::atomic<uint32_t> m_extra{false};
+    std::atomic<uint32_t> m_extras{false};
     std::atomic<uint32_t> m_squad{false};
 };
 

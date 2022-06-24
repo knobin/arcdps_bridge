@@ -15,7 +15,7 @@ PipeName = r'\\.\pipe\arcdps-bridge'
 
 
 def subscribe_message():
-    # Event subscribe values: Combat = 1, Extra = 2, Squad = 4.
+    # Event subscribe values: Combat = 1, Extras = 2, Squad = 4.
     # These values can be combined (or):
     return '{"subscribe":"4"}'
 

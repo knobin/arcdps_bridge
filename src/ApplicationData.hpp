@@ -18,10 +18,10 @@
 struct BridgeInfo
 {
     std::string_view version{"1.0.1"}; // Bridge version.
-    std::string extraVersion{""};      // Unofficial Extras version.
+    std::string extrasVersion{""};      // Unofficial Extras version.
     std::string arcvers{""};           // ArcDPS version.
     bool arcLoaded{false};             // Is ArcDPS loaded.
-    bool extraLoaded{false};           // Is Unofficial Extras loaded.
+    bool extrasLoaded{false};           // Is Unofficial Extras loaded.
 };
 
 struct Configs
@@ -54,7 +54,7 @@ enum class MessageType : uint8_t
 {
     NONE = 0,
     Combat = 1,
-    Extra = 2,
+    Extras = 2,
     Squad = 4
 };
 

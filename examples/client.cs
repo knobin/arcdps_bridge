@@ -88,10 +88,10 @@ namespace BridgeHandler
         public class BridgeInfo
         {
             public string version { get; set; }
-            public string extraVersion { get; set; }
+            public string extrasVersion { get; set; }
             public string arcVersion { get; set; }
             public bool arcLoaded { get; set; }
-            public bool extraLoaded { get; set; }
+            public bool extrasLoaded { get; set; }
         }
 
         private class SquadPlayerEvent
@@ -115,7 +115,7 @@ namespace BridgeHandler
             public StatusEvent status { get; set; }
             public BridgeInfo info { get; set; }
             public ArcEvent combat { get; set; }
-            public PlayerInfo extra { get; set; }
+            public PlayerInfo extras { get; set; }
             public SquadData squad { get; set; }
         }
 
@@ -147,7 +147,7 @@ namespace BridgeHandler
         public class Subscribe
         {
             public bool Combat { get; set; }
-            public bool Extra { get; set; }
+            public bool Extras { get; set; }
             public bool Squad { get; set; }
         }
 
@@ -155,7 +155,7 @@ namespace BridgeHandler
         {
             NONE = 0,
             Combat = 1,
-            Extra = 2,
+            Extras = 2,
             Squad = 4
         }
 
@@ -196,8 +196,8 @@ namespace BridgeHandler
             _tData.EnabledTypes = (Byte)MessageType.NONE;
             if (subscribe.Combat)
                 _tData.EnabledTypes |= (Byte)MessageType.Combat;
-            if (subscribe.Extra)
-                _tData.EnabledTypes |= (Byte)MessageType.Extra;
+            if (subscribe.Extras)
+                _tData.EnabledTypes |= (Byte)MessageType.Extras;
             if (subscribe.Squad)
                 _tData.EnabledTypes |= (Byte)MessageType.Squad;
 
@@ -254,7 +254,7 @@ namespace BridgeHandler
                 String infoData = ReadFromPipe(tData.ClientStream);
                 BridgeEvent bEvent = JsonSerializer.Deserialize<BridgeEvent>(infoData)!;
                 BridgeInfo bInfo = bEvent.info;
-                if (!bInfo.arcLoaded && !bInfo.extraLoaded)
+                if (!bInfo.arcLoaded && !bInfo.extrasLoaded)
                 {
                     // Both ArcDPS and Unofficial Extras is needed for squad events.
                     tData.Run = false;
@@ -310,7 +310,7 @@ namespace BridgeHandler
             public const string Status = "status";      // Status.
             public const string Squad = "squad";    // Squad information (initial squad data | player added, updated, or removed).
             public const string Combat = "combat";  // ArcDPS event.
-            public const string Extra = "extra";    // Unofficial Extras event.
+            public const string Extras = "extras";    // Unofficial Extras event.
         }
 
         private void HandleBrideEvent(BridgeEvent evt, ThreadData tData)
@@ -325,9 +325,9 @@ namespace BridgeHandler
             {
                 tData.Handle.OnArcEvent?.Invoke(evt.combat);
             }
-            else if (evt.type == EventType.Extra && evt.extra != null)
+            else if (evt.type == EventType.Extras && evt.extras != null)
             {
-                tData.Handle.OnExtrasEvent?.Invoke(evt.extra);
+                tData.Handle.OnExtrasEvent?.Invoke(evt.extras);
             }
         }
 

@@ -231,13 +231,14 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
         else
         {
             // Player not already in squad.
-            // This event happened before the extra event, add the player.
+            // This event happened before the extras event, add the player.
 
             PlayerContainer::PlayerInfo player{};
             player.accountName = accountName;
             player.characterName = std::string{src->name};
             player.profession = dst->prof;
             player.elite = dst->elite;
+            player.subgroup = static_cast<uint8_t>(dst->team);
 
             if (auto pi = AppData.Squad.add(player))
                 SendPlayerMsg("add", "combat", *pi);
@@ -334,12 +335,12 @@ extern "C" __declspec(dllexport) void* get_release_addr()
     return mod_release;
 }
 
-static std::string ExtraDataToJSON(const UserInfo* user)
+static std::string ExtrasDataToJSON(const UserInfo* user)
 {
     std::ostringstream ss{};
     ss << "{\"accountName\":\"" << std::string{user->AccountName} << "\","
        << "\"role\":" << static_cast<int>(static_cast<uint8_t>(user->Role)) << ","
-       << "\"subgroup\":" << static_cast<int>(user->Subgroup) << ","
+       << "\"subgroup\":" << static_cast<int>(user->Subgroup + 1) << ","
        << "\"joinTime\":" << user->JoinTime << ","
        << "\"readyStatus\":" << ((user->ReadyStatus) ? "true" : "false") << "}";
     return ss.str();
@@ -356,7 +357,7 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
             if (uinfo->Role == UserRole::None)
             {
                 if (auto pi = AppData.Squad.remove(std::string{uinfo->AccountName}))
-                    SendPlayerMsg("remove", "extra", *pi);
+                    SendPlayerMsg("remove", "extras", *pi);
 
                 if (AppData.Self == uinfo->AccountName)
                     AppData.Squad.clear();
@@ -371,32 +372,32 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
                     PlayerContainer::PlayerInfo player{};
                     player.accountName = uinfo->AccountName;
                     player.role = static_cast<uint8_t>(uinfo->Role);
-                    player.subgroup = uinfo->Subgroup;
+                    player.subgroup = uinfo->Subgroup + 1; // Starts at 0.
                     player.joinTime = uinfo->JoinTime;
 
                     if (auto pi = AppData.Squad.add(player))
-                        SendPlayerMsg("add", "extra", *pi);
+                        SendPlayerMsg("add", "extras", *pi);
                 }
                 else
                 {
                     // If already added, update role and subgroup.
                     exists->role = static_cast<uint8_t>(uinfo->Role);
-                    exists->subgroup = uinfo->Subgroup;
+                    exists->subgroup = uinfo->Subgroup + 1; // Starts at 0.
                     if (exists->joinTime != 0 && uinfo->JoinTime != 0)
                         exists->joinTime = uinfo->JoinTime;
 
                     if (auto pi = AppData.Squad.add(*exists))
-                        SendPlayerMsg("update", "extra", *pi);
+                        SendPlayerMsg("update", "extras", *pi);
                 }
             }
 
-            if (Server.trackingEvent(MessageType::Extra))
+            if (Server.trackingEvent(MessageType::Extras))
             {
-                const std::string data{ExtraDataToJSON(uinfo)};
+                const std::string data{ExtrasDataToJSON(uinfo)};
                 std::ostringstream ss{};
-                ss << "{\"type\":\"extra\","
-                   << "\"extra\":" << data << "}";
-                Server.sendMessage(ss.str(), MessageType::Extra);
+                ss << "{\"type\":\"extras\","
+                   << "\"extras\":" << data << "}";
+                Server.sendMessage(ss.str(), MessageType::Extras);
             }
         }
     }
@@ -414,19 +415,19 @@ extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(c
 
     if (pExtrasInfo->ApiVersion != 2)
     {
-        BRIDGE_INFO("Extra api version error, expected 2 and got ", pExtrasInfo->ApiVersion);
+        BRIDGE_INFO("Extras api version error, expected 2 and got ", pExtrasInfo->ApiVersion);
         return;
     }
 
     if (pExtrasInfo->MaxInfoVersion == 1)
     {
-        BRIDGE_INFO("Enabled arcdps extra hook");
-        AppData.Info.extraLoaded = true;
-        AppData.Info.extraVersion = std::string{pExtrasInfo->StringVersion};
+        BRIDGE_INFO("Enabled arcdps extras hook");
+        AppData.Info.extrasLoaded = true;
+        AppData.Info.extrasVersion = std::string{pExtrasInfo->StringVersion};
 
         ExtrasSubscriberInfoV1 extrasInfo{};
         extrasInfo.InfoVersion = 1;
-        extrasInfo.SubscriberName = "ArcDPS Bridge";
+        extrasInfo.SubscriberName = "Unofficial Bridge";
         extrasInfo.SquadUpdateCallback = squad_update_callback;
         *static_cast<ExtrasSubscriberInfoV1*>(pSubscriberInfo) = extrasInfo;
 

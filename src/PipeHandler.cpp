@@ -170,8 +170,8 @@ void TrackedEvents::startTracking(MessageType mt)
         case MessageType::Combat:
             ++m_combat;
             break;
-        case MessageType::Extra:
-            ++m_extra;
+        case MessageType::Extras:
+            ++m_extras;
             break;
         case MessageType::Squad:
             ++m_squad;
@@ -190,8 +190,8 @@ void TrackedEvents::untrack(MessageType mt)
         case MessageType::Combat:
             --m_combat;
             break;
-        case MessageType::Extra:
-            --m_extra;
+        case MessageType::Extras:
+            --m_extras;
             break;
         case MessageType::Squad:
             --m_squad;
@@ -212,8 +212,8 @@ bool TrackedEvents::isTracking(MessageType mt) const
         case MessageType::Combat:
             ret = static_cast<bool>(m_combat);
             break;
-        case MessageType::Extra:
-            ret = static_cast<bool>(m_extra);
+        case MessageType::Extras:
+            ret = static_cast<bool>(m_extras);
             break;
         case MessageType::Squad:
             ret = static_cast<bool>(m_squad);

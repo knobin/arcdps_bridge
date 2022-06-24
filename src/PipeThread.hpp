@@ -45,7 +45,7 @@ public:
     struct EventTracking
     {
         bool combat{false};
-        bool extra{false};
+        bool extras{false};
         bool squad{false};
     };
 

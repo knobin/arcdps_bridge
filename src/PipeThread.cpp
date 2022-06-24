@@ -157,11 +157,11 @@ void PipeThread::start()
             handler->m_eventTrack.combat = true;
             handler->m_te->startTracking(MessageType::Combat);
         }
-        MessageTypeU extraValue = static_cast<MessageTypeU>(MessageType::Extra);
-        if ((filter & extraValue) == extraValue)
+        MessageTypeU extrasValue = static_cast<MessageTypeU>(MessageType::Extras);
+        if ((filter & extrasValue) == extrasValue)
         {
-            handler->m_eventTrack.extra = true;
-            handler->m_te->startTracking(MessageType::Extra);
+            handler->m_eventTrack.extras = true;
+            handler->m_te->startTracking(MessageType::Extras);
         }
         MessageTypeU squadValue = static_cast<MessageTypeU>(MessageType::Squad);
         if ((filter & squadValue) == squadValue)
@@ -171,10 +171,10 @@ void PipeThread::start()
         }
 
         BRIDGE_INFO(BRIDGE_PTID_STR(handler), "Client has subscribed to \"Combat\": ", handler->m_eventTrack.combat);
-        BRIDGE_INFO(BRIDGE_PTID_STR(handler), "Client has subscribed to \"Extra\": ", handler->m_eventTrack.extra);
+        BRIDGE_INFO(BRIDGE_PTID_STR(handler), "Client has subscribed to \"Extras\": ", handler->m_eventTrack.extras);
         BRIDGE_INFO(BRIDGE_PTID_STR(handler), "Client has subscribed to \"Squad\": ", handler->m_eventTrack.squad);
 
-        if (!(handler->m_eventTrack.combat || handler->m_eventTrack.extra || handler->m_eventTrack.squad))
+        if (!(handler->m_eventTrack.combat || handler->m_eventTrack.extras || handler->m_eventTrack.squad))
         {
             const auto statusObj = "{\"type\":\"status\",\"status\":{\"success\":false,\"error\":\"no subscription\"}}";
             WriteToPipe(handler->m_handle, statusObj);
@@ -276,8 +276,8 @@ void PipeThread::start()
         // Untrack events.
         if (handler->m_eventTrack.combat)
             handler->m_te->untrack(MessageType::Combat);
-        if (handler->m_eventTrack.extra)
-            handler->m_te->untrack(MessageType::Extra);
+        if (handler->m_eventTrack.extras)
+            handler->m_te->untrack(MessageType::Extras);
         if (handler->m_eventTrack.squad)
             handler->m_te->untrack(MessageType::Squad);
     });
@@ -322,8 +322,8 @@ void PipeThread::sendMessage(const std::string& msg, MessageType type)
         case MessageType::Combat:
             send = m_eventTrack.combat;
             break;
-        case MessageType::Extra:
-            send = m_eventTrack.extra;
+        case MessageType::Extras:
+            send = m_eventTrack.extras;
             break;
         case MessageType::Squad:
             send = m_eventTrack.squad;

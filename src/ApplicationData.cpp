@@ -29,10 +29,10 @@ std::string BridgeInfoToJSON(const BridgeInfo& info)
     ss << "{\"type\":\"info\",";
     ss << "\"info\":{" 
        << "\"version\":\"" << std::string{info.version} << "\","
-       << "\"extraVersion\":\"" << info.extraVersion << "\","
+       << "\"extrasVersion\":\"" << info.extrasVersion << "\","
        << "\"arcVersion\":\"" << info.arcvers << "\","
        << "\"arcLoaded\":" << ((info.arcLoaded) ? "true" : "false") << ","
-       << "\"extraLoaded\":" << ((info.extraLoaded) ? "true" : "false") << "}}";
+       << "\"extrasLoaded\":" << ((info.extrasLoaded) ? "true" : "false") << "}}";
     return ss.str();
 }
 
