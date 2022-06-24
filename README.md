@@ -54,3 +54,9 @@ Release/arcdps_bridge.dll
 ```
 
 Now drag and drop that DLL in the same directory as ArcDPS is located in.
+
+## License
+This project is licensed with the [MIT License](LICENSE).
+
+This project uses third-party dependencies:
+* [ArcDPS Unofficial Extras](https://github.com/Krappa322/arcdps_unofficial_extras_releases): Closed source addon where the public API that is used in this project is licensed with the [MIT License](https://github.com/Krappa322/arcdps_unofficial_extras_releases/blob/master/LICENSE).
