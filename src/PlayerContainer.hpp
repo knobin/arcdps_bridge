@@ -33,18 +33,38 @@ public:
         std::string toJSON() const;
     };
 
+    struct PlayerInfoEntry
+    {
+        PlayerInfo player{};
+        std::size_t validator{};
+    };
+
+    enum class Status : int
+    {
+        Invalid = 0,    // Operation can never be successful.
+        ValidatorError, // Invalid validator.
+        ExistsError,    // Operation could not be completed because item already exists.
+        Success         // Operation was successful.
+    };
+
+    struct PlayerInfoUpdate
+    {
+        std::optional<PlayerInfoEntry> entry;
+        Status status{Status::Invalid};
+    };
+
 public:
-    std::optional<PlayerInfo> find(const std::string& accountName) const;
-    std::optional<PlayerContainer::PlayerInfo> update(const PlayerInfo& player);
-    std::optional<PlayerContainer::PlayerInfo> add(const PlayerInfo& player);
+    Status add(const PlayerInfo& player);
+    PlayerInfoUpdate update(const PlayerInfoEntry& playerEntry);
     std::optional<PlayerContainer::PlayerInfo> remove(const std::string& accountName);
+    std::optional<PlayerInfoEntry> find(const std::string& accountName) const;
 
     void clear();
 
     std::string toJSON() const;
 
 private:
-    std::array<std::pair<bool, PlayerInfo>, 50> m_squad{};
+    std::array<std::pair<bool, PlayerInfoEntry>, 50> m_squad{};
     mutable std::mutex m_mutex{};
 };
 

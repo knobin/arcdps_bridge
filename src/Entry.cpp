@@ -196,6 +196,24 @@ static void SendPlayerMsg(const std::string& trigger, const std::string& sType,
     }
 }
 
+static void UpdateCombatAddPlayerInfo(const PlayerContainer::PlayerInfoEntry& existing, ag* src, ag* dst)
+{
+    PlayerContainer::PlayerInfoEntry last = existing;
+    PlayerContainer::PlayerInfoUpdate update = {last, PlayerContainer::Status::ValidatorError};
+    while (update.entry && update.status == PlayerContainer::Status::ValidatorError)
+    {
+        update.entry->player.characterName = std::string{src->name};
+        update.entry->player.profession = dst->prof;
+        update.entry->player.elite = dst->elite;
+        update.entry->player.inInstance = true;
+        last = *update.entry;
+        update = AppData.Squad.update(*update.entry);
+    }
+    
+    if (update.status == PlayerContainer::Status::Success)
+        SendPlayerMsg("update", "combat", last.player);
+}
+
 /* combat callback -- may be called asynchronously, use id param to keep track of order, first event id will be 2.
  * return ignored */
 /* at least one participant will be party/squad or minion of, or a buff applied by squad in the case of buff remove. not
@@ -214,13 +232,7 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
             if (auto exists = AppData.Squad.find(accountName))
             {
                 // Update existing listing.
-                
-                exists->characterName = std::string{src->name};
-                exists->profession = dst->prof;
-                exists->elite = dst->elite;
-                exists->inInstance = true;
-                if (auto pi = AppData.Squad.update(*exists))
-                    SendPlayerMsg("update", "combat", *pi);
+                UpdateCombatAddPlayerInfo(*exists, src, dst);
             }
             else
             {
@@ -235,8 +247,15 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
                 player.inInstance = true;
                 player.subgroup = static_cast<uint8_t>(dst->team);
 
-                if (auto pi = AppData.Squad.add(player))
-                    SendPlayerMsg("add", "combat", *pi);
+                PlayerContainer::Status status = AppData.Squad.add(player);
+                if (status == PlayerContainer::Status::Success)
+                    SendPlayerMsg("add", "combat", player);
+                else if (status == PlayerContainer::Status::ExistsError)
+                {
+                    // Entry got added just in the right time for add() to fail.
+                    if (auto added = AppData.Squad.find(accountName))
+                        UpdateCombatAddPlayerInfo(*added, src, dst);
+                }
             }
         }
         else
@@ -245,9 +264,15 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
 
             if (auto exists = AppData.Squad.find(std::string{dst->name}))
             {
-                exists->inInstance = false;
-                if (auto pi = AppData.Squad.update(*exists))
-                    SendPlayerMsg("update", "combat", *pi);
+                PlayerContainer::PlayerInfoUpdate update = {*exists, PlayerContainer::Status::ValidatorError};
+                while (update.entry && update.status == PlayerContainer::Status::ValidatorError)
+                {
+                    update.entry->player.inInstance = false;
+                    update = AppData.Squad.update(*exists);
+                }
+                
+                if (update.entry && update.status == PlayerContainer::Status::Success)
+                    SendPlayerMsg("update", "combat", update.entry->player);
             }
         }
     }
@@ -352,6 +377,25 @@ static std::string ExtrasDataToJSON(const UserInfo* user)
     return ss.str();
 }
 
+static void UpdateExtrasPlayerInfo(const PlayerContainer::PlayerInfoEntry& existing, const UserInfo& user)
+{
+    PlayerContainer::PlayerInfoEntry last = existing;
+    PlayerContainer::PlayerInfoUpdate update = {last, PlayerContainer::Status::ValidatorError};
+    while (update.entry && update.status == PlayerContainer::Status::ValidatorError)
+    {
+        update.entry->player.role = static_cast<uint8_t>(user.Role);
+        update.entry->player.subgroup = user.Subgroup + 1; // Starts at 0.
+        if (update.entry->player.joinTime != 0 && user.JoinTime != 0)
+            update.entry->player.joinTime = user.JoinTime;
+        
+        last = *update.entry;
+        update = AppData.Squad.update(*update.entry);
+    }
+    
+    if (update.status == PlayerContainer::Status::Success)
+        SendPlayerMsg("update", "extras", last.player);
+}
+
 // Callback for arcDPS unofficial extras API.
 void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCount)
 {
@@ -362,6 +406,8 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
         {
             if (uinfo->Role == UserRole::None)
             {
+                // Remove. 
+
                 if (auto pi = AppData.Squad.remove(std::string{uinfo->AccountName}))
                     SendPlayerMsg("remove", "extras", *pi);
 
@@ -371,29 +417,31 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
             else
             {
                 // ArcDPS might have added the player already.
-                // Don't add it again since this has less info than the ArcDPS event.
                 auto exists = AppData.Squad.find(uinfo->AccountName);
                 if (!exists)
                 {
+                    // Add.
+
                     PlayerContainer::PlayerInfo player{};
                     player.accountName = uinfo->AccountName;
                     player.role = static_cast<uint8_t>(uinfo->Role);
                     player.subgroup = uinfo->Subgroup + 1; // Starts at 0.
                     player.joinTime = uinfo->JoinTime;
-
-                    if (auto pi = AppData.Squad.add(player))
-                        SendPlayerMsg("add", "extras", *pi);
+                    
+                    PlayerContainer::Status status = AppData.Squad.add(player);
+                    if (status == PlayerContainer::Status::Success)
+                        SendPlayerMsg("add", "extras", player);
+                    else if (status == PlayerContainer::Status::ExistsError)
+                    {
+                        // Entry got added just in the right time for add() to fail.
+                        if (auto added = AppData.Squad.find(uinfo->AccountName))
+                            UpdateExtrasPlayerInfo(*added, *uinfo);
+                    }
                 }
                 else
                 {
-                    // If already added, update role and subgroup.
-                    exists->role = static_cast<uint8_t>(uinfo->Role);
-                    exists->subgroup = uinfo->Subgroup + 1; // Starts at 0.
-                    if (exists->joinTime != 0 && uinfo->JoinTime != 0)
-                        exists->joinTime = uinfo->JoinTime;
-
-                    if (auto pi = AppData.Squad.add(*exists))
-                        SendPlayerMsg("update", "extras", *pi);
+                    // Update.
+                    UpdateExtrasPlayerInfo(*exists, *uinfo);
                 }
             }
 
