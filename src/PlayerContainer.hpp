@@ -28,6 +28,7 @@ public:
         uint32_t elite{};
         uint8_t role{};
         uint8_t subgroup{};
+        bool inInstance{false};
 
         std::string toJSON() const;
     };

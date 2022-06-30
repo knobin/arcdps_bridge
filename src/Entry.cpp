@@ -203,33 +203,52 @@ static void SendPlayerMsg(const std::string& trigger, const std::string& sType,
 static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uint64_t id, uint64_t revision)
 {
     // Add character name, profession, and elite to PlayerInfo.
-    if (!ev && !src->elite && src->prof)
+    if (!ev && !src->elite)
     {
-        std::string accountName{dst->name};
-        auto exists = AppData.Squad.find(accountName);
-
-        if (exists)
+        if (src->prof)
         {
-            exists->characterName = std::string{src->name};
-            exists->profession = dst->prof;
-            exists->elite = dst->elite;
-            if (auto pi = AppData.Squad.update(*exists))
-                SendPlayerMsg("update", "combat", *pi);
+            // Added.
+       
+            std::string accountName{dst->name};
+
+            if (auto exists = AppData.Squad.find(accountName))
+            {
+                // Update existing listing.
+                
+                exists->characterName = std::string{src->name};
+                exists->profession = dst->prof;
+                exists->elite = dst->elite;
+                exists->inInstance = true;
+                if (auto pi = AppData.Squad.update(*exists))
+                    SendPlayerMsg("update", "combat", *pi);
+            }
+            else
+            {
+                // Player not already in squad.
+                // This event happened before the extras event, add the player.
+
+                PlayerContainer::PlayerInfo player{};
+                player.accountName = accountName;
+                player.characterName = std::string{src->name};
+                player.profession = dst->prof;
+                player.elite = dst->elite;
+                player.inInstance = true;
+                player.subgroup = static_cast<uint8_t>(dst->team);
+
+                if (auto pi = AppData.Squad.add(player))
+                    SendPlayerMsg("add", "combat", *pi);
+            }
         }
         else
         {
-            // Player not already in squad.
-            // This event happened before the extras event, add the player.
+            // Removed.
 
-            PlayerContainer::PlayerInfo player{};
-            player.accountName = accountName;
-            player.characterName = std::string{src->name};
-            player.profession = dst->prof;
-            player.elite = dst->elite;
-            player.subgroup = static_cast<uint8_t>(dst->team);
-
-            if (auto pi = AppData.Squad.add(player))
-                SendPlayerMsg("add", "combat", *pi);
+            if (auto exists = AppData.Squad.find(std::string{dst->name}))
+            {
+                exists->inInstance = false;
+                if (auto pi = AppData.Squad.update(*exists))
+                    SendPlayerMsg("update", "combat", *pi);
+            }
         }
     }
 

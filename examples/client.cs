@@ -61,6 +61,7 @@ namespace BridgeHandler
             public UInt32 elite { get; set; }
             public Byte role { get; set; }
             public Byte subgroup { get; set; }
+            public bool inInstance { get; set; }
         }
 
         public class ArcEvent
@@ -286,8 +287,11 @@ namespace BridgeHandler
                 while (tData.Run && tData.ClientStream.IsConnected)
                 {
                     String data = ReadFromPipe(tData.ClientStream);
-                    bEvent = JsonSerializer.Deserialize<BridgeEvent>(data)!;
-                    tData.Handle.HandleBrideEvent(bEvent, tData);
+                    if (data != "")
+                    {
+                        bEvent = JsonSerializer.Deserialize<BridgeEvent>(data)!;
+                        tData.Handle.HandleBrideEvent(bEvent, tData);
+                    }
                 }
 
                 // Stream is not connected here, or tData.Run is false.
