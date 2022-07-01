@@ -30,6 +30,7 @@
 
     private:
         std::string m_filepath{};
+        mutable std::size_t m_writeCount{0};
         static Logger s_instance;
     };
 

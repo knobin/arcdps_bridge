@@ -8,6 +8,10 @@
 // Local Headers
 #include "Log.hpp"
 
+#if !defined(BRIDGE_LOG_FILESIZE)
+    #define BRIDGE_LOG_FILESIZE 10*1024*1024
+#endif
+
 Logger Logger::s_instance;
 static bool valid{false};
 
@@ -31,8 +35,18 @@ void Logger::writeToFile(const std::string& str) const
     static std::mutex WriteMutex;
     std::unique_lock<std::mutex> lock(WriteMutex);
 
-    std::ofstream outfile; // Opens file for every call to print. Bad. but fine for debugging purposes.
-    outfile.open(m_filepath, std::ios_base::app);
+    std::ofstream outfile; // Opens file for every call to print. Bad. but fine for debugging purposes.    
+    if (m_writeCount > BRIDGE_LOG_FILESIZE)
+    {
+        outfile.open(m_filepath);
+        m_writeCount = 0;
+    }
+    else
+    {
+        outfile.open(m_filepath, std::ios_base::app);
+    }
+        
+    m_writeCount += (str.size() * sizeof(std::string::value_type));
     outfile << str << std::endl;
     outfile.close();
 }
