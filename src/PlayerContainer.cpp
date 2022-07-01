@@ -27,6 +27,36 @@ std::string PlayerContainer::PlayerInfo::toJSON() const
     return ss.str();
 }
 
+#ifdef BRIDGE_DEBUG
+static std::string PrintPlayerInfoDiff(const PlayerContainer::PlayerInfo& p1, const PlayerContainer::PlayerInfo& p2)
+{
+    std::ostringstream ss{};
+    if (p1.accountName != p2.accountName)
+        ss << "accountName: \"" << p1.accountName << "\" => \"" << p2.accountName << "\"";
+    if (p1.characterName != p2.characterName)
+        ss << ",characterName: \"" << p1.characterName << "\" => \"" << p2.characterName << "\"";
+    if (p1.joinTime != p2.joinTime)
+        ss << ",joinTime: \"" << p1.joinTime << "\" => \"" << p2.joinTime << "\"";
+    if (p1.profession != p2.profession)
+        ss << ",profession: \"" << p1.profession << "\" => \"" << p2.profession << "\"";
+    if (p1.elite != p2.elite)
+        ss << ",elite: \"" << p1.elite << "\" => \"" << p2.elite << "\"";
+    if (p1.role != p2.role)
+        ss << ",role: \"" << static_cast<int>(p1.role) << "\" => \"" << static_cast<int>(p2.role) << "\"";
+    if (p1.subgroup != p2.subgroup)
+        ss << ",role: \"" << static_cast<int>(p1.subgroup) << "\" => \"" << static_cast<int>(p2.subgroup) << "\"";
+    if (p1.inInstance != p2.inInstance)
+        ss << ",inInstance: \"" << p1.inInstance << "\" => \"" << p2.inInstance << "\"";
+
+    std::string changes = ss.str();
+
+    if (!changes.empty() && changes.front() == ',')
+        changes.erase(0,1);
+
+    return "{" + changes + "}";
+}
+#endif
+
 std::optional<PlayerContainer::PlayerInfoEntry> PlayerContainer::find(const std::string& accountName) const
 {
     std::unique_lock<std::mutex> lock(m_mutex);
@@ -53,9 +83,9 @@ PlayerContainer::PlayerInfoUpdate PlayerContainer::update(const PlayerInfoEntry&
         auto& member = it->second;
         if (member.validator == playerEntry.validator)
         {
+            BRIDGE_INFO("Updated \"", member.player.accountName, "\" ", "in squad, with: ", PrintPlayerInfoDiff(member.player, playerEntry.player));
             member = playerEntry;
             ++member.validator;
-            BRIDGE_INFO("Updated \"", member.player.accountName, "\" ", "in squad.");
             return {std::nullopt, Status::Success};
         }
         else

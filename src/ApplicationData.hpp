@@ -14,6 +14,7 @@
 // C++ Headers
 #include <cstdint>
 #include <string>
+#include <unordered_map>
 
 struct BridgeInfo
 {
@@ -32,10 +33,18 @@ struct Configs
     std::size_t msgQueueSize{500}; // How many messages can be queued before being dropped.
 };
 
+struct CharacterType
+{
+    uint32_t profession{};
+    uint32_t elite{};
+};
+
 struct ApplicationData
 {
     PlayerContainer Squad{};
-    std::string Self{};
+    PlayerContainer::PlayerInfo Self{};
+
+    std::unordered_map<std::string, CharacterType> CharacterTypeCache{};
 
     Configs Config{};
     BridgeInfo Info{};

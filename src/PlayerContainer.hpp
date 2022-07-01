@@ -8,6 +8,9 @@
 #ifndef BRIDGE_PLAYERCONTAINER_HPP
 #define BRIDGE_PLAYERCONTAINER_HPP
 
+// ArcDPS Unofficial Extras Header
+#include "Definitions.h"
+
 // C++ Headers
 #include <array>
 #include <cstdint>
@@ -26,7 +29,7 @@ public:
         long long joinTime{};
         uint32_t profession{};
         uint32_t elite{};
-        uint8_t role{};
+        uint8_t role{static_cast<uint8_t>(UserRole::None)};
         uint8_t subgroup{};
         bool inInstance{false};
 
@@ -58,6 +61,19 @@ public:
     PlayerInfoUpdate update(const PlayerInfoEntry& playerEntry);
     std::optional<PlayerContainer::PlayerInfo> remove(const std::string& accountName);
     std::optional<PlayerInfoEntry> find(const std::string& accountName) const;
+
+    template<typename UnaryPredicate>
+    std::optional<PlayerInfoEntry> find_if(UnaryPredicate p)
+    {
+        std::unique_lock<std::mutex> lock(m_mutex);
+
+        auto it = std::find_if(m_squad.cbegin(), m_squad.cend(), p);
+
+        if (it != m_squad.cend())
+            return it->second;
+
+        return std::nullopt;
+    }
 
     void clear();
 

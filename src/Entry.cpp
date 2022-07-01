@@ -5,6 +5,8 @@
 //  Created by Robin Gustafsson on 2022-06-21.
 //
 
+#define NOMINMAX
+
 // Local Headers
 #include "ApplicationData.hpp"
 #include "Log.hpp"
@@ -15,7 +17,7 @@
 
 // C++ Headers
 #include <cstddef>
-#include <string>
+#include <limits>
 
 // Windows Headers
 #include <windows.h>
@@ -50,6 +52,8 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID)
             BRIDGE_LOG_INIT(dllPath + std::string{AppData.LogFile});
             std::string configFile = dllPath + std::string{AppData.ConfigFile};
             AppData.Config = InitConfigs(configFile);
+
+            AppData.CharacterTypeCache.reserve(50);
 
             Server.start();
             break;
@@ -214,6 +218,27 @@ static void UpdateCombatAddPlayerInfo(const PlayerContainer::PlayerInfoEntry& ex
         SendPlayerMsg("update", "combat", last.player);
 }
 
+static void UpdateCombatCharInfo(const std::string& name, CharacterType ct)
+{
+    auto existing = AppData.Squad.find_if([&name](const auto& p){ return p.second.player.characterName == name; });
+
+    if (existing)
+    {
+        PlayerContainer::PlayerInfoEntry last = *existing;
+        PlayerContainer::PlayerInfoUpdate update = {last, PlayerContainer::Status::ValidatorError};
+        while (update.entry && update.status == PlayerContainer::Status::ValidatorError)
+        {
+            update.entry->player.profession = ct.profession;
+            update.entry->player.elite = ct.elite;
+            last = *update.entry;
+            update = AppData.Squad.update(*update.entry);
+        }
+        
+        if (update.status == PlayerContainer::Status::Success)
+            SendPlayerMsg("update", "combat", last.player);
+    }
+}
+
 /* combat callback -- may be called asynchronously, use id param to keep track of order, first event id will be 2.
  * return ignored */
 /* at least one participant will be party/squad or minion of, or a buff applied by squad in the case of buff remove. not
@@ -226,7 +251,7 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
         if (src->prof)
         {
             // Added.
-       
+            BRIDGE_INFO("Added, checking dst->name \"", src->name, "\"");
             std::string accountName{dst->name};
 
             if (auto exists = AppData.Squad.find(accountName))
@@ -257,22 +282,57 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
                         UpdateCombatAddPlayerInfo(*added, src, dst);
                 }
             }
+
+            CharacterType ct{};
+            ct.profession = dst->prof;
+            ct.elite = dst->elite;
+            BRIDGE_INFO("Added, CharCache, checking src->name \"", src->name, "\"");
+            AppData.CharacterTypeCache.insert_or_assign(std::string{src->name}, ct);
+#ifdef BRIDGE_DEBUG
+            if (AppData.CharacterTypeCache.size() > 50)
+            {
+                BRIDGE_INFO("[Warning] CharCache size > 50 !");
+            }
+#endif
         }
         else
         {
             // Removed.
+            BRIDGE_INFO("Removed, checking dst->name \"", src->name, "\"");
+            std::string accountName{dst->name};
 
-            if (auto exists = AppData.Squad.find(std::string{dst->name}))
+            if (auto exists = AppData.Squad.find(accountName))
             {
-                PlayerContainer::PlayerInfoUpdate update = {*exists, PlayerContainer::Status::ValidatorError};
+                PlayerContainer::PlayerInfoEntry last = *exists;
+                PlayerContainer::PlayerInfoUpdate update = {last, PlayerContainer::Status::ValidatorError};
                 while (update.entry && update.status == PlayerContainer::Status::ValidatorError)
                 {
                     update.entry->player.inInstance = false;
-                    update = AppData.Squad.update(*exists);
+                    last = *update.entry;
+                    update = AppData.Squad.update(*update.entry);
                 }
                 
-                if (update.entry && update.status == PlayerContainer::Status::Success)
-                    SendPlayerMsg("update", "combat", update.entry->player);
+                if (update.status == PlayerContainer::Status::Success)
+                    SendPlayerMsg("update", "combat", last.player);
+            }
+
+            BRIDGE_INFO("Removed, CharCache, checking src->name \"", src->name, "\"");
+            AppData.CharacterTypeCache.erase(std::string{src->name});
+        }
+    }
+    else if (src->name)
+    {
+        // BRIDGE_INFO("CharCheck, checking src->name, val = ", src->name);
+        auto it = AppData.CharacterTypeCache.find(std::string{src->name});
+        if (it != AppData.CharacterTypeCache.end())
+        {
+            constexpr auto uint32_max = std::numeric_limits<uint32_t>::max();
+            if ((it->second.profession != src->prof || it->second.elite != src->elite) && (src->elite != uint32_max))
+            {
+                BRIDGE_INFO("CharChache: old = {", it->second.profession, ", ", it->second.elite, "}, new = {", src->prof, ", ", src->elite, "}.");
+                it->second.profession = src->prof;
+                it->second.elite = src->elite;
+                UpdateCombatCharInfo(src->name, it->second);
             }
         }
     }
@@ -404,26 +464,54 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
         const UserInfo* uinfo{&updatedUsers[i]};
         if (uinfo)
         {
+            std::string accountName{uinfo->AccountName};
+
             if (uinfo->Role == UserRole::None)
             {
-                // Remove. 
+                // Remove.
+                
+                bool self = (AppData.Self.accountName == accountName);
+                if (self)
+                {
+                    BRIDGE_INFO("Removing self");
+                    if (auto entry = AppData.Squad.find(accountName))
+                    {
+                        BRIDGE_INFO("Removing self, saving character name: \"", entry->player.characterName, "\".");
+                        AppData.Self = entry->player;
+                    }
+                }
 
-                if (auto pi = AppData.Squad.remove(std::string{uinfo->AccountName}))
+                if (auto pi = AppData.Squad.remove(accountName))
                     SendPlayerMsg("remove", "extras", *pi);
 
-                if (AppData.Self == uinfo->AccountName)
+                if (self)
                     AppData.Squad.clear();
             }
             else
             {
                 // ArcDPS might have added the player already.
-                auto exists = AppData.Squad.find(uinfo->AccountName);
+                auto exists = AppData.Squad.find(accountName);
                 if (!exists)
                 {
                     // Add.
 
                     PlayerContainer::PlayerInfo player{};
-                    player.accountName = uinfo->AccountName;
+                    
+                    if (AppData.Self.accountName == accountName)
+                    {
+                        BRIDGE_INFO("Adding self, using character name: \"", AppData.Self.characterName, "\".");
+                        player = AppData.Self;
+                        player.inInstance = true;
+                        auto it = AppData.CharacterTypeCache.find(player.characterName);
+                        if (it != AppData.CharacterTypeCache.end())
+                        {
+                            player.profession = it->second.profession;
+                            player.elite = it->second.elite;
+                        }
+                    }
+                    else
+                        player.accountName = accountName;
+                    
                     player.role = static_cast<uint8_t>(uinfo->Role);
                     player.subgroup = uinfo->Subgroup + 1; // Starts at 0.
                     player.joinTime = uinfo->JoinTime;
@@ -434,7 +522,7 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
                     else if (status == PlayerContainer::Status::ExistsError)
                     {
                         // Entry got added just in the right time for add() to fail.
-                        if (auto added = AppData.Squad.find(uinfo->AccountName))
+                        if (auto added = AppData.Squad.find(accountName))
                             UpdateExtrasPlayerInfo(*added, *uinfo);
                     }
                 }
@@ -486,8 +574,8 @@ extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(c
         *static_cast<ExtrasSubscriberInfoV1*>(pSubscriberInfo) = extrasInfo;
 
         // PlayerCollection.self.accountName = pExtrasInfo->SelfAccountName;
-        AppData.Self = pExtrasInfo->SelfAccountName;
-        BRIDGE_INFO("Self account name: \"", AppData.Self, "\"");
+        AppData.Self.accountName = pExtrasInfo->SelfAccountName;
+        BRIDGE_INFO("Self account name: \"", AppData.Self.accountName, "\"");
         return;
     }
 

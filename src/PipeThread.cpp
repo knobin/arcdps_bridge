@@ -198,7 +198,7 @@ void PipeThread::start()
             ss << "{\"type\":\"squad\",\"squad\":{"
                << "\"trigger\":\"status\","
                << "\"status\":{"
-               << "\"self\":\"" << handler->m_appData.Self << "\","
+               << "\"self\":\"" << handler->m_appData.Self.accountName << "\","
                << "\"members\":" << handler->m_appData.Squad.toJSON()
                << "}}}";
             WriteToPipe(handler->m_handle, ss.str());
