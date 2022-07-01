@@ -90,12 +90,12 @@ PlayerContainer::PlayerInfoUpdate PlayerContainer::update(const PlayerInfoEntry&
         }
         else
         {
-            BRIDGE_INFO("Could not update player with \"", member.player.accountName, "\" due to validators not matching,  ", member.validator, " != ", playerEntry.validator, ".");
+            BRIDGE_WARN("Could not update player with \"", member.player.accountName, "\" due to validators not matching,  ", member.validator, " != ", playerEntry.validator, ".");
             return {it->second, Status::ValidatorError};
         }
     }
 
-    BRIDGE_INFO("Could not update player with \"", playerEntry.player.accountName, "\" due to not being found.");
+    BRIDGE_ERROR("Could not update player with \"", playerEntry.player.accountName, "\" due to not being found.");
     return {std::nullopt, Status::Invalid};
 }
 
@@ -110,7 +110,7 @@ PlayerContainer::Status PlayerContainer::add(const PlayerInfo& player)
     // Player exists already.
     if (it != m_squad.end())
     {
-        BRIDGE_INFO("Player \"", player.accountName, "\" already exist!");
+        BRIDGE_WARN("Player \"", player.accountName, "\" already exist!");
         return Status::ExistsError;
     }
 
@@ -126,7 +126,7 @@ PlayerContainer::Status PlayerContainer::add(const PlayerInfo& player)
         return Status::Success;
     }
 
-    BRIDGE_INFO("Exceeding squad limit of 50 players trying to add \"", player.accountName, "\".");
+    BRIDGE_ERROR("Exceeding squad limit of 50 players trying to add \"", player.accountName, "\".");
     return Status::Invalid;
 }
 

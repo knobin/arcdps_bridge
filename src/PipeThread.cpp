@@ -115,7 +115,7 @@ void PipeThread::start()
             CloseHandle(handler->m_handle);
             handler->m_handle = nullptr;
             handler->m_run = false;
-            BRIDGE_INFO(BRIDGE_PTID_STR(handler), "Failed to send bridge information.");
+            BRIDGE_ERROR(BRIDGE_PTID_STR(handler), "Failed to send bridge information.");
             return;
         }
 
@@ -127,7 +127,7 @@ void PipeThread::start()
             CloseHandle(handler->m_handle);
             handler->m_handle = nullptr;
             handler->m_run = false;
-            BRIDGE_INFO(BRIDGE_PTID_STR(handler), "Failed to read bridge information.");
+            BRIDGE_ERROR(BRIDGE_PTID_STR(handler), "Failed to read bridge information.");
             return;
         }
 
@@ -178,7 +178,7 @@ void PipeThread::start()
         {
             const auto statusObj = "{\"type\":\"status\",\"status\":{\"success\":false,\"error\":\"no subscription\"}}";
             WriteToPipe(handler->m_handle, statusObj);
-            BRIDGE_INFO(BRIDGE_PTID_STR(handler), "No subscription, Closing PipeThread.");
+            BRIDGE_ERROR(BRIDGE_PTID_STR(handler), "No subscription, Closing PipeThread.");
             CloseHandle(handler->m_handle);
             handler->m_handle = nullptr;
             handler->m_run = false;
@@ -226,7 +226,7 @@ void PipeThread::start()
                         DWORD err = GetLastError();
                         if (err == ERROR_BROKEN_PIPE || err == ERROR_NO_DATA)
                         {
-                            BRIDGE_INFO(BRIDGE_PTID_STR(handler), "Client unexpectedly disconnected!");
+                            BRIDGE_ERROR(BRIDGE_PTID_STR(handler), "Client unexpectedly disconnected!");
                             broken = true;
                             break;
                         }
@@ -245,7 +245,7 @@ void PipeThread::start()
                 // Do not send empty message.
                 if (msg.empty())
                 {
-                    BRIDGE_INFO(BRIDGE_PTID_STR(handler), "Empty message found");
+                    BRIDGE_WARN(BRIDGE_PTID_STR(handler), "Empty message found");
                     continue;
                 }
             }
@@ -259,7 +259,7 @@ void PipeThread::start()
             {
                 if (sendStatus.error == ERROR_BROKEN_PIPE || sendStatus.error == ERROR_NO_DATA)
                 {
-                    BRIDGE_INFO(BRIDGE_PTID_STR(handler), "Client unexpectedly disconnected!");
+                    BRIDGE_ERROR(BRIDGE_PTID_STR(handler), "Client unexpectedly disconnected!");
                     break;
                 }
             }
@@ -352,7 +352,7 @@ SendStatus WriteToPipe(HANDLE handle, const std::string& msg)
     if (!status.success)
     {
         status.error = GetLastError();
-        BRIDGE_INFO("Error sending data with err: ", status.error, "!");
+        BRIDGE_ERROR("Error sending data with err: ", status.error, "!");
     }
     return status;
 }
@@ -381,7 +381,7 @@ ReadStatus ReadFromPipe(HANDLE handle)
     if (!status.success)
     {
         status.error = GetLastError();
-        BRIDGE_INFO("Error reading data with err: ", status.error, "!");
+        BRIDGE_ERROR("Error reading data with err: ", status.error, "!");
         return status;
     }
     BRIDGE_MSG_INFO("Retrieved \"", status.data, "\" from client!");

@@ -40,7 +40,7 @@ void PipeHandler::start()
 
             if (handle == NULL || handle == INVALID_HANDLE_VALUE)
             {
-                BRIDGE_INFO("Error creating pipe with err: ", GetLastError(), "!");
+                BRIDGE_ERROR("Error creating pipe with err: ", GetLastError(), "!");
                 continue;
             }
 
@@ -54,7 +54,7 @@ void PipeHandler::start()
             if (!result)
             {
                 CloseHandle(handle);
-                BRIDGE_INFO("Error connecting pipe with err:", GetLastError(), "!");
+                BRIDGE_ERROR("Error connecting pipe with err:", GetLastError(), "!");
                 continue;
             }
 

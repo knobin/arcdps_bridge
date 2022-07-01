@@ -50,3 +50,12 @@ void Logger::writeToFile(const std::string& str) const
     outfile << str << std::endl;
     outfile.close();
 }
+
+std::string Logger::timestamp() const
+{
+    std::time_t timer{std::time(0)};
+    std::tm bt{};
+    localtime_s(&bt, &timer);
+    char time_buf[80];
+    return {time_buf, std::strftime(time_buf, sizeof(time_buf), "%F %T", &bt)};
+}

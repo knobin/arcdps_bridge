@@ -30,7 +30,7 @@ static std::string GetDllPath(HMODULE hModule)
     char path[MAX_PATH];
     if (GetModuleFileName(hModule, path, sizeof(path)) == 0)
     {
-        BRIDGE_INFO("GetModuleFileName failed with error \"", GetLastError(), "\"");
+        BRIDGE_ERROR("GetModuleFileName failed with error \"", GetLastError(), "\"");
         return "";
     }
     std::string spath = std::string{path};
@@ -291,7 +291,7 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
 #ifdef BRIDGE_DEBUG
             if (AppData.CharacterTypeCache.size() > 50)
             {
-                BRIDGE_INFO("[Warning] CharCache size > 50 !");
+                BRIDGE_WARN("CharCache size > 50 !");
             }
 #endif
         }
@@ -557,7 +557,7 @@ extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(c
 
     if (pExtrasInfo->ApiVersion != 2)
     {
-        BRIDGE_INFO("Extras api version error, expected 2 and got ", pExtrasInfo->ApiVersion);
+        BRIDGE_ERROR("Extras api version error, expected 2 and got ", pExtrasInfo->ApiVersion);
         return;
     }
 
@@ -579,5 +579,5 @@ extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(c
         return;
     }
 
-    BRIDGE_INFO("Extra max info version \"", pExtrasInfo->MaxInfoVersion, "\" is not supported.");
+    BRIDGE_ERROR("Extra max info version \"", pExtrasInfo->MaxInfoVersion, "\" is not supported.");
 }
