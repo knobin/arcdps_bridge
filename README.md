@@ -4,10 +4,14 @@ An ArcDPS Extension which sends the events over a named pipe.
 
 ## Features
 
-- Squad information: Players joining or leaving, character information, and subgroup changes.
-- Internally keeps track of squad composition changes, and client will receive squad information when connected.
 - Clients can recieve full ArcDPS events, and ArcDPS Unofficial Extras events. Or access squad information through a custom "Squad" event.
-- Supports any programming language that can interface with Windows NamedPipe, and parse JSON.
+- "Squad" events information: 
+    - Players joining or leaving the squad.
+    - Instance information, players in or out of the instance.
+    - Character information: character name, profession and elite.
+    - Composition changes: character information and subgroup changes.
+- Internally keeps track of the squad and client will receive squad information when connected.
+- Supports any programming language that can interface with Windows Named Pipe and parse JSON.
 - Multiple clients can be connected at the same time.
 
 ## Getting Started

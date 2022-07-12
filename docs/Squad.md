@@ -42,6 +42,9 @@ If the event includes player information the object will include:
 - ```elite```: Elite of the character (```combat```).
 - ```role```: Role of the user (```extras```).
 - ```subgroup```: Subgroup of the user (```combat``` and ```extras```).
+- ```inInstance```: Is the user in the instance (```combat```).
+
+The parentheses describes where the value is retrieved from, if there are multiple origins the latest value is used.
 
 Example of player information object: 
 
@@ -53,7 +56,8 @@ Example of player information object:
     "profession": 4,
     "elite": 55,
     "role": 1,
-    "subgroup": 1
+    "subgroup": 1,
+    "inInstance": true
 }
 ```
 
@@ -86,7 +90,8 @@ Example of squad status event:
                     "profession": 4,
                     "elite": 55,
                     "role": 1,
-                    "subgroup": 1
+                    "subgroup": 1,
+                    "inInstance": true
                 }
             ]
         }
@@ -101,7 +106,7 @@ Squad event that is sent when a player is added to the squad, through either ```
 The event includes:
 - ```type```: Type of event, always ```squad``` for squad events.
 - ```squad.trigger```: The cause of the creation, always ```add``` for squad add events.
-- ```squad.add.source```: Indicates from what event source this was generated from. Can either be ```combat``` or ```extras```.
+- ```squad.add.source```: Indicates from what event source this event was caused by. Can either be ```combat``` or ```extras```. 
 - ```squad.add.member```: Added squad member, player information object.
 
 Example of squad add event with "extras" source:
@@ -123,7 +128,8 @@ Example of squad add event with "extras" source:
                 "profession": 0,
                 "elite": 0,
                 "role": 0,
-                "subgroup": 1
+                "subgroup": 1,
+                "inInstance": false
             }
         }
     }
@@ -149,21 +155,24 @@ Example of squad add event with "combat" source:
                 "profession": 4,
                 "elite": 55,
                 "role": 0,
-                "subgroup": 1
+                "subgroup": 1,
+                "inInstance": true
             }
         }
     }
 }
 ```
 
+Just because the source might be "combat" or "extras" does not mean that it does not contain the combined data. The two examples above shows the differens when there is no data recorded yet. If there is a "extras" event already recorded, it will add the new data from the "combat" event and then trigger this event with the combined data with the source still being "combat".
+
 ### Remove
 
-Squad event that is sent when a player is removed from the squad, only generated from ```extras``` events.
+Squad event that is sent when a player is removed from the squad, through either ```combat``` or ```extras``` events.
 
 The event includes:
 - ```type```: Type of event, always ```squad``` for squad events.
 - ```squad.trigger```: The cause of the creation, always ```remove``` for squad remove events.
-- ```squad.remove.source```: Indicates from what event source this was generated from. Can only be ```extras```.
+- ```squad.remove.source```: Indicates from what event source this event was caused by. Can either be ```combat``` or ```extras```. 
 - ```squad.remove.member```: Removed squad member, player information object.
 
 Example of squad remove event:
@@ -185,7 +194,8 @@ Example of squad remove event:
                 "profession": 4,
                 "elite": 55,
                 "role": 0,
-                "subgroup": 1
+                "subgroup": 1,
+                "inInstance": true
             }
         }
     }
@@ -199,7 +209,7 @@ Squad event that is sent when a player is updated in the internal PlayerCollecti
 The event includes:
 - ```type```: Type of event, always ```squad``` for squad events.
 - ```squad.trigger```: The cause of the creation, always ```update``` for squad update events.
-- ```squad.update.source```: Indicates from what event source this was generated from. Can either be ```combat``` or ```extras```.
+- ```squad.update.source```: Indicates from what event source this event was caused by. Can either be ```combat``` or ```extras```. 
 - ```squad.update.member```: Updated squad member, player information object.
 
 Example of squad update event with "extras" source:
@@ -221,7 +231,8 @@ Example of squad update event with "extras" source:
                 "profession": 4,
                 "elite": 55,
                 "role": 0,
-                "subgroup": 1
+                "subgroup": 1,
+                "inInstance": false
             }
         }
     }

@@ -10,4 +10,4 @@ Everything about the extension for the client to make use of it will be document
 - [Extras](Extras.md) - ArcDPS Unofficial Extras events.
 - [Squad](Squad.md) - Custom squad event.
 
-Up to date for release 1.0.1
+Up to date for release 1.0.2

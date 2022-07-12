@@ -32,7 +32,8 @@ For example:
                     "profession": 4,
                     "elite": 55,
                     "role": 0,
-                    "subgroup": 1
+                    "subgroup": 1,
+                    "inInstance": true
                 }
             ]
         }
