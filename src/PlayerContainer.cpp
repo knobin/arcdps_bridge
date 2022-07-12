@@ -83,10 +83,19 @@ PlayerContainer::PlayerInfoUpdate PlayerContainer::update(const PlayerInfoEntry&
         auto& member = it->second;
         if (member.validator == playerEntry.validator)
         {
-            BRIDGE_INFO("Updated \"", member.player.accountName, "\" ", "in squad, with: ", PrintPlayerInfoDiff(member.player, playerEntry.player));
-            member = playerEntry;
-            ++member.validator;
-            return {std::nullopt, Status::Success};
+            if (member.player != playerEntry.player)
+            {
+                BRIDGE_INFO("Updated \"", member.player.accountName, "\" ", "in squad, with: ", PrintPlayerInfoDiff(member.player, playerEntry.player));
+                member = playerEntry;
+                ++member.validator;
+                return {std::nullopt, Status::Success};
+            }
+            else
+            {
+                BRIDGE_WARN("Tried to update \"", member.player.accountName, "\" ", "in squad with the same information.");
+                ++member.validator;
+                return {std::nullopt, Status::Equal};
+            }
         }
         else
         {
@@ -174,4 +183,17 @@ std::string PlayerContainer::toJSON() const
 
     ss << "]";
     return ss.str();
+}
+
+bool operator==(const PlayerContainer::PlayerInfo& lhs, const PlayerContainer::PlayerInfo& rhs)
+{
+    return ((lhs.accountName == rhs.accountName) && (lhs.characterName == rhs.characterName) &&
+            (lhs.joinTime == rhs.joinTime) && (lhs.profession == rhs.profession) &&
+            (lhs.elite == rhs.elite) && (lhs.role == rhs.role) &&
+            (lhs.subgroup == rhs.subgroup) && (lhs.inInstance == rhs.inInstance));
+}
+
+bool operator!=(const PlayerContainer::PlayerInfo& lhs, const PlayerContainer::PlayerInfo& rhs)
+{
+    return !(lhs == rhs);
 }

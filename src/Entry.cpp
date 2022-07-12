@@ -239,6 +239,26 @@ static void UpdateCombatCharInfo(const std::string& name, CharacterType ct)
     }
 }
 
+static void RemoveFromSquad(const std::string& accountName, const std::string& sType)
+{
+    bool self = (AppData.Self.accountName == accountName);
+    if (self)
+    {
+        BRIDGE_INFO("Removing self");
+        if (auto entry = AppData.Squad.find(accountName))
+        {
+            BRIDGE_INFO("Removing self, saving character name: \"", entry->player.characterName, "\".");
+            AppData.Self = entry->player;
+        }
+    }
+
+    if (auto pi = AppData.Squad.remove(accountName))
+        SendPlayerMsg("remove", sType, *pi);
+
+    if (self)
+        AppData.Squad.clear();
+}
+
 /* combat callback -- may be called asynchronously, use id param to keep track of order, first event id will be 2.
  * return ignored */
 /* at least one participant will be party/squad or minion of, or a buff applied by squad in the case of buff remove. not
@@ -303,17 +323,31 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
 
             if (auto exists = AppData.Squad.find(accountName))
             {
-                PlayerContainer::PlayerInfoEntry last = *exists;
-                PlayerContainer::PlayerInfoUpdate update = {last, PlayerContainer::Status::ValidatorError};
-                while (update.entry && update.status == PlayerContainer::Status::ValidatorError)
+                if (exists->player.role != static_cast<uint8_t>(UserRole::None))
                 {
-                    update.entry->player.inInstance = false;
-                    last = *update.entry;
-                    update = AppData.Squad.update(*update.entry);
+                    // Player was added by ArcDPS Unofficial Extras.
+                    // Update information.
+                     
+                    PlayerContainer::PlayerInfoEntry last = *exists;
+                    PlayerContainer::PlayerInfoUpdate update = {last, PlayerContainer::Status::ValidatorError};
+                    while (update.entry && update.status == PlayerContainer::Status::ValidatorError)
+                    {
+                        update.entry->player.inInstance = false;
+                        last = *update.entry;
+                        update = AppData.Squad.update(*update.entry);
+                    }
+                    
+                    if (update.status == PlayerContainer::Status::Success)
+                        SendPlayerMsg("update", "combat", last.player);
+                }
+                else
+                {
+                    // Player was added by ArcDPS combat api.
+                    // Remove player.
+
+                    RemoveFromSquad(accountName, "combat");
                 }
                 
-                if (update.status == PlayerContainer::Status::Success)
-                    SendPlayerMsg("update", "combat", last.player);
             }
 
             BRIDGE_INFO("Removed, CharCache, checking src->name \"", src->name, "\"");
@@ -470,22 +504,7 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
             {
                 // Remove.
                 
-                bool self = (AppData.Self.accountName == accountName);
-                if (self)
-                {
-                    BRIDGE_INFO("Removing self");
-                    if (auto entry = AppData.Squad.find(accountName))
-                    {
-                        BRIDGE_INFO("Removing self, saving character name: \"", entry->player.characterName, "\".");
-                        AppData.Self = entry->player;
-                    }
-                }
-
-                if (auto pi = AppData.Squad.remove(accountName))
-                    SendPlayerMsg("remove", "extras", *pi);
-
-                if (self)
-                    AppData.Squad.clear();
+                RemoveFromSquad(accountName, "extras");
             }
             else
             {

@@ -47,7 +47,8 @@ public:
         Invalid = 0,    // Operation can never be successful.
         ValidatorError, // Invalid validator.
         ExistsError,    // Operation could not be completed because item already exists.
-        Success         // Operation was successful.
+        Equal,          // New value to update with is the same is the old value. Increases validator.
+        Success         // Operation was successful. Increases validator.
     };
 
     struct PlayerInfoUpdate
@@ -83,5 +84,8 @@ private:
     std::array<std::pair<bool, PlayerInfoEntry>, 50> m_squad{};
     mutable std::mutex m_mutex{};
 };
+
+bool operator==(const PlayerContainer::PlayerInfo& lhs, const PlayerContainer::PlayerInfo& rhs);
+bool operator!=(const PlayerContainer::PlayerInfo& lhs, const PlayerContainer::PlayerInfo& rhs);
 
 #endif // BRIDGE_PLAYERCONTAINER_HPP
