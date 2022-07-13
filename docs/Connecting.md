@@ -41,9 +41,9 @@ Example of BridgeInfo event:
     "type": "info",
     "info":
     {
-        "version": "1.0.1",
-        "extrasVersion": "1.3.1.1",
-        "arcVersion": "20220525.171543-432-x64",
+        "version": "1.0.2",
+        "extrasVersion": "1.4.2.1",
+        "arcVersion": "20220701.150922-444-x64",
         "arcLoaded": true,
         "extrasLoaded": true
     }
