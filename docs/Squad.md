@@ -22,9 +22,9 @@ Another issue arises when the game is restarted (or crashed), then the squad com
 
 ### Combat vs Extras event details
 
-Since the combat and extras event are a bit different, there may be some fields that are invalid when received, and how they will update the internal PlayerCollection. The combat event will update ```accountName```, ```characterName```, ```profession```, ```elite```, and ```subgroup```. Leaving out the ```joinTime``` and ```role```. On the other hand, extras event will update ```accountName```, ```role```, ```subgroup``` and ```joinTime```. Leaving out ```characterName```, ```profession``` and ```elite```. 
+Since the combat and extras event are a bit different, there may be some fields that are invalid when received, and how they will update the internal PlayerCollection. The combat event will update ```accountName```, ```characterName```, ```profession```, ```elite```, ```subgroup``` and ```inInstance```. Leaving out the ```joinTime``` and ```role```. On the other hand, extras event will update ```accountName```, ```role```, ```subgroup``` and ```joinTime```. Leaving out ```characterName```, ```profession``` and ```elite```. 
 
-Although, if ```characterName``` is not null, the ```profession``` and ```elite``` will also be valid. To check what fields are guaranteed to be valid when received, you can check the ```squad.add.source``` and see what event that caused the event. Those fields will be updated, this does not mean however that the other fields are invalid, simply not just updated, and they may or may not be valid.
+Although, if ```characterName``` is not null, the ```profession``` and ```elite``` will also be valid. Another way is to check ```inInstance``` if it is true, this means that ```characterName```, ```profession``` and ```elite``` are all valid and up-to-date. To check what fields are guaranteed to be valid when received, you can check the ```squad.add.source``` and see what event that caused the event. Those fields will be updated, this does not mean however that the other fields are invalid, simply not just updated, and they may or may not be valid.
 
 ## Squad event details
 
