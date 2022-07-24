@@ -12,50 +12,17 @@
     #define BRIDGE_LOG_FILESIZE 10*1024*1024
 #endif
 
-Logger Logger::s_instance;
-static bool valid{false};
+std::shared_ptr<spdlog::logger> Logger::s_logger;
 
 void Logger::init(const std::string& filepath)
 {
-    s_instance = Logger{};
-    s_instance.m_filepath = filepath;
-    valid = true;
+    spdlog::set_pattern("%^[%Y-%m-%d %T] [%n] [%l] %v%$");
+    s_logger = spdlog::rotating_logger_mt("bridge", filepath, BRIDGE_LOG_FILESIZE, 3);
+    s_logger->set_level(spdlog::level::debug);
+    s_logger->flush_on(spdlog::level::info);
 }
-
-Logger& Logger::instance()
+    
+std::shared_ptr<spdlog::logger>& Logger::getLogger()
 {
-    return s_instance;
-}
-
-void Logger::writeToFile(const std::string& str) const
-{
-    if (!valid)
-        return;
-
-    static std::mutex WriteMutex;
-    std::unique_lock<std::mutex> lock(WriteMutex);
-
-    std::ofstream outfile; // Opens file for every call to print. Bad. but fine for debugging purposes.    
-    if (m_writeCount > BRIDGE_LOG_FILESIZE)
-    {
-        outfile.open(m_filepath);
-        m_writeCount = 0;
-    }
-    else
-    {
-        outfile.open(m_filepath, std::ios_base::app);
-    }
-        
-    m_writeCount += (str.size() * sizeof(std::string::value_type));
-    outfile << str << std::endl;
-    outfile.close();
-}
-
-std::string Logger::timestamp() const
-{
-    std::time_t timer{std::time(0)};
-    std::tm bt{};
-    localtime_s(&bt, &timer);
-    char time_buf[80];
-    return {time_buf, std::strftime(time_buf, sizeof(time_buf), "%F %T", &bt)};
+    return s_logger;
 }

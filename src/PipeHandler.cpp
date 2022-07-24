@@ -19,7 +19,7 @@ PipeHandler::PipeHandler(const std::string pipeName, const ApplicationData& appd
 
 PipeHandler::~PipeHandler()
 {
-    BRIDGE_INFO("~PipeHandler, running: ", m_run, " threads: ", m_threads.size());
+    BRIDGE_DEBUG("~PipeHandler, running: {} threads: {}", m_run, m_threads.size());
 }
 
 void PipeHandler::start()
@@ -30,21 +30,22 @@ void PipeHandler::start()
         BRIDGE_INFO("Started PipeHandler thread");
 
         bool ShouldClose{false};
+        std::size_t threadCounter = 0;
         handler->m_run = true;
         while (!ShouldClose)
         {
-            BRIDGE_INFO("Creating NamedPipe \"", handler->m_pipeName, "\"");
+            BRIDGE_INFO("Creating NamedPipe \"{}\"", handler->m_pipeName);
 
             HANDLE handle = CreateNamedPipe(handler->m_pipeName.c_str(), PIPE_ACCESS_DUPLEX, PIPE_TYPE_MESSAGE,
                                             PIPE_UNLIMITED_INSTANCES, 0, 0, 0, NULL);
 
             if (handle == NULL || handle == INVALID_HANDLE_VALUE)
             {
-                BRIDGE_ERROR("Error creating pipe with err: ", GetLastError(), "!");
+                BRIDGE_ERROR("Error creating pipe with err: {}!", GetLastError());
                 continue;
             }
 
-            BRIDGE_INFO("Created Named pipe \"", handler->m_pipeName, "\"");
+            BRIDGE_INFO("Created Named pipe \"{}\"", handler->m_pipeName);
 
             BRIDGE_INFO("Waiting for client!");
             handler->m_waitingForConnection = true;
@@ -54,7 +55,7 @@ void PipeHandler::start()
             if (!result)
             {
                 CloseHandle(handle);
-                BRIDGE_ERROR("Error connecting pipe with err:", GetLastError(), "!");
+                BRIDGE_ERROR("Error connecting pipe with err: {}!", GetLastError());
                 continue;
             }
 
@@ -68,7 +69,7 @@ void PipeHandler::start()
 
             handler->cleanup();
 
-            if (auto t = handler->dispatchPipeThread(handle))
+            if (auto t = handler->dispatchPipeThread(handle, ++threadCounter))
                 t->start();
             else
                 CloseHandle(handle);
@@ -77,12 +78,12 @@ void PipeHandler::start()
     });
 }
 
-PipeThread* PipeHandler::dispatchPipeThread(void* handle)
+PipeThread* PipeHandler::dispatchPipeThread(void* handle, std::size_t id)
 {
     std::unique_lock<std::mutex> lock(m_mutex);
 
     // Maybe add some error handling here in case if vector throws.
-    return m_threads.emplace_back(std::make_unique<PipeThread>(handle, &m_trackedEvents, m_appData)).get();
+    return m_threads.emplace_back(std::make_unique<PipeThread>(id, handle, &m_trackedEvents, m_appData)).get();
 }
 
 void PipeHandler::cleanup()
@@ -96,7 +97,7 @@ void PipeHandler::cleanup()
     {
         if (!(*it)->running())
         {
-            BRIDGE_INFO("Removing closed PipeThread.");
+            BRIDGE_INFO("Removing closed PipeThread [ptid = {}].", (*it)->id());
             (*it)->stop();
             it = m_threads.erase(it);
         }
@@ -137,6 +138,7 @@ void PipeHandler::stop()
         for (auto it = m_threads.begin(); it != m_threads.end();)
         {
             (*it)->stop();
+            BRIDGE_INFO("Removing PipeThread [ptid = {}].", (*it)->id());
             it = m_threads.erase(it);
         }
     }

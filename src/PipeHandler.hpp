@@ -52,7 +52,7 @@ public:
     bool trackingEvent(MessageType mt) const;
 
 private:
-    PipeThread* dispatchPipeThread(void* handle);
+    PipeThread* dispatchPipeThread(void* handle, std::size_t id);
     void cleanup();
 
 private:

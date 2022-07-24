@@ -27,7 +27,7 @@ std::string PlayerContainer::PlayerInfo::toJSON() const
     return ss.str();
 }
 
-#ifdef BRIDGE_DEBUG
+#if BRIDGE_DEBUG_LEVEL > 0 // 1 and above.
 static std::string PrintPlayerInfoDiff(const PlayerContainer::PlayerInfo& p1, const PlayerContainer::PlayerInfo& p2)
 {
     std::ostringstream ss{};
@@ -85,26 +85,26 @@ PlayerContainer::PlayerInfoUpdate PlayerContainer::update(const PlayerInfoEntry&
         {
             if (member.player != playerEntry.player)
             {
-                BRIDGE_INFO("Updated \"", member.player.accountName, "\" ", "in squad, with: ", PrintPlayerInfoDiff(member.player, playerEntry.player));
+                BRIDGE_INFO("Updated \"{}\" in squad, with: {}", member.player.accountName, PrintPlayerInfoDiff(member.player, playerEntry.player));
                 member = playerEntry;
                 ++member.validator;
                 return {std::nullopt, Status::Success};
             }
             else
             {
-                BRIDGE_WARN("Tried to update \"", member.player.accountName, "\" ", "in squad with the same information.");
+                BRIDGE_WARN("Tried to update \"{}\" in squad with the same information.", member.player.accountName);
                 ++member.validator;
                 return {std::nullopt, Status::Equal};
             }
         }
         else
         {
-            BRIDGE_WARN("Could not update player with \"", member.player.accountName, "\" due to validators not matching,  ", member.validator, " != ", playerEntry.validator, ".");
+            BRIDGE_WARN("Could not update player with \"{}\" due to validators not matching, {} != {}.", member.player.accountName, member.validator, playerEntry.validator);
             return {it->second, Status::ValidatorError};
         }
     }
 
-    BRIDGE_ERROR("Could not update player with \"", playerEntry.player.accountName, "\" due to not being found.");
+    BRIDGE_ERROR("Could not update player with \"{}\" due to not being found.", playerEntry.player.accountName);
     return {std::nullopt, Status::Invalid};
 }
 
@@ -119,7 +119,7 @@ PlayerContainer::Status PlayerContainer::add(const PlayerInfo& player)
     // Player exists already.
     if (it != m_squad.end())
     {
-        BRIDGE_WARN("Player \"", player.accountName, "\" already exist!");
+        BRIDGE_WARN("Player \"{}\" already exist!", player.accountName);
         return Status::ExistsError;
     }
 
@@ -129,13 +129,13 @@ PlayerContainer::Status PlayerContainer::add(const PlayerInfo& player)
     // Add.
     if (it != m_squad.end())
     {
-        BRIDGE_INFO("Added ", " \"", player.accountName, "\" to squad.");
+        BRIDGE_INFO("Added \"{}\" to squad.", player.accountName);
         it->second = {player, 0};
         it->first = true;
         return Status::Success;
     }
 
-    BRIDGE_ERROR("Exceeding squad limit of 50 players trying to add \"", player.accountName, "\".");
+    BRIDGE_ERROR("Exceeding squad limit of 50 players trying to add \"{}\".", player.accountName);
     return Status::Invalid;
 }
 
@@ -147,7 +147,7 @@ std::optional<PlayerContainer::PlayerInfo> PlayerContainer::remove(const std::st
                            [&accountName](const auto& p) { return (accountName == p.second.player.accountName); });
     if (it != m_squad.end())
     {
-        BRIDGE_INFO("Removing \"", accountName, "\" from squad.");
+        BRIDGE_INFO("Removing \"{}\" from squad.", accountName);
         it->first = false;
         PlayerInfo copy = it->second.player;
         it->second = {{}, 0};

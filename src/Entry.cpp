@@ -18,26 +18,23 @@
 // C++ Headers
 #include <cstddef>
 #include <limits>
+#include <memory>
 
 // Windows Headers
 #include <windows.h>
 
 static ApplicationData AppData{};
-static PipeHandler Server{std::string{AppData.PipeName}, AppData};
+static std::unique_ptr<PipeHandler> Server{nullptr}; // {std::string{AppData.PipeName}, AppData};
 
 static std::string GetDllPath(HMODULE hModule)
 {
     char path[MAX_PATH];
     if (GetModuleFileName(hModule, path, sizeof(path)) == 0)
-    {
-        BRIDGE_ERROR("GetModuleFileName failed with error \"", GetLastError(), "\"");
         return "";
-    }
     std::string spath = std::string{path};
     std::size_t lastBackslash = spath.find_last_of('\\');
     if (lastBackslash != std::string::npos)
         spath = spath.substr(0, lastBackslash + 1);
-    BRIDGE_INFO("DLL path = \"", spath, "\"");
     return spath;
 }
 
@@ -47,15 +44,23 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID)
     {
         case DLL_PROCESS_ATTACH:
         {
-            BRIDGE_INFO("Starting Bridge service.");
+            Server = std::make_unique<PipeHandler>(std::string{AppData.PipeName}, AppData);
+
             std::string dllPath = GetDllPath(hModule);
             BRIDGE_LOG_INIT(dllPath + std::string{AppData.LogFile});
+            BRIDGE_INFO("Starting Bridge service.");
+            if (dllPath.empty())
+            {
+                BRIDGE_ERROR("GetModuleFileName failed with error \"{}\"", GetLastError());
+            }
+            BRIDGE_INFO("DLL path = \"{}\"", dllPath);
+
             std::string configFile = dllPath + std::string{AppData.ConfigFile};
             AppData.Config = InitConfigs(configFile);
 
             AppData.CharacterTypeCache.reserve(50);
 
-            Server.start();
+            Server->start();
             break;
         }
         case DLL_THREAD_ATTACH:
@@ -63,7 +68,8 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID)
             break;
         case DLL_PROCESS_DETACH:
         {
-            Server.stop();
+            Server->stop();
+            Server.reset(nullptr);
             BRIDGE_INFO("Ended Bridge service.");
             break;
         }
@@ -188,7 +194,7 @@ static std::string agToJSON(ag* agent)
 static void SendPlayerMsg(const std::string& trigger, const std::string& sType,
                           const PlayerContainer::PlayerInfo& player)
 {
-    if (Server.trackingEvent(MessageType::Squad))
+    if (Server->trackingEvent(MessageType::Squad))
     {
         std::ostringstream ss{};
         ss << "{\"type\":\"squad\",\"squad\":{"
@@ -196,7 +202,7 @@ static void SendPlayerMsg(const std::string& trigger, const std::string& sType,
            << "\"" << trigger << "\":{"
            << "\"source\":\"" << sType << "\","
            << "\"member\":" << player.toJSON() << "}}}";
-        Server.sendMessage(ss.str(), MessageType::Squad);
+        Server->sendMessage(ss.str(), MessageType::Squad);
     }
 }
 
@@ -244,10 +250,10 @@ static void RemoveFromSquad(const std::string& accountName, const std::string& s
     bool self = (AppData.Self.accountName == accountName);
     if (self)
     {
-        BRIDGE_INFO("Removing self");
+        BRIDGE_INFO("Removing self \"{}\"", accountName);
         if (auto entry = AppData.Squad.find(accountName))
         {
-            BRIDGE_INFO("Removing self, saving character name: \"", entry->player.characterName, "\".");
+            BRIDGE_DEBUG("Removing self \"{}\", saving character info for \"{}\".", accountName, entry->player.characterName);
             AppData.Self = entry->player;
         }
     }
@@ -271,7 +277,7 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
         if (src->prof)
         {
             // Added.
-            BRIDGE_INFO("Added, checking dst->name \"", src->name, "\"");
+            BRIDGE_DEBUG("Added, checking dst->name \"{}\"", src->name);
             std::string accountName{dst->name};
 
             if (auto exists = AppData.Squad.find(accountName))
@@ -306,9 +312,9 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
             CharacterType ct{};
             ct.profession = dst->prof;
             ct.elite = dst->elite;
-            BRIDGE_INFO("Added, CharCache, checking src->name \"", src->name, "\"");
+            BRIDGE_DEBUG("Added, CharCache, checking src->name \"{}\"", src->name);
             AppData.CharacterTypeCache.insert_or_assign(std::string{src->name}, ct);
-#ifdef BRIDGE_DEBUG
+#ifdef BRIDGE_BUILD_DEBUG
             if (AppData.CharacterTypeCache.size() > 50)
             {
                 BRIDGE_WARN("CharCache size > 50 !");
@@ -318,7 +324,7 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
         else
         {
             // Removed.
-            BRIDGE_INFO("Removed, checking dst->name \"", src->name, "\"");
+            BRIDGE_DEBUG("Removed, checking dst->name \"{}\"", src->name);
             std::string accountName{dst->name};
 
             if (auto exists = AppData.Squad.find(accountName))
@@ -350,20 +356,20 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
                 
             }
 
-            BRIDGE_INFO("Removed, CharCache, checking src->name \"", src->name, "\"");
+            BRIDGE_DEBUG("Removed, CharCache, checking src->name \"{}\"", src->name);
             AppData.CharacterTypeCache.erase(std::string{src->name});
         }
     }
     else if (src->name)
     {
-        // BRIDGE_INFO("CharCheck, checking src->name, val = ", src->name);
+        // BRIDGE_DEBUG("CharCheck, checking src->name, val = {}", src->name);
         auto it = AppData.CharacterTypeCache.find(std::string{src->name});
         if (it != AppData.CharacterTypeCache.end())
         {
             constexpr auto uint32_max = std::numeric_limits<uint32_t>::max();
             if ((it->second.profession != src->prof || it->second.elite != src->elite) && (src->elite != uint32_max))
             {
-                BRIDGE_INFO("CharChache: old = {", it->second.profession, ", ", it->second.elite, "}, new = {", src->prof, ", ", src->elite, "}.");
+                BRIDGE_DEBUG("CharChache: old = [{}, {}], new = [{}, {}].", it->second.profession, it->second.elite, src->prof, src->elite);
                 it->second.profession = src->prof;
                 it->second.elite = src->elite;
                 UpdateCombatCharInfo(src->name, it->second);
@@ -371,7 +377,7 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
         }
     }
 
-    if (!Server.trackingEvent(MessageType::Combat))
+    if (!Server->trackingEvent(MessageType::Combat))
         return 0;
 
     // Combat event.
@@ -399,7 +405,7 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
     ss << ",\"skillname\":" << ((!sn.empty()) ? "\"" + sn + "\"" : "null");
     ss << "}}\0";
 
-    Server.sendMessage(ss.str(), MessageType::Combat);
+    Server->sendMessage(ss.str(), MessageType::Combat);
 
     return 0;
 }
@@ -503,7 +509,6 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
             if (uinfo->Role == UserRole::None)
             {
                 // Remove.
-                
                 RemoveFromSquad(accountName, "extras");
             }
             else
@@ -518,7 +523,7 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
                     
                     if (AppData.Self.accountName == accountName)
                     {
-                        BRIDGE_INFO("Adding self, using character name: \"", AppData.Self.characterName, "\".");
+                        BRIDGE_INFO("Adding self, using character name: \"{}\".", AppData.Self.characterName);
                         player = AppData.Self;
                         player.inInstance = true;
                         auto it = AppData.CharacterTypeCache.find(player.characterName);
@@ -552,13 +557,13 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
                 }
             }
 
-            if (Server.trackingEvent(MessageType::Extras))
+            if (Server->trackingEvent(MessageType::Extras))
             {
                 const std::string data{ExtrasDataToJSON(uinfo)};
                 std::ostringstream ss{};
                 ss << "{\"type\":\"extras\","
                    << "\"extras\":" << data << "}";
-                Server.sendMessage(ss.str(), MessageType::Extras);
+                Server->sendMessage(ss.str(), MessageType::Extras);
             }
         }
     }
@@ -578,7 +583,7 @@ extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(c
 
     if (pExtrasInfo->ApiVersion != 2)
     {
-        BRIDGE_ERROR("Extras api version error, expected 2 and got ", pExtrasInfo->ApiVersion);
+        BRIDGE_ERROR("Extras api version error, expected 2 and got \"{}\"", pExtrasInfo->ApiVersion);
         return;
     }
 
@@ -596,9 +601,9 @@ extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(c
 
         // PlayerCollection.self.accountName = pExtrasInfo->SelfAccountName;
         AppData.Self.accountName = pExtrasInfo->SelfAccountName;
-        BRIDGE_INFO("Self account name: \"", AppData.Self.accountName, "\"");
+        BRIDGE_INFO("Self account name: \"{}\"", AppData.Self.accountName);
         return;
     }
 
-    BRIDGE_ERROR("Extra max info version \"", pExtrasInfo->MaxInfoVersion, "\" is not supported.");
+    BRIDGE_ERROR("Extra max info version \"{}\" is not supported.", pExtrasInfo->MaxInfoVersion);
 }

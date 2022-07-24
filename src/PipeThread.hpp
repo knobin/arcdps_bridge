@@ -51,7 +51,7 @@ public:
 
 public:
     PipeThread() = delete;
-    PipeThread(void* handle, TrackedEvents* te, const ApplicationData& appdata);
+    PipeThread(std::size_t id, void* handle, TrackedEvents* te, const ApplicationData& appdata);
     ~PipeThread();
 
     void start();
@@ -60,6 +60,8 @@ public:
     {
         return m_run;
     }
+
+    std::size_t id() const { return m_id; }
 
     void sendMessage(const std::string& msg, MessageType type);
     EventTracking eventTracking() const
@@ -77,6 +79,7 @@ private:
     TrackedEvents* m_te{nullptr};
     Status m_status{Status::NONE};
     std::atomic<bool> m_run{true};
+    std::size_t m_id;
 };
 
 // Read Helper.

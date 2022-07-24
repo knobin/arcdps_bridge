@@ -75,7 +75,7 @@ Configs LoadConfigFile(const std::string& filepath)
             if (line.front() == '[' && line.back() == ']')
             {
                 header = line.substr(1, line.size() - 2);
-                BRIDGE_INFO("Found Config Header \"", header, "\"");
+                BRIDGE_INFO("Found Config Header \"{}\"", header);
             }
             else if (!header.empty())
             {
@@ -84,7 +84,7 @@ Configs LoadConfigFile(const std::string& filepath)
                 {
                     std::string name = line.substr(0, equalPos);
                     std::string value = line.substr(equalPos + 1);
-                    BRIDGE_INFO("Found Config Entry \"", name, "\" = ", value);
+                    BRIDGE_INFO("Found Config Entry \"{}\" = {}", name, value);
 
                     if (header == "general")
                     {
@@ -98,12 +98,10 @@ Configs LoadConfigFile(const std::string& filepath)
                         {
                             std::istringstream iss(value);
                             iss >> config.msgQueueSize;
-#ifdef BRIDGE_DEBUG
                             if (iss.fail())
                             {
-                                BRIDGE_INFO("Failed to convert \"", value, "\" to std::size_t");
+                                BRIDGE_INFO("Failed to convert \"{}\" to std::size_t", value);
                             }
-#endif
                         }
                     }
                 }

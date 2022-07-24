@@ -14,88 +14,15 @@
 #include <cstdint>
 #include <sstream>
 
-#ifdef BRIDGE_DEBUG
-
-#include <vector>
-#include <utility>
-#include <mutex>
-#include <algorithm>
-
-static std::vector<std::pair<const PipeThread*, std::size_t>> s_threadIDs{};
-static std::mutex s_mutex{};
-
-static std::size_t GetUniqueThreadID(const PipeThread* pThread)
+PipeThread::PipeThread(std::size_t id, void* handle, TrackedEvents* te, const ApplicationData& appdata)
+    : m_handle{handle}, m_te{te}, m_appData{appdata}, m_id{id}
 {
-    std::unique_lock<std::mutex> lock(s_mutex);
-
-    auto it = std::find_if(s_threadIDs.cbegin(), s_threadIDs.cend(), [pThread](const auto& p){
-        return p.first == pThread;
-    });
-
-    if (it != s_threadIDs.cend())
-        return it->second;
-
-    std::sort(s_threadIDs.begin(), s_threadIDs.end(), [](auto &left, auto &right) {
-        return left.second < right.second;
-    });
-
-    std::size_t id{1};
-    for (const auto& p : s_threadIDs) 
-        if (p.second == id)
-            ++id;
-        else
-            break;
-
-    s_threadIDs.push_back({pThread, id});
-    BRIDGE_INFO("Created PipeThread id = ", id);
-    return id;
-}
-
-static void RemoveThreadID(const PipeThread* pThread)
-{
-    std::unique_lock<std::mutex> lock(s_mutex);
-
-    for (auto it = s_threadIDs.begin(); it != s_threadIDs.end();)
-    {
-        if (it->first == pThread)
-        {
-            BRIDGE_INFO("Removed PipeThread id = ", it->second);
-            it = s_threadIDs.erase(it);
-        }
-        else
-            ++it;
-    }
-}
-
-static std::string GetPTIDStr(const PipeThread* pThread) 
-{
-    std::ostringstream ss{};
-    ss << "[ptid = " << GetUniqueThreadID(pThread) << "] ";
-    return ss.str();
-}
-
-#define BRIDGE_CREATE_PTID(...) GetUniqueThreadID(__VA_ARGS__)
-#define BRIDGE_REMOVE_PTID(...) RemoveThreadID(__VA_ARGS__)
-#define BRIDGE_PTID_STR(...) GetPTIDStr(__VA_ARGS__)
-
-#else
-
-#define BRIDGE_CREATE_PTID(...)
-#define BRIDGE_REMOVE_PTID(...)
-#define BRIDGE_PTID_STR(...) ""
-
-#endif
-
-PipeThread::PipeThread(void* handle, TrackedEvents* te, const ApplicationData& appdata)
-    : m_handle{handle}, m_te{te}, m_appData{appdata}
-{
-    BRIDGE_CREATE_PTID(this);
+    BRIDGE_DEBUG("[ptid = {}] Created PipeThread", m_id);
 }
 
 PipeThread::~PipeThread()
 {
-    BRIDGE_INFO(BRIDGE_PTID_STR(this), "~PipeThread, running: ", m_run);
-    BRIDGE_REMOVE_PTID(this);
+    BRIDGE_DEBUG("[ptid = {}] ~PipeThread, running: {}", m_id, m_run);
 }
 
 void PipeThread::start()
@@ -103,10 +30,10 @@ void PipeThread::start()
     std::unique_lock<std::mutex> lock(m_mutex);
 
     m_thread = std::thread([handler = this](){
-        BRIDGE_INFO(BRIDGE_PTID_STR(handler), "Started PipeThread");
+        BRIDGE_INFO("[ptid = {}] Started PipeThread", handler->m_id);
         handler->m_run = true;
 
-        BRIDGE_INFO(BRIDGE_PTID_STR(handler), "Client connected, sending bridge information...");
+        BRIDGE_INFO("[ptid = {}] Client connected, sending bridge information...", handler->m_id);
         std::string msg = BridgeInfoToJSON(handler->m_appData.Info);
         handler->m_status = Status::Sending;
         SendStatus sendStatus = WriteToPipe(handler->m_handle, msg);
@@ -115,11 +42,11 @@ void PipeThread::start()
             CloseHandle(handler->m_handle);
             handler->m_handle = nullptr;
             handler->m_run = false;
-            BRIDGE_ERROR(BRIDGE_PTID_STR(handler), "Failed to send bridge information.");
+            BRIDGE_ERROR("[ptid = {}] Failed to send bridge information.", handler->m_id);
             return;
         }
 
-        BRIDGE_INFO(BRIDGE_PTID_STR(handler), "Waiting for client to subscribe...");
+        BRIDGE_INFO("[ptid = {}] Waiting for client to subscribe...", handler->m_id);
         handler->m_status = Status::Reading;
         ReadStatus readStatus = ReadFromPipe(handler->m_handle);
         if (!readStatus.success)
@@ -127,9 +54,10 @@ void PipeThread::start()
             CloseHandle(handler->m_handle);
             handler->m_handle = nullptr;
             handler->m_run = false;
-            BRIDGE_ERROR(BRIDGE_PTID_STR(handler), "Failed to read bridge information.");
+            BRIDGE_ERROR("[ptid = {}] Failed to read bridge information.", handler->m_id);
             return;
         }
+        BRIDGE_MSG_INFO("[ptid = {}] Retrieved \"{}\" from client!", readStatus.data, m_id);
 
         // Expecting: {"subscribe":15}
         // The number is the MessageType's you want to recieved. 15 in this case is all of them.
@@ -142,12 +70,12 @@ void PipeThread::start()
             std::size_t lastDigit = readStatus.data.find_first_not_of("0123456789", firstDigit);
             if (lastDigit != std::string::npos && lastDigit > firstDigit)
             {
-                BRIDGE_INFO(BRIDGE_PTID_STR(handler), "substr: \"", readStatus.data.substr(firstDigit, lastDigit - firstDigit), "\"");
+                BRIDGE_DEBUG("[ptid = {}] substr: \"{}\"", handler->m_id, readStatus.data.substr(firstDigit, lastDigit - firstDigit));
                 std::istringstream iss{readStatus.data.substr(firstDigit, lastDigit - firstDigit)};
                 int i = 0;
                 iss >> i;
                 filter = static_cast<MessageTypeU>(i);
-                BRIDGE_INFO(BRIDGE_PTID_STR(handler), "Recieved filter \"", static_cast<int>(filter), "\" from client.");
+                BRIDGE_INFO("[ptid = {}] Recieved filter \"{}\" from client.", handler->m_id, static_cast<int>(filter));
             }
         }
 
@@ -170,15 +98,15 @@ void PipeThread::start()
             handler->m_te->startTracking(MessageType::Squad);
         }
 
-        BRIDGE_INFO(BRIDGE_PTID_STR(handler), "Client has subscribed to \"Combat\": ", handler->m_eventTrack.combat);
-        BRIDGE_INFO(BRIDGE_PTID_STR(handler), "Client has subscribed to \"Extras\": ", handler->m_eventTrack.extras);
-        BRIDGE_INFO(BRIDGE_PTID_STR(handler), "Client has subscribed to \"Squad\": ", handler->m_eventTrack.squad);
+        BRIDGE_INFO("[ptid = {}] Client has subscribed to \"Combat\": ", handler->m_id, handler->m_eventTrack.combat);
+        BRIDGE_INFO("[ptid = {}] Client has subscribed to \"Extras\": ", handler->m_id, handler->m_eventTrack.extras);
+        BRIDGE_INFO("[ptid = {}] Client has subscribed to \"Squad\": ", handler->m_id, handler->m_eventTrack.squad);
 
         if (!(handler->m_eventTrack.combat || handler->m_eventTrack.extras || handler->m_eventTrack.squad))
         {
             const auto statusObj = "{\"type\":\"status\",\"status\":{\"success\":false,\"error\":\"no subscription\"}}";
             WriteToPipe(handler->m_handle, statusObj);
-            BRIDGE_ERROR(BRIDGE_PTID_STR(handler), "No subscription, Closing PipeThread.");
+            BRIDGE_ERROR("[ptid = {}] No subscription, Closing PipeThread.", handler->m_id);
             CloseHandle(handler->m_handle);
             handler->m_handle = nullptr;
             handler->m_run = false;
@@ -187,13 +115,17 @@ void PipeThread::start()
 
         {
             const auto statusObj = "{\"type\":\"status\",\"status\":{\"success\":true}}";
-            WriteToPipe(handler->m_handle, statusObj);
+            SendStatus send = WriteToPipe(handler->m_handle, statusObj);
+            if (!send.success)
+            {
+                BRIDGE_ERROR("[ptid = {}] Error sending data with err: {}!", handler->m_id, send.error);   
+            }
         }
 
         if (handler->m_eventTrack.squad)
         {
             handler->m_status = Status::Sending;
-            BRIDGE_INFO(BRIDGE_PTID_STR(handler), "Sending Squad information to client...");
+            BRIDGE_INFO("[ptid = {}] Sending Squad information to client...", handler->m_id);
             std::ostringstream ss{};
             ss << "{\"type\":\"squad\",\"squad\":{"
                << "\"trigger\":\"status\","
@@ -201,7 +133,11 @@ void PipeThread::start()
                << "\"self\":\"" << handler->m_appData.Self.accountName << "\","
                << "\"members\":" << handler->m_appData.Squad.toJSON()
                << "}}}";
-            WriteToPipe(handler->m_handle, ss.str());
+            SendStatus send =WriteToPipe(handler->m_handle, ss.str());
+            if (!send.success)
+            {
+                BRIDGE_ERROR("[ptid = {}] Error sending data with err: {}!", handler->m_id, send.error);   
+            }
         }
 
         while (handler->m_run)
@@ -219,19 +155,19 @@ void PipeThread::start()
                 {
                     handler->m_msgCont.cv.wait_for(lock, std::chrono::seconds(120));
 
-                    BRIDGE_INFO(BRIDGE_PTID_STR(handler), "Checking pipe status...");
+                    BRIDGE_DEBUG("[ptid = {}] Checking pipe status...", handler->m_id);
                     DWORD availBytes{};
                     if (!PeekNamedPipe(handler->m_handle, 0, 0, 0, &availBytes, 0))
                     {
                         DWORD err = GetLastError();
                         if (err == ERROR_BROKEN_PIPE || err == ERROR_NO_DATA)
                         {
-                            BRIDGE_ERROR(BRIDGE_PTID_STR(handler), "Client unexpectedly disconnected!");
+                            BRIDGE_ERROR("[ptid = {}] Client unexpectedly disconnected!", handler->m_id);
                             broken = true;
                             break;
                         }
                     }
-                    BRIDGE_INFO(BRIDGE_PTID_STR(handler), "Client is connected.");
+                    BRIDGE_DEBUG("[ptid = {}] Client is connected.", handler->m_id);
                 }
 
                 // Client has disconnected.
@@ -245,13 +181,13 @@ void PipeThread::start()
                 // Do not send empty message.
                 if (msg.empty())
                 {
-                    BRIDGE_WARN(BRIDGE_PTID_STR(handler), "Empty message found");
+                    BRIDGE_WARN("[ptid = {}] Empty message found", handler->m_id);
                     continue;
                 }
             }
 
             // Send retrieved message.
-            BRIDGE_INFO(BRIDGE_PTID_STR(handler), "Sending message...");
+            BRIDGE_MSG_INFO("[ptid = {}] Sending message...", handler->m_id);
             handler->m_status = Status::Sending;
             sendStatus = WriteToPipe(handler->m_handle, msg);
 
@@ -259,18 +195,18 @@ void PipeThread::start()
             {
                 if (sendStatus.error == ERROR_BROKEN_PIPE || sendStatus.error == ERROR_NO_DATA)
                 {
-                    BRIDGE_ERROR(BRIDGE_PTID_STR(handler), "Client unexpectedly disconnected!");
+                    BRIDGE_ERROR("[ptid = {}]  Client unexpectedly disconnected!", handler->m_id);
                     break;
                 }
             }
 
-            BRIDGE_MSG_INFO("Data sent to client!");
+            BRIDGE_MSG_INFO("[ptid = {}] Data sent to client!", handler->m_id);
         }
 
-        BRIDGE_INFO(BRIDGE_PTID_STR(handler), "PipeThread is closing!");
+        BRIDGE_INFO("[ptid = {}] PipeThread is closing!", handler->m_id);
         handler->m_status = Status::NONE;
         CloseHandle(handler->m_handle);
-        BRIDGE_INFO(BRIDGE_PTID_STR(handler), "Ended PipeThread!");
+        BRIDGE_INFO("[ptid = {}] Ended PipeThread!", handler->m_id);
         handler->m_run = false;
 
         // Untrack events.
@@ -287,7 +223,7 @@ void PipeThread::stop()
 {
     std::unique_lock<std::mutex> lock(m_mutex);
 
-    BRIDGE_INFO(BRIDGE_PTID_STR(this), "Starting to close PipeThread...");
+    BRIDGE_INFO("[ptid = {}] Starting to close PipeThread...", m_id);
 
     if (m_run)
     {
@@ -296,17 +232,17 @@ void PipeThread::stop()
         // Add empty message in case of blocked waiting.
         if (m_status == Status::WaitingForMessage)
         {
-            BRIDGE_INFO(BRIDGE_PTID_STR(this), "PipeThread is waiting for message, attempting to send empty message...");
+            BRIDGE_INFO("[ptid = {}] PipeThread is waiting for message, attempting to send empty message...", m_id);
             std::unique_lock<std::mutex> msgLock(m_msgCont.mutex);
             m_msgCont.queue.emplace("");
             m_msgCont.cv.notify_one();
         }
     }
 
-    BRIDGE_INFO(BRIDGE_PTID_STR(this), "Waiting for PipeThread to join...");
+    BRIDGE_INFO("[ptid = {}] Waiting for PipeThread to join...", m_id);
     m_thread.join();
-    BRIDGE_INFO(BRIDGE_PTID_STR(this), "PipeThread joined.");
-    BRIDGE_INFO(BRIDGE_PTID_STR(this), "PipeThread Closed!");
+    BRIDGE_INFO("[ptid = {}] PipeThread joined.", m_id);
+    BRIDGE_INFO("[ptid = {}] PipeThread Closed!", m_id);
 }
 
 void PipeThread::sendMessage(const std::string& msg, MessageType type)
@@ -345,15 +281,14 @@ void PipeThread::sendMessage(const std::string& msg, MessageType type)
 
 SendStatus WriteToPipe(HANDLE handle, const std::string& msg)
 {
-    BRIDGE_MSG_INFO("Sending \"", msg, "\" to client!");
+    BRIDGE_MSG_INFO("[ptid = {}] Sending \"", msg, "\" to client!", m_id);
     const DWORD length{static_cast<DWORD>(msg.size())};
     SendStatus status{};
     status.success = WriteFile(handle, msg.c_str(), length, &status.numBytesWritten, NULL);
+
     if (!status.success)
-    {
         status.error = GetLastError();
-        BRIDGE_ERROR("Error sending data with err: ", status.error, "!");
-    }
+
     return status;
 }
 
@@ -361,7 +296,6 @@ SendStatus WriteToPipe(HANDLE handle, const std::string& msg)
 
 ReadStatus ReadFromPipe(HANDLE handle)
 {
-    BRIDGE_MSG_INFO("Reading data from client!");
     ReadStatus status{};
     TCHAR buffer[BUFSIZE];
 
@@ -379,11 +313,7 @@ ReadStatus ReadFromPipe(HANDLE handle)
     } while (!status.success);
 
     if (!status.success)
-    {
         status.error = GetLastError();
-        BRIDGE_ERROR("Error reading data with err: ", status.error, "!");
-        return status;
-    }
-    BRIDGE_MSG_INFO("Retrieved \"", status.data, "\" from client!");
+    
     return status;
 }
