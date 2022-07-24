@@ -69,3 +69,4 @@ This project is licensed with the [MIT License](LICENSE).
 
 This project uses third-party dependencies:
 * [ArcDPS Unofficial Extras](https://github.com/Krappa322/arcdps_unofficial_extras_releases): Closed source addon where the public API that is used in this project is licensed with the [MIT License](https://github.com/Krappa322/arcdps_unofficial_extras_releases/blob/master/LICENSE).
+* [spdlog](https://github.com/gabime/spdlog): Fast C++ logging library licensed with the [MIT License](https://github.com/gabime/spdlog/blob/v1.x/LICENSE).
