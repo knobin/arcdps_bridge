@@ -21,8 +21,9 @@ struct BridgeInfo
     std::string_view version{"1.0.2"};  // Bridge version.
     std::string extrasVersion{""};      // Unofficial Extras version.
     std::string arcvers{""};            // ArcDPS version.
-    bool arcLoaded{false};              // Is ArcDPS loaded.
-    bool extrasLoaded{false};           // Is Unofficial Extras loaded.
+    bool arcLoaded{false};              // Is ArcDPS loaded (enabled in the bridge).
+    bool extrasFound{false};            // Has the Unofficial Extras init callback been called.
+    bool extrasLoaded{false};           // Is Unofficial Extras loaded (enabled in the bridge).
 };
 
 struct Configs

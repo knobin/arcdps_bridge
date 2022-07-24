@@ -32,8 +32,9 @@ std::string BridgeInfoToJSON(const BridgeInfo& info)
        << "\"extrasVersion\":\"" << info.extrasVersion << "\","
        << "\"arcVersion\":\"" << info.arcvers << "\","
        << "\"arcLoaded\":" << ((info.arcLoaded) ? "true" : "false") << ","
+       << "\"extrasFound\":" << ((info.extrasFound) ? "true" : "false") << ","
        << "\"extrasLoaded\":" << ((info.extrasLoaded) ? "true" : "false") << "}}";
-    return ss.str();
+    return ss.str(); 
 }
 
 void CreateConfigFile(const std::string& filepath)

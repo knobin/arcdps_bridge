@@ -92,6 +92,7 @@ namespace BridgeHandler
             public string extrasVersion { get; set; }
             public string arcVersion { get; set; }
             public bool arcLoaded { get; set; }
+            public bool extrasFound { get; set; }
             public bool extrasLoaded { get; set; }
         }
 
