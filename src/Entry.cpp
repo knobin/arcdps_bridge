@@ -568,7 +568,7 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
 extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(const ExtrasAddonInfo* pExtrasInfo,
                                                                                void* pSubscriberInfo)
 {
-    if (!AppData.Config.enabled && !AppData.Config.extras)
+    if (!AppData.Config.enabled || !AppData.Config.extras)
     {
         BRIDGE_INFO("Unofficial Extras is disabled.");
         return;
