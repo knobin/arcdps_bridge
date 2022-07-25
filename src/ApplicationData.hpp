@@ -17,6 +17,12 @@
 #include <string>
 #include <unordered_map>
 
+#ifdef BRIDGE_BUILD_DEBUG
+    #define BRIDGE_BUILD_STR "DEBUG"
+#else
+    #define BRIDGE_BUILD_STR "RELEASE"
+#endif
+
 struct BridgeInfo
 {
     std::string_view version{"1.0.2"};  // Bridge version.

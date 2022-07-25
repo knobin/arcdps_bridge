@@ -48,7 +48,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID)
 
             std::string dllPath = GetDllPath(hModule);
             BRIDGE_LOG_INIT(dllPath + std::string{AppData.LogFile});
-            BRIDGE_INFO("Starting Bridge service.");
+            BRIDGE_INFO("Starting Bridge service [{}] [{}].", AppData.Info.version, BRIDGE_BUILD_STR);
             if (dllPath.empty())
             {
                 BRIDGE_ERROR("GetModuleFileName failed with error \"{}\"", GetLastError());
@@ -299,6 +299,10 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
                 player.inInstance = true;
                 player.subgroup = static_cast<uint8_t>(dst->team);
 
+                // If there is no knowledge of self account name, set it here.
+                if (AppData.Self.accountName.empty() && dst->self)
+                    AppData.Self.accountName = accountName;
+
                 PlayerContainer::Status status = AppData.Squad.add(player);
                 if (status == PlayerContainer::Status::Success)
                     SendPlayerMsg("add", "combat", player);
@@ -457,6 +461,7 @@ static uintptr_t mod_release()
 extern "C" __declspec(dllexport) void* get_init_addr(char* arcversionstr, void*, void*, HMODULE, void*, void*, UINT)
 {
     AppData.Info.arcvers = std::string{arcversionstr};
+    BRIDGE_INFO("ArcDPS version: \"{}\"", AppData.Info.arcvers);
     return mod_init;
 }
 
@@ -575,6 +580,8 @@ extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(c
                                                                                void* pSubscriberInfo)
 {
     AppData.Info.extrasFound = true;
+    AppData.Info.extrasVersion = std::string{pExtrasInfo->StringVersion};
+    BRIDGE_INFO("Unofficial Extras version: \"{}\"", AppData.Info.extrasVersion);
 
     if (!AppData.Config.enabled || !AppData.Config.extras)
     {
@@ -590,9 +597,8 @@ extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(c
 
     if (pExtrasInfo->MaxInfoVersion == 1)
     {
-        BRIDGE_INFO("Enabled arcdps extras hook");
+        BRIDGE_INFO("Unofficial Extras is enabled.");
         AppData.Info.extrasLoaded = true;
-        AppData.Info.extrasVersion = std::string{pExtrasInfo->StringVersion};
 
         ExtrasSubscriberInfoV1 extrasInfo{};
         extrasInfo.InfoVersion = 1;
