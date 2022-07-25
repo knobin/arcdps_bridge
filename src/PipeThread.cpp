@@ -17,47 +17,59 @@
 PipeThread::PipeThread(std::size_t id, void* handle, TrackedEvents* te, const ApplicationData& appdata)
     : m_handle{handle}, m_te{te}, m_appData{appdata}, m_id{id}
 {
-    BRIDGE_DEBUG("[ptid = {}] Created PipeThread", m_id);
+    BRIDGE_DEBUG("[ptid {}] Created PipeThread", m_id);
 }
 
 PipeThread::~PipeThread()
 {
-    BRIDGE_DEBUG("[ptid = {}] ~PipeThread, running: {}", m_id, m_run);
+    BRIDGE_DEBUG("[ptid {}] ~PipeThread, running: {}", m_id, m_run);
 }
 
 void PipeThread::start()
 {
     std::unique_lock<std::mutex> lock(m_mutex);
 
-    m_thread = std::thread([handler = this](){
-        BRIDGE_INFO("[ptid = {}] Started PipeThread", handler->m_id);
-        handler->m_run = true;
+    // Enable the thread function to run.
+    m_run = true;
 
-        BRIDGE_INFO("[ptid = {}] Client connected, sending bridge information...", handler->m_id);
+    m_thread = std::thread([handler = this](){
+        if (!handler->m_run)
+        {
+            BRIDGE_INFO("[ptid {}] Could not start PipeThread, m_run = {}", handler->m_id, handler->m_run);
+            return;
+        }
+
+        std::size_t threadID = handler->m_id;
+        void* handle = handler->m_handle;
+        handler->m_running = true;
+        BRIDGE_INFO("[ptid {}] Started PipeThread", threadID);
+
+        BRIDGE_INFO("[ptid {}] Client connected, sending bridge information...", threadID);
         std::string msg = BridgeInfoToJSON(handler->m_appData.Info);
         handler->m_status = Status::Sending;
-        SendStatus sendStatus = WriteToPipe(handler->m_handle, msg);
+        BRIDGE_MSG_DEBUG("[ptid {}] Sending \"{}\" to client.", threadID, msg);
+        SendStatus sendStatus = WriteToPipe(handle, msg);
         if (!sendStatus.success)
         {
-            CloseHandle(handler->m_handle);
+            CloseHandle(handle);
             handler->m_handle = nullptr;
-            handler->m_run = false;
-            BRIDGE_ERROR("[ptid = {}] Failed to send bridge information.", handler->m_id);
+            handler->m_running = false;
+            BRIDGE_ERROR("[ptid {}] Failed to send bridge information.", threadID);
             return;
         }
 
-        BRIDGE_INFO("[ptid = {}] Waiting for client to subscribe...", handler->m_id);
+        BRIDGE_INFO("[ptid {}] Waiting for client to subscribe...", threadID);
         handler->m_status = Status::Reading;
-        ReadStatus readStatus = ReadFromPipe(handler->m_handle);
+        ReadStatus readStatus = ReadFromPipe(handle);
         if (!readStatus.success)
         {
-            CloseHandle(handler->m_handle);
+            CloseHandle(handle);
             handler->m_handle = nullptr;
-            handler->m_run = false;
-            BRIDGE_ERROR("[ptid = {}] Failed to read bridge information.", handler->m_id);
+            handler->m_running = false;
+            BRIDGE_ERROR("[ptid {}] Failed to read bridge information.", threadID);
             return;
         }
-        BRIDGE_MSG_INFO("[ptid = {}] Retrieved \"{}\" from client!", readStatus.data, m_id);
+        BRIDGE_MSG_DEBUG("[ptid {}] Retrieved \"{}\" from client!", threadID, readStatus.data);
 
         // Expecting: {"subscribe":15}
         // The number is the MessageType's you want to recieved. 15 in this case is all of them.
@@ -70,12 +82,12 @@ void PipeThread::start()
             std::size_t lastDigit = readStatus.data.find_first_not_of("0123456789", firstDigit);
             if (lastDigit != std::string::npos && lastDigit > firstDigit)
             {
-                BRIDGE_DEBUG("[ptid = {}] substr: \"{}\"", handler->m_id, readStatus.data.substr(firstDigit, lastDigit - firstDigit));
+                BRIDGE_DEBUG("[ptid {}] substr: \"{}\"", threadID, readStatus.data.substr(firstDigit, lastDigit - firstDigit));
                 std::istringstream iss{readStatus.data.substr(firstDigit, lastDigit - firstDigit)};
                 int i = 0;
                 iss >> i;
                 filter = static_cast<MessageTypeU>(i);
-                BRIDGE_INFO("[ptid = {}] Recieved filter \"{}\" from client.", handler->m_id, static_cast<int>(filter));
+                BRIDGE_INFO("[ptid {}] Recieved filter \"{}\" from client.", threadID, static_cast<int>(filter));
             }
         }
 
@@ -98,34 +110,34 @@ void PipeThread::start()
             handler->m_te->startTracking(MessageType::Squad);
         }
 
-        BRIDGE_INFO("[ptid = {}] Client has subscribed to \"Combat\": ", handler->m_id, handler->m_eventTrack.combat);
-        BRIDGE_INFO("[ptid = {}] Client has subscribed to \"Extras\": ", handler->m_id, handler->m_eventTrack.extras);
-        BRIDGE_INFO("[ptid = {}] Client has subscribed to \"Squad\": ", handler->m_id, handler->m_eventTrack.squad);
+        BRIDGE_INFO("[ptid {}] Client has subscribed to \"Combat\": {}", threadID, handler->m_eventTrack.combat);
+        BRIDGE_INFO("[ptid {}] Client has subscribed to \"Extras\": {}", threadID, handler->m_eventTrack.extras);
+        BRIDGE_INFO("[ptid {}] Client has subscribed to \"Squad\": {}", threadID, handler->m_eventTrack.squad);
 
         if (!(handler->m_eventTrack.combat || handler->m_eventTrack.extras || handler->m_eventTrack.squad))
         {
             const auto statusObj = "{\"type\":\"status\",\"status\":{\"success\":false,\"error\":\"no subscription\"}}";
-            WriteToPipe(handler->m_handle, statusObj);
-            BRIDGE_ERROR("[ptid = {}] No subscription, Closing PipeThread.", handler->m_id);
-            CloseHandle(handler->m_handle);
+            WriteToPipe(handle, statusObj);
+            BRIDGE_ERROR("[ptid {}] No subscription, Closing PipeThread.", threadID);
+            CloseHandle(handle);
             handler->m_handle = nullptr;
-            handler->m_run = false;
+            handler->m_running = false;
             return;
         }
 
         {
             const auto statusObj = "{\"type\":\"status\",\"status\":{\"success\":true}}";
-            SendStatus send = WriteToPipe(handler->m_handle, statusObj);
+            SendStatus send = WriteToPipe(handle, statusObj);
             if (!send.success)
             {
-                BRIDGE_ERROR("[ptid = {}] Error sending data with err: {}!", handler->m_id, send.error);   
+                BRIDGE_ERROR("[ptid {}] Error sending data with err: {}!", threadID, send.error);   
             }
         }
 
         if (handler->m_eventTrack.squad)
         {
             handler->m_status = Status::Sending;
-            BRIDGE_INFO("[ptid = {}] Sending Squad information to client...", handler->m_id);
+            BRIDGE_INFO("[ptid {}] Sending Squad information to client...", threadID);
             std::ostringstream ss{};
             ss << "{\"type\":\"squad\",\"squad\":{"
                << "\"trigger\":\"status\","
@@ -133,16 +145,19 @@ void PipeThread::start()
                << "\"self\":\"" << handler->m_appData.Self.accountName << "\","
                << "\"members\":" << handler->m_appData.Squad.toJSON()
                << "}}}";
-            SendStatus send =WriteToPipe(handler->m_handle, ss.str());
+            SendStatus send = WriteToPipe(handle, ss.str());
             if (!send.success)
             {
-                BRIDGE_ERROR("[ptid = {}] Error sending data with err: {}!", handler->m_id, send.error);   
+                BRIDGE_ERROR("[ptid {}] Error sending data with err: {}!", threadID, send.error);   
             }
         }
 
+        std::size_t msTimeout = handler->m_appData.Config.clientTimeoutTimer;
+        BRIDGE_DEBUG("[ptid {}] Using client timeout time of {}ms", threadID, msTimeout);
+
         while (handler->m_run)
         {
-            BRIDGE_MSG_INFO("Retrieving message to send.");
+            BRIDGE_MSG_DEBUG("Retrieving message to send.");
             msg = "";
 
             {
@@ -153,21 +168,21 @@ void PipeThread::start()
                 bool broken = false;
                 while (handler->m_msgCont.queue.empty())
                 {
-                    handler->m_msgCont.cv.wait_for(lock, std::chrono::seconds(120));
+                    handler->m_msgCont.cv.wait_for(lock, std::chrono::milliseconds(msTimeout));
 
-                    BRIDGE_DEBUG("[ptid = {}] Checking pipe status...", handler->m_id);
+                    BRIDGE_DEBUG("[ptid {}] Checking pipe status...", threadID);
                     DWORD availBytes{};
-                    if (!PeekNamedPipe(handler->m_handle, 0, 0, 0, &availBytes, 0))
+                    if (!PeekNamedPipe(handle, 0, 0, 0, &availBytes, 0))
                     {
                         DWORD err = GetLastError();
                         if (err == ERROR_BROKEN_PIPE || err == ERROR_NO_DATA)
                         {
-                            BRIDGE_ERROR("[ptid = {}] Client unexpectedly disconnected!", handler->m_id);
+                            BRIDGE_ERROR("[ptid {}] Client unexpectedly disconnected!", threadID);
                             broken = true;
                             break;
                         }
                     }
-                    BRIDGE_DEBUG("[ptid = {}] Client is connected.", handler->m_id);
+                    BRIDGE_DEBUG("[ptid {}] Client is connected.", threadID);
                 }
 
                 // Client has disconnected.
@@ -181,33 +196,34 @@ void PipeThread::start()
                 // Do not send empty message.
                 if (msg.empty())
                 {
-                    BRIDGE_WARN("[ptid = {}] Empty message found", handler->m_id);
+                    BRIDGE_WARN("[ptid {}] Empty message found", threadID);
                     continue;
                 }
             }
 
             // Send retrieved message.
-            BRIDGE_MSG_INFO("[ptid = {}] Sending message...", handler->m_id);
+            BRIDGE_MSG_DEBUG("[ptid {}] Sending message...", threadID);
             handler->m_status = Status::Sending;
-            sendStatus = WriteToPipe(handler->m_handle, msg);
+            sendStatus = WriteToPipe(handle, msg);
 
             if (!sendStatus.success)
             {
                 if (sendStatus.error == ERROR_BROKEN_PIPE || sendStatus.error == ERROR_NO_DATA)
                 {
-                    BRIDGE_ERROR("[ptid = {}]  Client unexpectedly disconnected!", handler->m_id);
+                    BRIDGE_ERROR("[ptid {}]  Client unexpectedly disconnected!", threadID);
                     break;
                 }
             }
 
-            BRIDGE_MSG_INFO("[ptid = {}] Data sent to client!", handler->m_id);
+            BRIDGE_MSG_DEBUG("[ptid {}] Data sent to client!", threadID);
         }
 
-        BRIDGE_INFO("[ptid = {}] PipeThread is closing!", handler->m_id);
+        BRIDGE_INFO("[ptid {}] PipeThread is closing!", threadID);
         handler->m_status = Status::NONE;
-        CloseHandle(handler->m_handle);
-        BRIDGE_INFO("[ptid = {}] Ended PipeThread!", handler->m_id);
-        handler->m_run = false;
+        CloseHandle(handle);
+        handler->m_handle = nullptr;
+        handler->m_running = false;
+        BRIDGE_INFO("[ptid {}] Ended PipeThread!", threadID);
 
         // Untrack events.
         if (handler->m_eventTrack.combat)
@@ -223,7 +239,7 @@ void PipeThread::stop()
 {
     std::unique_lock<std::mutex> lock(m_mutex);
 
-    BRIDGE_INFO("[ptid = {}] Starting to close PipeThread...", m_id);
+    BRIDGE_INFO("[ptid {}] Starting to close PipeThread...", m_id);
 
     if (m_run)
     {
@@ -232,17 +248,17 @@ void PipeThread::stop()
         // Add empty message in case of blocked waiting.
         if (m_status == Status::WaitingForMessage)
         {
-            BRIDGE_INFO("[ptid = {}] PipeThread is waiting for message, attempting to send empty message...", m_id);
+            BRIDGE_INFO("[ptid {}] PipeThread is waiting for message, attempting to send empty message...", m_id);
             std::unique_lock<std::mutex> msgLock(m_msgCont.mutex);
             m_msgCont.queue.emplace("");
             m_msgCont.cv.notify_one();
         }
     }
 
-    BRIDGE_INFO("[ptid = {}] Waiting for PipeThread to join...", m_id);
+    BRIDGE_INFO("[ptid {}] Waiting for PipeThread to join...", m_id);
     m_thread.join();
-    BRIDGE_INFO("[ptid = {}] PipeThread joined.", m_id);
-    BRIDGE_INFO("[ptid = {}] PipeThread Closed!", m_id);
+    BRIDGE_INFO("[ptid {}] PipeThread joined.", m_id);
+    BRIDGE_INFO("[ptid {}] PipeThread Closed!", m_id);
 }
 
 void PipeThread::sendMessage(const std::string& msg, MessageType type)
@@ -281,7 +297,6 @@ void PipeThread::sendMessage(const std::string& msg, MessageType type)
 
 SendStatus WriteToPipe(HANDLE handle, const std::string& msg)
 {
-    BRIDGE_MSG_INFO("[ptid = {}] Sending \"", msg, "\" to client!", m_id);
     const DWORD length{static_cast<DWORD>(msg.size())};
     SendStatus status{};
     status.success = WriteFile(handle, msg.c_str(), length, &status.numBytesWritten, NULL);

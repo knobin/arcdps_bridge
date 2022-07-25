@@ -71,6 +71,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID)
             Server->stop();
             Server.reset(nullptr);
             BRIDGE_INFO("Ended Bridge service.");
+            BRIDGE_LOG_DESTROY();
             break;
         }
     }

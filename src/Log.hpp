@@ -9,11 +9,12 @@
 #define BRIDGE_LOG_HPP
 
 //
-// No log  -> level 0
-// Info    -> level 1
-// Warning -> level 2
-// Error   -> level 3
-// Debug   -> level 4
+// No log    -> level 0
+// Info      -> level 1
+// Warning   -> level 2
+// Error     -> level 3
+// Debug     -> level 4
+// Msg Debug -> level 5 (Prints messages and info between client and server.)
 //
 
 // Standard log output.
@@ -40,6 +41,7 @@
     {
     public:
         static void init(const std::string& filepath);
+        static void destroy();
 
         static std::shared_ptr<spdlog::logger>& getLogger();
 
@@ -48,16 +50,12 @@
     };
 
     #define BRIDGE_LOG_INIT(...) Logger::init(__VA_ARGS__)
+    #define BRIDGE_LOG_DESTROY(...) Logger::destroy()
     #define BRIDGE_INFO(...) Logger::getLogger()->info(__VA_ARGS__)
-    #ifdef BRIDGE_MSG_LOG
-        #define BRIDGE_MSG_INFO(...) Logger::getLogger()->info(__VA_ARGS__)
-    #else
-        #define BRIDGE_MSG_INFO(...)
-    #endif
 #else
     #define BRIDGE_LOG_INIT(...)
+    #define BRIDGE_LOG_DESTROY(...)
     #define BRIDGE_INFO(...)
-    #define BRIDGE_MSG_INFO(...)
 #endif
 
 #if BRIDGE_DEBUG_LEVEL > 1 // 2 and above.
@@ -76,6 +74,12 @@
     #define BRIDGE_DEBUG(...) Logger::getLogger()->debug(__VA_ARGS__)
 #else
     #define BRIDGE_DEBUG(...)
+#endif
+
+#if BRIDGE_DEBUG_LEVEL > 4 // 5 and above.
+    #define BRIDGE_MSG_DEBUG(...) Logger::getLogger()->debug(__VA_ARGS__)
+#else
+    #define BRIDGE_MSG_DEBUG(...)
 #endif
 
 #endif // BRIDGE_LOG_HPP

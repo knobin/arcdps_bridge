@@ -30,7 +30,7 @@ void PipeHandler::start()
         BRIDGE_INFO("Started PipeHandler thread");
 
         bool ShouldClose{false};
-        std::size_t threadCounter = 0;
+        std::size_t threadCounter = 1;
         handler->m_run = true;
         while (!ShouldClose)
         {
@@ -69,10 +69,16 @@ void PipeHandler::start()
 
             handler->cleanup();
 
-            if (auto t = handler->dispatchPipeThread(handle, ++threadCounter))
+            std::size_t threadID = threadCounter++; // ex. threadID = 1, threadCounter = 2.
+            if (auto t = handler->dispatchPipeThread(handle, threadID))
                 t->start();
             else
+            {
+                // Unused threadID here.
+                BRIDGE_WARN("Unused threadID: {}, resetting threadCounter from {} to {}.", threadID, threadCounter, threadID);
+                threadCounter = threadID; // Reset counter (post increment on threadCounter above).
                 CloseHandle(handle);
+            }
         }
         handler->m_run = false;
     });
@@ -82,8 +88,13 @@ PipeThread* PipeHandler::dispatchPipeThread(void* handle, std::size_t id)
 {
     std::unique_lock<std::mutex> lock(m_mutex);
 
-    // Maybe add some error handling here in case if vector throws.
-    return m_threads.emplace_back(std::make_unique<PipeThread>(id, handle, &m_trackedEvents, m_appData)).get();
+    if (m_threads.size() < m_appData.Config.maxClients)
+    {
+        // Maybe add some error handling here in case if vector throws.
+        return m_threads.emplace_back(std::make_unique<PipeThread>(id, handle, &m_trackedEvents, m_appData)).get();
+    }
+
+    return nullptr;
 }
 
 void PipeHandler::cleanup()
@@ -97,7 +108,7 @@ void PipeHandler::cleanup()
     {
         if (!(*it)->running())
         {
-            BRIDGE_INFO("Removing closed PipeThread [ptid = {}].", (*it)->id());
+            BRIDGE_INFO("Removing closed PipeThread [ptid {}].", (*it)->id());
             (*it)->stop();
             it = m_threads.erase(it);
         }
@@ -138,7 +149,7 @@ void PipeHandler::stop()
         for (auto it = m_threads.begin(); it != m_threads.end();)
         {
             (*it)->stop();
-            BRIDGE_INFO("Removing PipeThread [ptid = {}].", (*it)->id());
+            BRIDGE_INFO("Removing PipeThread [ptid {}].", (*it)->id());
             it = m_threads.erase(it);
         }
     }

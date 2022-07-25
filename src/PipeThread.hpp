@@ -58,7 +58,7 @@ public:
     void stop();
     bool running() const
     {
-        return m_run;
+        return m_running;
     }
 
     std::size_t id() const { return m_id; }
@@ -78,7 +78,8 @@ private:
     void* m_handle{nullptr};
     TrackedEvents* m_te{nullptr};
     Status m_status{Status::NONE};
-    std::atomic<bool> m_run{true};
+    std::atomic<bool> m_run{false};
+    std::atomic<bool> m_running{false};
     std::size_t m_id;
 };
 

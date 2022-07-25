@@ -37,25 +37,77 @@ std::string BridgeInfoToJSON(const BridgeInfo& info)
     return ss.str(); 
 }
 
+static void PrintConfigs(std::ostream& os, const Configs& config)
+{
+    os << "[general]\n";
+    os << "enabled = " << ((config.enabled) ? "true" : "false") << "\n";
+    os << "extras = " << ((config.extras) ? "true" : "false") << "\n";
+    os << "arcDPS = " << ((config.arcDPS) ? "true" : "false") << "\n";
+
+    os << "\n[server]\n";
+    os << "maxClients = " << config.maxClients << "\n";
+    os << "clientTimeoutTimer = " << config.clientTimeoutTimer << "\n";
+    os << "msgQueueSize = " << config.msgQueueSize << "\n";
+}
+
 void CreateConfigFile(const std::string& filepath)
 {
-    BRIDGE_INFO("Creating Config File \"", filepath, "\"");
+    BRIDGE_INFO("Creating Config File \"{}\".", filepath);
 
     std::ofstream configFile;
     configFile.open(filepath);
 
     Configs config{};
-    configFile << "[general]\n";
-    configFile << "enabled = " << ((config.enabled) ? "true" : "false") << "\n";
-    configFile << "extras = " << ((config.extras) ? "true" : "false") << "\n";
-    configFile << "arcDPS = " << ((config.arcDPS) ? "true" : "false") << "\n";
-    configFile << "msgQueueSize = " << config.msgQueueSize << "\n";
+    PrintConfigs(configFile, config);
     configFile.close();
+
+#if BRIDGE_DEBUG_LEVEL > 0
+    std::ostringstream oss{};
+    PrintConfigs(oss, config);
+    BRIDGE_INFO("Configs values set: \n\n{}", oss.str());
+#endif
+}
+
+void Configs::set(const std::string header, const std::string& entry, const std::string& value)
+{
+    if (header == "general")
+    {
+        if (entry == "enabled")
+            enabled = ((value == "true") ? true : false);
+        else if (entry == "extras")
+            extras = ((value == "true") ? true : false);
+        else if (entry == "arcDPS")
+            arcDPS = ((value == "true") ? true : false);
+    }
+    else if (header == "thread")
+    {
+        if (entry == "maxClients")
+        {
+            if (auto conv = StringTo<std::size_t>(value))
+                maxClients = *conv;
+            else
+                BRIDGE_INFO("Failed to convert \"{}\" to std::size_t", value);
+        }
+        else if (entry == "clientTimeoutTimer")
+        {
+            if (auto conv = StringTo<std::size_t>(value))
+                clientTimeoutTimer = *conv;
+            else
+                BRIDGE_INFO("Failed to convert \"{}\" to std::size_t", value);
+        }
+        else if (entry == "msgQueueSize")
+        {
+            if (auto conv = StringTo<std::size_t>(value))
+                msgQueueSize = *conv;
+            else
+                BRIDGE_INFO("Failed to convert \"{}\" to std::size_t", value);
+        }
+    }
 }
 
 Configs LoadConfigFile(const std::string& filepath)
 {
-    BRIDGE_INFO("Loading Config File \"", filepath, "\"");
+    BRIDGE_INFO("Loading Config File \"{}\".", filepath);
     Configs config{};
 
     std::ifstream configFile;
@@ -85,29 +137,17 @@ Configs LoadConfigFile(const std::string& filepath)
                     std::string name = line.substr(0, equalPos);
                     std::string value = line.substr(equalPos + 1);
                     BRIDGE_INFO("Found Config Entry \"{}\" = {}", name, value);
-
-                    if (header == "general")
-                    {
-                        if (name == "enabled")
-                            config.enabled = ((value == "true") ? true : false);
-                        else if (name == "extras")
-                            config.extras = ((value == "true") ? true : false);
-                        else if (name == "arcDPS")
-                            config.arcDPS = ((value == "true") ? true : false);
-                        else if (name == "msgQueueSize")
-                        {
-                            std::istringstream iss(value);
-                            iss >> config.msgQueueSize;
-                            if (iss.fail())
-                            {
-                                BRIDGE_INFO("Failed to convert \"{}\" to std::size_t", value);
-                            }
-                        }
-                    }
+                    config.set(header, name, value);
                 }
             }
         }
     }
+
+#if BRIDGE_DEBUG_LEVEL > 0
+    std::ostringstream oss{};
+    PrintConfigs(oss, config);
+    BRIDGE_INFO("Configs values set: \n\n{}", oss.str());
+#endif
 
     return config;
 }

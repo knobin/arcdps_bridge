@@ -92,7 +92,7 @@ PlayerContainer::PlayerInfoUpdate PlayerContainer::update(const PlayerInfoEntry&
             }
             else
             {
-                BRIDGE_WARN("Tried to update \"{}\" in squad with the same information.", member.player.accountName);
+                BRIDGE_DEBUG("Tried to update \"{}\" in squad with the same information.", member.player.accountName);
                 ++member.validator;
                 return {std::nullopt, Status::Equal};
             }

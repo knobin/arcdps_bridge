@@ -13,6 +13,7 @@
 
 // C++ Headers
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <unordered_map>
 
@@ -28,10 +29,28 @@ struct BridgeInfo
 
 struct Configs
 {
+    // General.
     bool enabled{true};            // Should the extension be enabled.
     bool arcDPS{true};             // Should ArcDPS be used.
     bool extras{true};             // Should the Unofficial Extras be used.
-    std::size_t msgQueueSize{500}; // How many messages can be queued before being dropped.
+
+    // Server.
+    std::size_t maxClients{128};            // Max amount of clinets at one time.
+    std::size_t clientTimeoutTimer{300000}; // Check if client disconnected after specified amount of milliseconds.
+    std::size_t msgQueueSize{500};          // How many messages can be queued before being dropped.
+
+    void set(const std::string header, const std::string& entry, const std::string& value);
+private:
+    template<typename T>
+    std::optional<T> StringTo(const std::string& str)
+    {
+        T value;
+        std::istringstream iss(str);
+        iss >> value;
+        if (iss.fail())
+            return std::nullopt;
+        return value;
+    }
 };
 
 struct CharacterType
