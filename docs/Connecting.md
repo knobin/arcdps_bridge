@@ -8,6 +8,7 @@ The extension uses the Win32 API for [Named Pipes](https://docs.microsoft.com/en
 - [Bridge Information event](#bridge-information-event)
 - [Subscribe to events](#subscribe-to-events)
 - [Status event](#status-event)
+- [Closing event](#closing-event)
 - [After connection and subscribtion are established](#after-connection-and-subscribtion-are-established)
 
 ## Creating a Named Pipe
@@ -29,10 +30,11 @@ After the client has successfully established a Named Pipe, the extension will r
 The event includes:
 - ```type```: Type of event, always ```info``` for BridgeEvent.
 - ```info.version```: Version of the extension in string form.
-- ```info.arcLoaded```: Is ArcDPS loaded, either true or false.
-- ```info.extrasLoaded```: Is ArcDPS Unofficial Extras loaded, either true or false.
-- ```info.arcVersion```: Version of ArcDPS Unofficial Extras in string form (empty string if ArcLoaded is false).
-- ```info.extrasVersion```: Version of ArcDPS in string form (empty string if ExtrasLoaded is false).
+- ```info.extrasVersion```: Version of ArcDPS Unofficial Extras in string form (empty string if extrasLoaded is false).
+- ```info.arcVersion```: Version of ArcDPS in string form.
+- ```info.arcLoaded```: Is ArcDPS used in the bridge, either true or false.
+- ```info.extrasFound```: Is ArcDPS Unofficial Extras present, either true or false.
+- ```info.extrasLoaded```: Is ArcDPS Unofficial Extras used in the bridge, either true or false.
 
 Example of BridgeInfo event: 
 
@@ -41,10 +43,11 @@ Example of BridgeInfo event:
     "type": "info",
     "info":
     {
-        "version": "1.0.2",
+        "version": "1.0.3",
         "extrasVersion": "1.4.2.1",
-        "arcVersion": "20220701.150922-444-x64",
+        "arcVersion": "20220719.175330-446-x64",
         "arcLoaded": true,
+        "extrasFound": true,
         "extrasLoaded": true
     }
 }
@@ -104,6 +107,21 @@ Example of status event:
 ```
 
 If success is false the pipe will be closed by the extension.
+
+## Closing event
+
+When the server is shutting down it will send a closing event to all connected clients to notify that no further events will be sent from the server.
+
+The event includes:
+- ```type```: Type of event, always ```closing``` for the closing event.
+
+Example of closing event: 
+
+```json
+{
+    "type": "closing"
+}
+```
 
 ## After connection and subscribtion are established
 

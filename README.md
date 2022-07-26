@@ -17,7 +17,7 @@ An ArcDPS Extension which sends the events over a named pipe.
 ### Limitations
 
 - Character information (character name, profession and elite) will only be updated when player is in the same instance.
-- Game crashing when in a squad will cause the internal squad information to be removed, it will be fully rebuilt when all players in the squad have been entered the same instance.
+- Game crashing when in a squad will cause the internal squad information to be removed, it will be fully rebuilt when all players in the squad have entered or been in the same instance.
 
 ## Getting Started
 

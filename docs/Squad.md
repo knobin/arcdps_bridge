@@ -36,12 +36,13 @@ All squad events include at least:
 If the event includes player information the object will include:
 
 - ```accountName```: Account name of the player (```combat``` and ```extras```).
-- ```characterName```: Character name of the player (```combat```).
-- ```joinTime```: JoinTime of the player (```extras```).
-- ```profession```: Profession of the character (```combat```).
-- ```elite```: Elite of the character (```combat```).
+- ```characterName```: Character name of the player (```combat```), null if there is no character name available.
+- ```joinTime```: JoinTime of the player (```extras```), 0 if there is no join time available.
+- ```profession```: Profession of the character (```combat```), 0 if there is no profession available.
+- ```elite```: Elite of the character (```combat```), 0 if there is no elite available.
 - ```role```: Role of the user (```extras```).
 - ```subgroup```: Subgroup of the user (```combat``` and ```extras```).
+- ```self```: Is the user self (```combat``` and ```extras```).
 - ```inInstance```: Is the user in the instance (```combat```).
 
 The parentheses describes where the value is retrieved from, if there are multiple origins the latest value is used.
@@ -52,11 +53,12 @@ Example of player information object:
 {
     "accountName": ":Knobin.5930",
     "characterName": "Knobin",
-    "joinTime": 0,
+    "joinTime": 1658850989,
     "profession": 4,
     "elite": 55,
-    "role": 1,
+    "role": 2,
     "subgroup": 1,
+    "self": true,
     "inInstance": true
 }
 ```
@@ -86,11 +88,12 @@ Example of squad status event:
                 {
                     "accountName": ":Knobin.5930",
                     "characterName": "Knobin",
-                    "joinTime": 0,
+                    "joinTime": 1658850989,
                     "profession": 4,
                     "elite": 55,
-                    "role": 1,
+                    "role": 2,
                     "subgroup": 1,
+                    "self": true,
                     "inInstance": true
                 }
             ]
@@ -106,7 +109,8 @@ Squad event that is sent when a player is added to the squad, through either ```
 The event includes:
 - ```type```: Type of event, always ```squad``` for squad events.
 - ```squad.trigger```: The cause of the creation, always ```add``` for squad add events.
-- ```squad.add.source```: Indicates from what event source this event was caused by. Can either be ```combat``` or ```extras```. 
+- ```squad.add.source```: Indicates from what event source this event was caused by. Can either be ```combat``` or ```extras```.
+- ```squad.add.validator```: Indicates what version of member information this is, always ```1``` for add events.
 - ```squad.add.member```: Added squad member, player information object.
 
 Example of squad add event with "extras" source:
@@ -120,16 +124,18 @@ Example of squad add event with "extras" source:
         "add":
         {
             "source": "extras",
+            "validator": 1,
             "member":
             {
                 "accountName": ":Knobin.5930",
-                "characterName": null,
-                "joinTime": 1656069715,
-                "profession": 0,
-                "elite": 0,
-                "role": 0,
+                "characterName": "Knobin",
+                "joinTime": 1658850989,
+                "profession": 4,
+                "elite": 55,
+                "role": 2,
                 "subgroup": 1,
-                "inInstance": false
+                "self": true,
+                "inInstance": true
             }
         }
     }
@@ -147,6 +153,7 @@ Example of squad add event with "combat" source:
         "add":
         {
             "source": "combat",
+            "validator": 1,
             "member":
             {
                 "accountName": ":Knobin.5930",
@@ -156,6 +163,7 @@ Example of squad add event with "combat" source:
                 "elite": 55,
                 "role": 0,
                 "subgroup": 1,
+                "self": true,
                 "inInstance": true
             }
         }
@@ -173,6 +181,7 @@ The event includes:
 - ```type```: Type of event, always ```squad``` for squad events.
 - ```squad.trigger```: The cause of the creation, always ```remove``` for squad remove events.
 - ```squad.remove.source```: Indicates from what event source this event was caused by. Can either be ```combat``` or ```extras```. 
+- ```squad.remove.validator```: Indicates what version of member information this is (latest add or update validator).
 - ```squad.remove.member```: Removed squad member, player information object.
 
 Example of squad remove event:
@@ -186,6 +195,7 @@ Example of squad remove event:
         "remove":
         {
             "source": "extras",
+            "validator": 4,
             "member":
             {
                 "accountName": ":Knobin.5930",
@@ -193,8 +203,9 @@ Example of squad remove event:
                 "joinTime": 0,
                 "profession": 4,
                 "elite": 55,
-                "role": 0,
+                "role": 2,
                 "subgroup": 1,
+                "self": true,
                 "inInstance": true
             }
         }
@@ -210,9 +221,10 @@ The event includes:
 - ```type```: Type of event, always ```squad``` for squad events.
 - ```squad.trigger```: The cause of the creation, always ```update``` for squad update events.
 - ```squad.update.source```: Indicates from what event source this event was caused by. Can either be ```combat``` or ```extras```. 
+- ```squad.update.validator```: Indicates what version of member information this is (higher is newer).
 - ```squad.update.member```: Updated squad member, player information object.
 
-Example of squad update event with "extras" source:
+Example of squad update event with "combat" source:
 
 ```json
 {
@@ -222,17 +234,19 @@ Example of squad update event with "extras" source:
         "trigger": "update",
         "update":
         {
-            "source": "extras",
+            "source": "combat",
+            "validator": 2,
             "member":
             {
                 "accountName": ":Knobin.5930",
                 "characterName": "Knobin",
-                "joinTime": 0,
+                "joinTime": 1658850989,
                 "profession": 4,
-                "elite": 55,
-                "role": 0,
+                "elite": 5,
+                "role": 2,
                 "subgroup": 1,
-                "inInstance": false
+                "self": true,
+                "inInstance": true
             }
         }
     }

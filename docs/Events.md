@@ -28,11 +28,12 @@ For example:
                 {
                     "accountName": ":Knobin.5930",
                     "characterName": "Knobin",
-                    "joinTime": 0,
+                    "joinTime": 1658850989,
                     "profession": 4,
                     "elite": 55,
-                    "role": 0,
+                    "role": 2,
                     "subgroup": 1,
+                    "self": true,
                     "inInstance": true
                 }
             ]
