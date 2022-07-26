@@ -67,6 +67,9 @@ def squad_message(data):
         print("Removed \"", name, "\" from squad!")
         if name in Players:
             del Players[name]
+            if data["remove"]["member"]["self"]:
+                print("Clearing squad..")
+                Players.clear()
 
 
 def compare_key(old, new, value):
@@ -87,6 +90,7 @@ def player_diff(old, new):
     updates += compare_key(old, new, "role")
     updates += compare_key(old, new, "subgroup")
     updates += compare_key(old, new, "inInstance")
+    updates += compare_key(old, new, "self")
     return updates.removesuffix(",")
 
 

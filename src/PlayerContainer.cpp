@@ -23,7 +23,9 @@ std::string PlayerInfo::toJSON() const
        << "\"elite\":" << elite << ","
        << "\"role\":" << static_cast<int>(role) << ","
        << "\"subgroup\":" << static_cast<int>(subgroup)<< ","
-       << "\"inInstance\":" << ((inInstance) ? "true" : "false") << "}";
+       << "\"self\":" << ((self) ? "true" : "false") << ","
+       << "\"inInstance\":" << ((inInstance) ? "true" : "false") 
+       << "}";
     return ss.str();
 }
 

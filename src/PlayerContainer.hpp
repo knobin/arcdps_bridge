@@ -31,6 +31,7 @@ struct PlayerInfo
     uint8_t role{static_cast<uint8_t>(UserRole::None)};
     uint8_t subgroup{};
     bool inInstance{false};
+    bool self{false};
 
     std::string toJSON() const;
 };

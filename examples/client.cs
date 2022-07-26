@@ -75,6 +75,7 @@ namespace BridgeHandler
         public Byte role { get; set; }
         public Byte subgroup { get; set; }
         public bool inInstance { get; set; }
+        public bool self { get; set; }
     }
 
     class ArcEvent

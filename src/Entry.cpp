@@ -244,25 +244,26 @@ static void UpdateCombatCharInfo(const std::string& name, CharacterType ct)
 
 static void RemoveFromSquad(const std::string& accountName, const std::string& sType)
 {
-    bool self = (AppData.Self.accountName == accountName);
-    if (self)
+    if (auto entry = AppData.Squad.find(accountName))
     {
-        BRIDGE_INFO("Removing self \"{}\"", accountName);
-        if (auto entry = AppData.Squad.find(accountName))
+        if (entry->player.self)
         {
             BRIDGE_DEBUG("Removing self \"{}\", saving character info for \"{}\".", accountName, entry->player.characterName);
             AppData.Self = entry->player;
+            
         }
+        
+        // Will send an event to clients.
+        auto success = [sType](PlayerInfoEntry& entry)
+        {
+            SendPlayerMsg("remove", sType, entry.player, entry.validator);
+        };
+        SquadHandler->removePlayer(accountName, success);
+        
+        // Clear squad after event is sent.
+        if (entry->player.self)
+            SquadHandler->clear();
     }
-
-    auto success = [sType](PlayerInfoEntry& entry)
-    {
-        SendPlayerMsg("remove", sType, entry.player, entry.validator);
-    };
-    SquadHandler->removePlayer(accountName, success);
-
-    if (self)
-        SquadHandler->clear();
 }
 
 /* combat callback -- may be called asynchronously, use id param to keep track of order, first event id will be 2.
@@ -297,11 +298,12 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
                 player.elite = dst->elite;
                 player.inInstance = true;
                 player.subgroup = static_cast<uint8_t>(dst->team);
+                player.self = dst->self;
 
                 // If there is no knowledge of self account name, set it here.
-                if (AppData.Self.accountName.empty() && dst->self)
+                if (dst->self && AppData.Self.accountName.empty())
                 {
-                    AppData.Self.accountName = accountName;
+                    AppData.Self = player;
                     BRIDGE_INFO("Self account name (Combat): \"{}\"", AppData.Self.accountName);
                 }
 
@@ -535,6 +537,7 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
                         BRIDGE_INFO("Adding self, using character name: \"{}\".", AppData.Self.characterName);
                         player = AppData.Self;
                         player.inInstance = true;
+                        player.self = true;
                         auto it = AppData.CharacterTypeCache.find(player.characterName);
                         if (it != AppData.CharacterTypeCache.end())
                         {
@@ -613,6 +616,7 @@ extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(c
 
         // PlayerCollection.self.accountName = pExtrasInfo->SelfAccountName;
         AppData.Self.accountName = pExtrasInfo->SelfAccountName;
+        AppData.Self.self = true;
         BRIDGE_INFO("Self account name (Extras): \"{}\"", AppData.Self.accountName);
         return;
     }

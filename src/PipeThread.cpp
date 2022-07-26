@@ -142,7 +142,6 @@ void PipeThread::start()
         if (handler->m_eventTrack.squad)
         {
             handler->m_status = Status::Sending;
-            BRIDGE_DEBUG("[ptid {}] Sending Squad information to client...", threadID);
             std::ostringstream ss{};
             ss << "{\"type\":\"squad\",\"squad\":{"
                << "\"trigger\":\"status\","
@@ -150,6 +149,7 @@ void PipeThread::start()
                << "\"self\":\"" << handler->m_appData.Self.accountName << "\","
                << "\"members\":" << handler->m_appData.Squad.toJSON()
                << "}}}";
+            BRIDGE_MSG_DEBUG("[ptid {}] Sending Squad information to client: {}", threadID, ss.str());
             SendStatus send = WriteToPipe(handle, ss.str());
             if (!send.success)
             {
