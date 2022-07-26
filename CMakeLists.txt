@@ -1,10 +1,13 @@
 cmake_minimum_required(VERSION 3.12.4)
-project(arcdps_bridge VERSION 1.0.2 DESCRIPTION "ArcDPS Extension which sends the events over a named pipe.")
+
+project(arcdps_bridge VERSION 1.0.3 DESCRIPTION "ArcDPS Extension which sends the events over a named pipe.")
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
 set(THREADS_PREFER_PTHREAD_FLAG TRUE)
 set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
+
+message(STATUS "Build arcdps_bridge: ${CMAKE_PROJECT_VERSION}")
 
 # Log level.
 if (BRIDGE_LOG_LEVEL MATCHES "^[0-9]+$")
@@ -58,7 +61,7 @@ add_library(arcdps_bridge SHARED src/Entry.cpp
     src/PlayerContainer.hpp
     src/PlayerContainer.cpp)
 
-target_compile_definitions(arcdps_bridge PRIVATE ${BRIDGE_COMPILE_DEFINITIONS})
+target_compile_definitions(arcdps_bridge PRIVATE ${BRIDGE_COMPILE_DEFINITIONS} BRIDGE_VERSION_STR="${CMAKE_PROJECT_VERSION}")
 
 if (${BRIDGE_DEBUG_LOG_LEVEL} GREATER 0)
     target_link_libraries(arcdps_bridge PRIVATE spdlog::spdlog)
