@@ -12,7 +12,7 @@
 #include "PlayerContainer.hpp"
 
 // C++ Headers
-#include <cstdint>
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -50,7 +50,7 @@ private:
     template<typename T>
     std::optional<T> StringTo(const std::string& str)
     {
-        T value;
+        T value{};
         std::istringstream iss(str);
         iss >> value;
         if (iss.fail())
@@ -68,7 +68,7 @@ struct CharacterType
 struct ApplicationData
 {
     PlayerContainer Squad{};
-    PlayerContainer::PlayerInfo Self{};
+    PlayerInfo Self{};
 
     std::unordered_map<std::string, CharacterType> CharacterTypeCache{};
 

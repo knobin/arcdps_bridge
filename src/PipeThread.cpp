@@ -17,19 +17,24 @@
 PipeThread::PipeThread(std::size_t id, void* handle, TrackedEvents* te, const ApplicationData& appdata)
     : m_handle{handle}, m_te{te}, m_appData{appdata}, m_id{id}
 {
-    BRIDGE_DEBUG("[ptid {}] Created PipeThread", m_id);
+    BRIDGE_DEBUG("Created PipeThread [ptid {}]", m_id);
 }
 
 PipeThread::~PipeThread()
 {
-    BRIDGE_DEBUG("[ptid {}] ~PipeThread, running: {}", m_id, m_run);
+    BRIDGE_DEBUG("~PipeThread [ptid {}], running: {}", m_id, m_running);
 }
 
 void PipeThread::start()
 {
     std::unique_lock<std::mutex> lock(m_mutex);
 
-    // Enable the thread function to run.
+    // Don't start the thread again if already started, start() needs to be follow by stop().
+    if (m_threadStarted)
+        return;
+
+    // Enable thread function to run.
+    m_threadStarted = true;
     m_run = true;
 
     m_thread = std::thread([handler = this](){
@@ -54,11 +59,11 @@ void PipeThread::start()
             CloseHandle(handle);
             handler->m_handle = nullptr;
             handler->m_running = false;
-            BRIDGE_ERROR("[ptid {}] Failed to send bridge information.", threadID);
+            BRIDGE_ERROR("[ptid {}] Failed to send bridge information, Ending PipeThread.", threadID);
             return;
         }
 
-        BRIDGE_INFO("[ptid {}] Waiting for client to subscribe...", threadID);
+        BRIDGE_DEBUG("[ptid {}] Waiting for client to subscribe...", threadID);
         handler->m_status = Status::Reading;
         ReadStatus readStatus = ReadFromPipe(handle);
         if (!readStatus.success)
@@ -66,7 +71,7 @@ void PipeThread::start()
             CloseHandle(handle);
             handler->m_handle = nullptr;
             handler->m_running = false;
-            BRIDGE_ERROR("[ptid {}] Failed to read bridge information.", threadID);
+            BRIDGE_ERROR("[ptid {}] Failed to read bridge information, Ending PipeThread.", threadID);
             return;
         }
         BRIDGE_MSG_DEBUG("[ptid {}] Retrieved \"{}\" from client!", threadID, readStatus.data);
@@ -118,7 +123,7 @@ void PipeThread::start()
         {
             const auto statusObj = "{\"type\":\"status\",\"status\":{\"success\":false,\"error\":\"no subscription\"}}";
             WriteToPipe(handle, statusObj);
-            BRIDGE_ERROR("[ptid {}] No subscription, Closing PipeThread.", threadID);
+            BRIDGE_ERROR("[ptid {}] No subscription, Ending PipeThread.", threadID);
             CloseHandle(handle);
             handler->m_handle = nullptr;
             handler->m_running = false;
@@ -137,7 +142,7 @@ void PipeThread::start()
         if (handler->m_eventTrack.squad)
         {
             handler->m_status = Status::Sending;
-            BRIDGE_INFO("[ptid {}] Sending Squad information to client...", threadID);
+            BRIDGE_DEBUG("[ptid {}] Sending Squad information to client...", threadID);
             std::ostringstream ss{};
             ss << "{\"type\":\"squad\",\"squad\":{"
                << "\"trigger\":\"status\","
@@ -155,6 +160,7 @@ void PipeThread::start()
         std::size_t msTimeout = handler->m_appData.Config.clientTimeoutTimer;
         BRIDGE_DEBUG("[ptid {}] Using client timeout time of {}ms", threadID, msTimeout);
 
+        bool disconnected = false;
         while (handler->m_run)
         {
             BRIDGE_MSG_DEBUG("Retrieving message to send.");
@@ -165,28 +171,28 @@ void PipeThread::start()
                 handler->m_status = Status::WaitingForMessage;
 
                 // Block thread until message is added to queue (1s max).
-                bool broken = false;
                 while (handler->m_msgCont.queue.empty())
                 {
-                    handler->m_msgCont.cv.wait_for(lock, std::chrono::milliseconds(msTimeout));
-
-                    BRIDGE_DEBUG("[ptid {}] Checking pipe status...", threadID);
-                    DWORD availBytes{};
-                    if (!PeekNamedPipe(handle, 0, 0, 0, &availBytes, 0))
+                    if (handler->m_msgCont.cv.wait_for(lock, std::chrono::milliseconds(msTimeout)) == std::cv_status::timeout)
                     {
-                        DWORD err = GetLastError();
-                        if (err == ERROR_BROKEN_PIPE || err == ERROR_NO_DATA)
+                        BRIDGE_DEBUG("[ptid {}] Checking pipe status...", threadID);
+                        DWORD availBytes{};
+                        if (!PeekNamedPipe(handle, 0, 0, 0, &availBytes, 0))
                         {
-                            BRIDGE_ERROR("[ptid {}] Client unexpectedly disconnected!", threadID);
-                            broken = true;
-                            break;
+                            DWORD err = GetLastError();
+                            if (err == ERROR_BROKEN_PIPE || err == ERROR_NO_DATA)
+                            {
+                                BRIDGE_ERROR("[ptid {}] Client unexpectedly disconnected!", threadID);
+                                disconnected = true;
+                                break;
+                            }
                         }
+                        BRIDGE_DEBUG("[ptid {}] Client is connected.", threadID);
                     }
-                    BRIDGE_DEBUG("[ptid {}] Client is connected.", threadID);
                 }
 
                 // Client has disconnected.
-                if (broken)
+                if (disconnected)
                     break;
 
                 // Retrieve message.
@@ -202,7 +208,7 @@ void PipeThread::start()
             }
 
             // Send retrieved message.
-            BRIDGE_MSG_DEBUG("[ptid {}] Sending message...", threadID);
+            BRIDGE_MSG_DEBUG("[ptid {}] Sending \"{}\" to client.", threadID, msg);
             handler->m_status = Status::Sending;
             sendStatus = WriteToPipe(handle, msg);
 
@@ -211,6 +217,7 @@ void PipeThread::start()
                 if (sendStatus.error == ERROR_BROKEN_PIPE || sendStatus.error == ERROR_NO_DATA)
                 {
                     BRIDGE_ERROR("[ptid {}]  Client unexpectedly disconnected!", threadID);
+                    disconnected = true;
                     break;
                 }
             }
@@ -218,12 +225,15 @@ void PipeThread::start()
             BRIDGE_MSG_DEBUG("[ptid {}] Data sent to client!", threadID);
         }
 
-        BRIDGE_INFO("[ptid {}] PipeThread is closing!", threadID);
-        handler->m_status = Status::NONE;
-        CloseHandle(handle);
-        handler->m_handle = nullptr;
-        handler->m_running = false;
-        BRIDGE_INFO("[ptid {}] Ended PipeThread!", threadID);
+        BRIDGE_DEBUG("[ptid {}] PipeThread is closing!", threadID);
+
+        if (!disconnected && handle)
+        {
+            // If client is still connected and the thread is closing, send closing event.
+            BRIDGE_DEBUG("[ptid {}] Sending closing event to client.", threadID);
+            const auto disconnectedObj = "{\"type\":\"closing\"}";
+            WriteToPipe(handle, disconnectedObj);
+        }
 
         // Untrack events.
         if (handler->m_eventTrack.combat)
@@ -232,6 +242,13 @@ void PipeThread::start()
             handler->m_te->untrack(MessageType::Extras);
         if (handler->m_eventTrack.squad)
             handler->m_te->untrack(MessageType::Squad);
+
+        handler->m_status = Status::NONE;
+        CloseHandle(handle);
+        handler->m_handle = nullptr;
+        handler->m_running = false;
+
+        BRIDGE_INFO("[ptid {}] Ended PipeThread.", threadID);
     });
 }
 
@@ -239,26 +256,33 @@ void PipeThread::stop()
 {
     std::unique_lock<std::mutex> lock(m_mutex);
 
-    BRIDGE_INFO("[ptid {}] Starting to close PipeThread...", m_id);
+    BRIDGE_INFO("Closing PipeThread [ptid {}]...", m_id);
 
-    if (m_run)
+    if (m_running)
     {
         m_run = false;
 
-        // Add empty message in case of blocked waiting.
-        if (m_status == Status::WaitingForMessage)
         {
-            BRIDGE_INFO("[ptid {}] PipeThread is waiting for message, attempting to send empty message...", m_id);
-            std::unique_lock<std::mutex> msgLock(m_msgCont.mutex);
-            m_msgCont.queue.emplace("");
-            m_msgCont.cv.notify_one();
+            std::lock_guard<std::mutex> msgLock(m_msgCont.mutex);
+
+            // Add empty message in case of blocked waiting.
+            if (m_status == Status::WaitingForMessage)
+            {
+                BRIDGE_DEBUG("PipeThread [ptid {}] is waiting for message, attempting to send empty message...", m_id);    
+                m_msgCont.queue.push("");
+                m_msgCont.cv.notify_one();
+            }
         }
     }
 
-    BRIDGE_INFO("[ptid {}] Waiting for PipeThread to join...", m_id);
+    BRIDGE_DEBUG("Waiting for PipeThread [ptid {}] to join...", m_id);
     m_thread.join();
-    BRIDGE_INFO("[ptid {}] PipeThread joined.", m_id);
-    BRIDGE_INFO("[ptid {}] PipeThread Closed!", m_id);
+    BRIDGE_DEBUG("PipeThread [ptid {}] joined.", m_id);
+
+    // Allow thread to be started again.
+    m_threadStarted = false;
+
+    BRIDGE_INFO("PipeThread [ptid {}] Closed!", m_id);
 }
 
 void PipeThread::sendMessage(const std::string& msg, MessageType type)

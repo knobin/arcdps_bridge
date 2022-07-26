@@ -10,6 +10,7 @@
 
 // Local Headers
 #include "PipeThread.hpp"
+#include "ApplicationData.hpp"
 
 // C++ Headers
 #include <memory>
@@ -38,14 +39,8 @@ public:
 public:
     void start();
     void stop();
-    bool running() const
-    {
-        return m_run;
-    }
-    bool waitingForConnection() const
-    {
-        return m_waitingForConnection;
-    }
+    bool started() const { return m_threadStarted; }
+    bool waitingForConnection() const { return m_waitingForConnection; }
 
     void sendMessage(const std::string& msg, MessageType type);
 
@@ -60,10 +55,12 @@ private:
     const ApplicationData& m_appData;
     std::string m_pipeName{};
     std::mutex m_mutex{};
-    std::thread m_pipeMain{};
+    std::thread m_pipeMain;
     TrackedEvents m_trackedEvents{};
     std::atomic<bool> m_run{false};
+    std::atomic<bool> m_running{false};
     std::atomic<bool> m_waitingForConnection{false};
+    bool m_threadStarted{false};
 };
 
 #endif // BRIDGE_PIPEHANDLER_HPP

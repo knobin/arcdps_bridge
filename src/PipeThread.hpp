@@ -56,18 +56,12 @@ public:
 
     void start();
     void stop();
-    bool running() const
-    {
-        return m_running;
-    }
+    bool started() const { return m_threadStarted; }
 
     std::size_t id() const { return m_id; }
 
     void sendMessage(const std::string& msg, MessageType type);
-    EventTracking eventTracking() const
-    {
-        return m_eventTrack;
-    }
+    EventTracking eventTracking() const { return m_eventTrack; }
 
 private:
     MessageContainer m_msgCont{};
@@ -81,6 +75,7 @@ private:
     std::atomic<bool> m_run{false};
     std::atomic<bool> m_running{false};
     std::size_t m_id;
+    bool m_threadStarted{false};
 };
 
 // Read Helper.

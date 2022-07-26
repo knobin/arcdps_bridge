@@ -19,29 +19,31 @@
 #include <string>
 #include <utility>
 
+#define PLAYER_VALIDATOR_START 1
+
+struct PlayerInfo
+{
+    std::string accountName{};
+    std::string characterName{};
+    long long joinTime{};
+    uint32_t profession{};
+    uint32_t elite{};
+    uint8_t role{static_cast<uint8_t>(UserRole::None)};
+    uint8_t subgroup{};
+    bool inInstance{false};
+
+    std::string toJSON() const;
+};
+
+struct PlayerInfoEntry
+{
+    PlayerInfo player{};
+    std::size_t validator{};
+};
+
 class PlayerContainer
 {
 public:
-    struct PlayerInfo
-    {
-        std::string accountName{};
-        std::string characterName{};
-        long long joinTime{};
-        uint32_t profession{};
-        uint32_t elite{};
-        uint8_t role{static_cast<uint8_t>(UserRole::None)};
-        uint8_t subgroup{};
-        bool inInstance{false};
-
-        std::string toJSON() const;
-    };
-
-    struct PlayerInfoEntry
-    {
-        PlayerInfo player{};
-        std::size_t validator{};
-    };
-
     enum class Status : int
     {
         Invalid = 0,    // Operation can never be successful.
@@ -60,7 +62,7 @@ public:
 public:
     Status add(const PlayerInfo& player);
     PlayerInfoUpdate update(const PlayerInfoEntry& playerEntry);
-    std::optional<PlayerContainer::PlayerInfo> remove(const std::string& accountName);
+    std::optional<PlayerInfoEntry> remove(const std::string& accountName);
     std::optional<PlayerInfoEntry> find(const std::string& accountName) const;
 
     template<typename UnaryPredicate>
@@ -82,10 +84,10 @@ public:
 
 private:
     std::array<std::pair<bool, PlayerInfoEntry>, 50> m_squad{};
-    mutable std::mutex m_mutex{};
+    mutable std::mutex m_mutex;
 };
 
-bool operator==(const PlayerContainer::PlayerInfo& lhs, const PlayerContainer::PlayerInfo& rhs);
-bool operator!=(const PlayerContainer::PlayerInfo& lhs, const PlayerContainer::PlayerInfo& rhs);
+bool operator==(const PlayerInfo& lhs, const PlayerInfo& rhs);
+bool operator!=(const PlayerInfo& lhs, const PlayerInfo& rhs);
 
 #endif // BRIDGE_PLAYERCONTAINER_HPP

@@ -5,14 +5,13 @@
 #  Created by Robin Gustafsson on 2022-06-22.
 #
 
-import time
-import sys
+
 import win32pipe, win32file, pywintypes
 import json
 
 
 PipeName = r'\\.\pipe\arcdps-bridge'
-
+Players = {}
 
 def subscribe_message():
     # Event subscribe values: Combat = 1, Extras = 2, Squad = 4.
@@ -43,16 +42,52 @@ def squad_message(data):
         members = []
         for member in data["status"]["members"]:
             members.append(member["accountName"])
+            Players[member["accountName"]] = member
         print("Squad members: ", members)
     if (data["trigger"] == "add"):
         # Player has been added to squad.
-        print("Added \"", data["add"]["member"]["accountName"], "\" to squad!")
+        name = data["add"]["member"]["accountName"]
+        print("Added \"", name, "\" to squad!")
+        Players[name] = data["add"]["member"]
     if (data["trigger"] == "update"):
         # Player has been updated in squad.
-        print("Updated \"", data["update"]["member"]["accountName"], "\" in squad!")
+        name = data["update"]["member"]["accountName"]
+        updates = ""
+        if name in Players:
+            print("old ", Players[name])
+            print("new ", data["update"]["member"])
+            updates += player_diff(Players[name], data["update"]["member"])
+            Players[name] = data["update"]["member"]
+        else:
+            print("Tried to update \"", name, "\", player not in squad.")
+        print("Updated \"", name, "\" in squad with: {", updates, "}.")
     if (data["trigger"] == "remove"):
         # Player has been removed from squad.
-        print("Removed \"", data["remove"]["member"]["accountName"], "\" from squad!")
+        name = data["remove"]["member"]["accountName"]
+        print("Removed \"", name, "\" from squad!")
+        if name in Players:
+            del Players[name]
+
+
+def compare_key(old, new, value):
+    if old[value] != new[value]:
+        return "\"" + value + "\": \"" + str(old[value]) + "\" => \"" + str(new[value]) + "\","
+    return ""
+
+
+def player_diff(old, new):
+    updates = ""
+    charName1 = "None" if old["characterName"] == None else old["characterName"]
+    charName2 = "None" if new["characterName"] == None else new["characterName"]
+    if charName1 != charName2:
+        updates += "\"characterName\": \"" + charName1 + "\" => \"" + charName2 + "\","
+    updates += compare_key(old, new, "joinTime")
+    updates += compare_key(old, new, "profession")
+    updates += compare_key(old, new, "elite")
+    updates += compare_key(old, new, "role")
+    updates += compare_key(old, new, "subgroup")
+    updates += compare_key(old, new, "inInstance")
+    return updates.removesuffix(",")
 
 
 def pipe_client():
@@ -82,6 +117,9 @@ def pipe_client():
                 data = json.loads(msg)
                 if (data["type"] == "squad"):
                     squad_message(data["squad"])
+                if (data["type"] == "closing"):
+                    print("Server is closing.")
+                    break
 
     except pywintypes.error as e:
         print("Exception caught: ", str(e))

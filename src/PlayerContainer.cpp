@@ -12,7 +12,7 @@
 // C++ Headers
 #include <sstream>
 
-std::string PlayerContainer::PlayerInfo::toJSON() const
+std::string PlayerInfo::toJSON() const
 {
     std::ostringstream ss{};
     ss << "{"
@@ -28,7 +28,7 @@ std::string PlayerContainer::PlayerInfo::toJSON() const
 }
 
 #if BRIDGE_DEBUG_LEVEL > 0 // 1 and above.
-static std::string PrintPlayerInfoDiff(const PlayerContainer::PlayerInfo& p1, const PlayerContainer::PlayerInfo& p2)
+static std::string PrintPlayerInfoDiff(const PlayerInfo& p1, const PlayerInfo& p2)
 {
     std::ostringstream ss{};
     if (p1.accountName != p2.accountName)
@@ -57,7 +57,7 @@ static std::string PrintPlayerInfoDiff(const PlayerContainer::PlayerInfo& p1, co
 }
 #endif
 
-std::optional<PlayerContainer::PlayerInfoEntry> PlayerContainer::find(const std::string& accountName) const
+std::optional<PlayerInfoEntry> PlayerContainer::find(const std::string& accountName) const
 {
     std::unique_lock<std::mutex> lock(m_mutex);
 
@@ -88,12 +88,11 @@ PlayerContainer::PlayerInfoUpdate PlayerContainer::update(const PlayerInfoEntry&
                 BRIDGE_INFO("Updated \"{}\" in squad, with: {}", member.player.accountName, PrintPlayerInfoDiff(member.player, playerEntry.player));
                 member = playerEntry;
                 ++member.validator;
-                return {std::nullopt, Status::Success};
+                return {member, Status::Success};
             }
             else
             {
                 BRIDGE_DEBUG("Tried to update \"{}\" in squad with the same information.", member.player.accountName);
-                ++member.validator;
                 return {std::nullopt, Status::Equal};
             }
         }
@@ -130,7 +129,7 @@ PlayerContainer::Status PlayerContainer::add(const PlayerInfo& player)
     if (it != m_squad.end())
     {
         BRIDGE_INFO("Added \"{}\" to squad.", player.accountName);
-        it->second = {player, 0};
+        it->second = {player, PLAYER_VALIDATOR_START};
         it->first = true;
         return Status::Success;
     }
@@ -139,7 +138,7 @@ PlayerContainer::Status PlayerContainer::add(const PlayerInfo& player)
     return Status::Invalid;
 }
 
-std::optional<PlayerContainer::PlayerInfo> PlayerContainer::remove(const std::string& accountName)
+std::optional<PlayerInfoEntry> PlayerContainer::remove(const std::string& accountName)
 {
     std::unique_lock<std::mutex> lock(m_mutex);
 
@@ -149,8 +148,8 @@ std::optional<PlayerContainer::PlayerInfo> PlayerContainer::remove(const std::st
     {
         BRIDGE_INFO("Removing \"{}\" from squad.", accountName);
         it->first = false;
-        PlayerInfo copy = it->second.player;
-        it->second = {{}, 0};
+        PlayerInfoEntry copy = it->second;
+        it->second = {{}, PLAYER_VALIDATOR_START};
         return copy;
     }
     return std::nullopt;
@@ -163,7 +162,7 @@ void PlayerContainer::clear()
     for (auto& p : m_squad)
     {
         p.first = false;
-        p.second = {{}, 0};
+        p.second = {{}, PLAYER_VALIDATOR_START};
     }
 
     BRIDGE_INFO("Cleared squad.");
@@ -172,7 +171,7 @@ void PlayerContainer::clear()
 std::string PlayerContainer::toJSON() const
 {
     std::unique_lock<std::mutex> lock(m_mutex);
-
+    
     std::ostringstream ss{};
     ss << "[";
 
@@ -185,7 +184,7 @@ std::string PlayerContainer::toJSON() const
     return ss.str();
 }
 
-bool operator==(const PlayerContainer::PlayerInfo& lhs, const PlayerContainer::PlayerInfo& rhs)
+bool operator==(const PlayerInfo& lhs, const PlayerInfo& rhs)
 {
     return ((lhs.accountName == rhs.accountName) && (lhs.characterName == rhs.characterName) &&
             (lhs.joinTime == rhs.joinTime) && (lhs.profession == rhs.profession) &&
@@ -193,7 +192,7 @@ bool operator==(const PlayerContainer::PlayerInfo& lhs, const PlayerContainer::P
             (lhs.subgroup == rhs.subgroup) && (lhs.inInstance == rhs.inInstance));
 }
 
-bool operator!=(const PlayerContainer::PlayerInfo& lhs, const PlayerContainer::PlayerInfo& rhs)
+bool operator!=(const PlayerInfo& lhs, const PlayerInfo& rhs)
 {
     return !(lhs == rhs);
 }

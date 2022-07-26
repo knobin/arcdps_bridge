@@ -19,6 +19,9 @@ PipeHandler::PipeHandler(const std::string pipeName, const ApplicationData& appd
 
 PipeHandler::~PipeHandler()
 {
+    BRIDGE_DEBUG("~PipeHandler tracking combat events: {}.", m_trackedEvents.isTracking(MessageType::Combat));
+    BRIDGE_DEBUG("~PipeHandler tracking extras events: {}.", m_trackedEvents.isTracking(MessageType::Extras));
+    BRIDGE_DEBUG("~PipeHandler tracking squad events: {}.", m_trackedEvents.isTracking(MessageType::Squad));
     BRIDGE_DEBUG("~PipeHandler, running: {} threads: {}", m_run, m_threads.size());
 }
 
@@ -26,13 +29,26 @@ void PipeHandler::start()
 {
     std::unique_lock<std::mutex> lock(m_mutex);
 
+    // Don't start the thread again if already started, start() needs to be follow by stop().
+    if (m_threadStarted)
+        return;
+
+    // Enable thread function to run.
+    m_threadStarted = true;
+    m_run = true;
+
     m_pipeMain = std::thread([handler = this](){
+        if (!handler->m_run)
+        {
+            BRIDGE_INFO("Could not start PipeHandler thread, m_run = {}", handler->m_run);
+            return;
+        }
+
+        std::size_t threadCounter = 1;
+        handler->m_running = true;
         BRIDGE_INFO("Started PipeHandler thread");
 
-        bool ShouldClose{false};
-        std::size_t threadCounter = 1;
-        handler->m_run = true;
-        while (!ShouldClose)
+        while (handler->m_run)
         {
             BRIDGE_INFO("Creating NamedPipe \"{}\"", handler->m_pipeName);
 
@@ -54,14 +70,15 @@ void PipeHandler::start()
 
             if (!result)
             {
-                CloseHandle(handle);
                 BRIDGE_ERROR("Error connecting pipe with err: {}!", GetLastError());
+                CloseHandle(handle);
                 continue;
             }
 
             if (!handler->m_run)
             {
-                ShouldClose = true;
+                BRIDGE_INFO("Client connected when PipeHandler thread is closing.");
+                CloseHandle(handle);
                 continue;
             }
 
@@ -80,7 +97,9 @@ void PipeHandler::start()
                 CloseHandle(handle);
             }
         }
-        handler->m_run = false;
+
+        handler->m_running = false;
+        BRIDGE_INFO("Ended PipeHandler thread.");
     });
 }
 
@@ -94,6 +113,7 @@ PipeThread* PipeHandler::dispatchPipeThread(void* handle, std::size_t id)
         return m_threads.emplace_back(std::make_unique<PipeThread>(id, handle, &m_trackedEvents, m_appData)).get();
     }
 
+    BRIDGE_ERROR("Could not create PipeThread due to max amount of clients are connected.");
     return nullptr;
 }
 
@@ -106,7 +126,7 @@ void PipeHandler::cleanup()
     // Remove threads that are not running.
     for (auto it = m_threads.begin(); it != m_threads.end();)
     {
-        if (!(*it)->running())
+        if (!(*it)->started())
         {
             BRIDGE_INFO("Removing closed PipeThread [ptid {}].", (*it)->id());
             (*it)->stop();
@@ -123,9 +143,9 @@ void PipeHandler::stop()
 {
     std::unique_lock<std::mutex> lock(m_mutex);
 
-    BRIDGE_INFO("Starting to stop PipeHandler");
+    BRIDGE_INFO("Closing PipeHandler");
 
-    if (m_run)
+    if (m_running)
     {
         m_run = false;
 
@@ -138,9 +158,9 @@ void PipeHandler::stop()
         }
     }
 
-    BRIDGE_INFO("Waiting for PipeHandler thread to join...");
+    BRIDGE_DEBUG("Waiting for PipeHandler thread to join...");
     m_pipeMain.join();
-    BRIDGE_INFO("PipeHandler thread joined!");
+    BRIDGE_DEBUG("PipeHandler thread joined!");
 
     if (!m_threads.empty())
     {
@@ -149,10 +169,13 @@ void PipeHandler::stop()
         for (auto it = m_threads.begin(); it != m_threads.end();)
         {
             (*it)->stop();
-            BRIDGE_INFO("Removing PipeThread [ptid {}].", (*it)->id());
+            BRIDGE_DEBUG("Removing PipeThread [ptid {}].", (*it)->id());
             it = m_threads.erase(it);
         }
     }
+
+    // Allow thread to be started again.
+    m_threadStarted = false;
 
     BRIDGE_INFO("PipeHandler stopped.");
 }
@@ -161,10 +184,10 @@ void PipeHandler::sendMessage(const std::string& msg, MessageType type)
 {
     std::unique_lock<std::mutex> lock(m_mutex);
 
-    if (m_run)
+    if (m_running)
     {
         for (std::unique_ptr<PipeThread>& pt : m_threads)
-            if (pt->running())
+            if (pt->started())
                 pt->sendMessage(msg, type);
     }
 }
