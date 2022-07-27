@@ -29,7 +29,7 @@ std::string PlayerInfo::toJSON() const
     return ss.str();
 }
 
-#if BRIDGE_DEBUG_LEVEL > 0 // 1 and above.
+#if BRIDGE_LOG_LEVEL >= BRIDGE_LOG_LEVEL_DEBUG
 static std::string PrintPlayerInfoDiff(const PlayerInfo& p1, const PlayerInfo& p2)
 {
     std::ostringstream ss{};
@@ -87,7 +87,7 @@ PlayerContainer::PlayerInfoUpdate PlayerContainer::update(const PlayerInfoEntry&
         {
             if (member.player != playerEntry.player)
             {
-                BRIDGE_INFO("Updated \"{}\" in squad, with: {}", member.player.accountName, PrintPlayerInfoDiff(member.player, playerEntry.player));
+                BRIDGE_DEBUG("Updated \"{}\" in squad, with: {}", member.player.accountName, PrintPlayerInfoDiff(member.player, playerEntry.player));
                 member = playerEntry;
                 ++member.validator;
                 return {member, Status::Success};
@@ -130,7 +130,7 @@ PlayerContainer::Status PlayerContainer::add(const PlayerInfo& player)
     // Add.
     if (it != m_squad.end())
     {
-        BRIDGE_INFO("Added \"{}\" to squad.", player.accountName);
+        BRIDGE_DEBUG("Added \"{}\" to squad.", player.accountName);
         it->second = {player, PLAYER_VALIDATOR_START};
         it->first = true;
         return Status::Success;
@@ -148,7 +148,7 @@ std::optional<PlayerInfoEntry> PlayerContainer::remove(const std::string& accoun
                            [&accountName](const auto& p) { return (accountName == p.second.player.accountName); });
     if (it != m_squad.end())
     {
-        BRIDGE_INFO("Removing \"{}\" from squad.", accountName);
+        BRIDGE_DEBUG("Removing \"{}\" from squad.", accountName);
         it->first = false;
         PlayerInfoEntry copy = it->second;
         it->second = {{}, PLAYER_VALIDATOR_START};
@@ -167,7 +167,7 @@ void PlayerContainer::clear()
         p.second = {{}, PLAYER_VALIDATOR_START};
     }
 
-    BRIDGE_INFO("Cleared squad.");
+    BRIDGE_DEBUG("Cleared squad.");
 }
 
 std::string PlayerContainer::toJSON() const

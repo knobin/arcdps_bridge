@@ -41,9 +41,9 @@ struct Configs
     bool extras{true};             // Should the Unofficial Extras be used.
 
     // Server.
-    std::size_t maxClients{128};            // Max amount of clinets at one time.
-    std::size_t clientTimeoutTimer{300000}; // Check if client disconnected after specified amount of milliseconds.
-    std::size_t msgQueueSize{500};          // How many messages can be queued before being dropped.
+    std::size_t maxClients{32};             // Max amount of clinets at one time.
+    std::size_t clientTimeoutTimer{120000}; // Check if client disconnected after specified amount of milliseconds.
+    std::size_t msgQueueSize{64};           // How many messages can be queued before being dropped.
 
     void set(const std::string header, const std::string& entry, const std::string& value);
 private:
@@ -57,6 +57,14 @@ private:
             return std::nullopt;
         return value;
     }
+};
+
+enum class MessageType : uint8_t
+{
+    NONE = 0,
+    Combat = 1,
+    Extras = 2,
+    Squad = 4
 };
 
 struct CharacterType
@@ -84,13 +92,5 @@ Configs InitConfigs(const std::string& filepath);
 void CreateConfigFile(const std::string& filepath);
 Configs LoadConfigFile(const std::string& filepath);
 std::string BridgeInfoToJSON(const BridgeInfo& info);
-
-enum class MessageType : uint8_t
-{
-    NONE = 0,
-    Combat = 1,
-    Extras = 2,
-    Squad = 4
-};
 
 #endif // BRIDGE_APPLICATIONDATA_HPP

@@ -46,9 +46,6 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID)
     {
         case DLL_PROCESS_ATTACH:
         {
-            Server = std::make_unique<PipeHandler>(std::string{AppData.PipeName}, AppData);
-            SquadHandler = std::make_unique<SquadModifyHandler>(AppData.Squad);
-
             std::string dllPath = GetDllPath(hModule);
             BRIDGE_LOG_INIT(dllPath + std::string{AppData.LogFile});
             BRIDGE_INFO("Starting Bridge service [{}] [{}].", AppData.Info.version, BRIDGE_BUILD_STR);
@@ -61,7 +58,15 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID)
             std::string configFile = dllPath + std::string{AppData.ConfigFile};
             AppData.Config = InitConfigs(configFile);
 
-            AppData.CharacterTypeCache.reserve(50);
+            BRIDGE_INFO("Bridge service is enabled by configs: {}.", AppData.Config.enabled);
+
+            if (AppData.Config.enabled)
+            {
+                Server = std::make_unique<PipeHandler>(std::string{AppData.PipeName}, AppData);
+                SquadHandler = std::make_unique<SquadModifyHandler>(AppData.Squad);
+
+                AppData.CharacterTypeCache.reserve(50);
+            }
             break;
         }
         case DLL_THREAD_ATTACH:
@@ -304,7 +309,7 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
                 if (dst->self && AppData.Self.accountName.empty())
                 {
                     AppData.Self = player;
-                    BRIDGE_INFO("Self account name (Combat): \"{}\"", AppData.Self.accountName);
+                    BRIDGE_DEBUG("Self account name (Combat): \"{}\"", AppData.Self.accountName);
                 }
 
                 auto success = [](const PlayerInfoEntry& entry)
@@ -354,9 +359,20 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
                 else
                 {
                     // Player was added by ArcDPS combat api.
-                    // Remove player.
 
-                    RemoveFromSquad(accountName, "combat");
+                    if (!AppData.Info.extrasLoaded)
+                    {
+                        // Unofficial Extras is not used (callback not set or extension not present at all).
+                        // Then only combat events can add/remove players.
+
+                        // If extras is loaded it will remove the player. This will ensure that players 
+                        // added by combat api will not be removed when not in the same instance.
+                        // Which enables the ability to "recover" over time from a crash if the game 
+                        // crashed when in a squad.
+
+                        BRIDGE_DEBUG("ArcDPS combat event removed \"{}\", since extras is not used.", accountName);
+                        RemoveFromSquad(accountName, "combat");
+                    }
                 }
                 
             }
@@ -427,26 +443,36 @@ static arcdps_exports* mod_init()
     arc_exports.out_name = "Unofficial Bridge";
     arc_exports.out_build = AppData.Info.version.data();
     arc_exports.wnd_nofilter = mod_wnd;
-    arc_exports.combat = mod_combat;
 
-    if (AppData.Config.enabled && AppData.Config.arcDPS)
+    if (AppData.Config.enabled)
     {
-        AppData.Info.arcLoaded = true;
-        BRIDGE_INFO("ArcDPS is enabled.");
+        if (AppData.Config.arcDPS)
+        {
+            arc_exports.combat = mod_combat;
+            AppData.Info.arcLoaded = true;
+            BRIDGE_INFO("ArcDPS is enabled.");
+        }
+#if BRIDGE_LOG_LEVEL >= BRIDGE_LOG_LEVEL_INFO
+        else
+        {
+            BRIDGE_INFO("ArcDPS is disabled by configs!");
+        }
+#endif   
     }
     else
     {
         // This will create a warning in the arcdps log.
         // Will maybe change this later, due to having a silent warning instead.
-        // Since this is not an error, only a way to turn of the extension and
-        // also have it loaded at the same time.
+        // Since this is not an error, only a way to turn of the extension.
+        // This will cause the extension to exit after this though.
         arc_exports.sig = 0;
-        arc_exports.size = (uintptr_t) "ArcDPS is disabled by configs!";
-        BRIDGE_INFO("ArcDPS is disabled by configs!");
+        arc_exports.size = (uintptr_t) "Unofficial bridge is disabled by configs!";
+        BRIDGE_INFO("Bridge service is disabled by configs, exiting...");
     }
 
-    // Start the PipeHandler server.
-    Server->start();
+    // Start the PipeHandler server (if brige is enabled).
+    if (AppData.Config.enabled)
+        Server->start();
 
     return &arc_exports;
 }
@@ -457,10 +483,13 @@ static uintptr_t mod_release()
     BRIDGE_INFO("Releasing ArcDPS Bridge");
     AppData.Info.arcLoaded = false;
 
-    // Stop and release the PipeHandler server.
+    // Stop and release the PipeHandler server (if brige is enabled).
     // Will also close all active connections to clients.
-    Server->stop();
-    Server.reset();
+    if (AppData.Config.enabled)
+    {
+        Server->stop();
+        Server.reset();
+    }
 
     return 0;
 }
@@ -534,7 +563,7 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
                     
                     if (AppData.Self.accountName == accountName)
                     {
-                        BRIDGE_INFO("Adding self, using character name: \"{}\".", AppData.Self.characterName);
+                        BRIDGE_DEBUG("Adding self, using character name: \"{}\".", AppData.Self.characterName);
                         player = AppData.Self;
                         player.inInstance = true;
                         player.self = true;
@@ -617,7 +646,7 @@ extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(c
         // PlayerCollection.self.accountName = pExtrasInfo->SelfAccountName;
         AppData.Self.accountName = pExtrasInfo->SelfAccountName;
         AppData.Self.self = true;
-        BRIDGE_INFO("Self account name (Extras): \"{}\"", AppData.Self.accountName);
+        BRIDGE_DEBUG("Self account name (Extras): \"{}\"", AppData.Self.accountName);
         return;
     }
 

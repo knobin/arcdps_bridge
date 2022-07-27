@@ -40,17 +40,17 @@ void PipeHandler::start()
     m_pipeMain = std::thread([handler = this](){
         if (!handler->m_run)
         {
-            BRIDGE_INFO("Could not start PipeHandler thread, m_run = {}", handler->m_run);
+            BRIDGE_ERROR("Could not start PipeHandler thread, m_run = {}", handler->m_run);
             return;
         }
 
         std::size_t threadCounter = 1;
         handler->m_running = true;
-        BRIDGE_INFO("Started PipeHandler thread");
+        BRIDGE_DEBUG("Started PipeHandler thread");
 
         while (handler->m_run)
         {
-            BRIDGE_INFO("Creating NamedPipe \"{}\"", handler->m_pipeName);
+            BRIDGE_DEBUG("Creating Named Pipe \"{}\"", handler->m_pipeName);
 
             HANDLE handle = CreateNamedPipe(handler->m_pipeName.c_str(), PIPE_ACCESS_DUPLEX, PIPE_TYPE_MESSAGE,
                                             PIPE_UNLIMITED_INSTANCES, 0, 0, 0, NULL);
@@ -77,7 +77,7 @@ void PipeHandler::start()
 
             if (!handler->m_run)
             {
-                BRIDGE_INFO("Client connected when PipeHandler thread is closing.");
+                BRIDGE_WARN("Client connected when PipeHandler thread is closing.");
                 CloseHandle(handle);
                 continue;
             }
@@ -99,7 +99,7 @@ void PipeHandler::start()
         }
 
         handler->m_running = false;
-        BRIDGE_INFO("Ended PipeHandler thread.");
+        BRIDGE_DEBUG("Ended PipeHandler thread.");
     });
 }
 
@@ -121,14 +121,14 @@ void PipeHandler::cleanup()
 {
     std::unique_lock<std::mutex> lock(m_mutex);
 
-    BRIDGE_INFO("PipeHandler cleanup started.");
+    BRIDGE_DEBUG("PipeHandler cleanup started.");
 
     // Remove threads that are not running.
     for (auto it = m_threads.begin(); it != m_threads.end();)
     {
         if (!(*it)->started())
         {
-            BRIDGE_INFO("Removing closed PipeThread [ptid {}].", (*it)->id());
+            BRIDGE_DEBUG("Removing closed PipeThread [ptid {}].", (*it)->id());
             (*it)->stop();
             it = m_threads.erase(it);
         }
@@ -136,14 +136,14 @@ void PipeHandler::cleanup()
             ++it;
     }
 
-    BRIDGE_INFO("PipeHandler cleanup finished.");
+    BRIDGE_DEBUG("PipeHandler cleanup finished.");
 }
 
 void PipeHandler::stop()
 {
     std::unique_lock<std::mutex> lock(m_mutex);
 
-    BRIDGE_INFO("Closing PipeHandler");
+    BRIDGE_DEBUG("Closing PipeHandler");
 
     if (m_running)
     {
@@ -152,7 +152,7 @@ void PipeHandler::stop()
         if (m_waitingForConnection)
         {
             // CancelSynchronousIo(PipeThread.handle);
-            BRIDGE_INFO("PipeHandler thread is waiting for a connection, attempting to connect...");
+            BRIDGE_DEBUG("PipeHandler thread is waiting for a connection, attempting to connect...");
             HANDLE pipe = CreateFile(m_pipeName.c_str(), GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
             CloseHandle(pipe);
         }
@@ -165,7 +165,7 @@ void PipeHandler::stop()
     if (!m_threads.empty())
     {
         // Remove all PipeThreads.
-        BRIDGE_INFO("Removing all PipeThreads.");
+        BRIDGE_DEBUG("Removing all PipeThreads.");
         for (auto it = m_threads.begin(); it != m_threads.end();)
         {
             (*it)->stop();
@@ -177,7 +177,7 @@ void PipeHandler::stop()
     // Allow thread to be started again.
     m_threadStarted = false;
 
-    BRIDGE_INFO("PipeHandler stopped.");
+    BRIDGE_DEBUG("PipeHandler stopped.");
 }
 
 void PipeHandler::sendMessage(const std::string& msg, MessageType type)

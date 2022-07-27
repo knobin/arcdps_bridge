@@ -40,16 +40,16 @@ void PipeThread::start()
     m_thread = std::thread([handler = this](){
         if (!handler->m_run)
         {
-            BRIDGE_INFO("[ptid {}] Could not start PipeThread, m_run = {}", handler->m_id, handler->m_run);
+            BRIDGE_ERROR("[ptid {}] Could not start PipeThread, m_run = {}", handler->m_id, handler->m_run);
             return;
         }
 
         std::size_t threadID = handler->m_id;
         void* handle = handler->m_handle;
         handler->m_running = true;
-        BRIDGE_INFO("[ptid {}] Started PipeThread", threadID);
+        BRIDGE_DEBUG("[ptid {}] Started PipeThread", threadID);
 
-        BRIDGE_INFO("[ptid {}] Client connected, sending bridge information...", threadID);
+        BRIDGE_DEBUG("[ptid {}] Client connected, sending bridge information...", threadID);
         std::string msg = BridgeInfoToJSON(handler->m_appData.Info);
         handler->m_status = Status::Sending;
         BRIDGE_MSG_DEBUG("[ptid {}] Sending \"{}\" to client.", threadID, msg);
@@ -92,7 +92,7 @@ void PipeThread::start()
                 int i = 0;
                 iss >> i;
                 filter = static_cast<MessageTypeU>(i);
-                BRIDGE_INFO("[ptid {}] Recieved filter \"{}\" from client.", threadID, static_cast<int>(filter));
+                BRIDGE_DEBUG("[ptid {}] Recieved filter \"{}\" from client.", threadID, static_cast<int>(filter));
             }
         }
 
@@ -248,7 +248,8 @@ void PipeThread::start()
         handler->m_handle = nullptr;
         handler->m_running = false;
 
-        BRIDGE_INFO("[ptid {}] Ended PipeThread.", threadID);
+        BRIDGE_INFO("[ptid {}] Closed client connection.", threadID);
+        BRIDGE_DEBUG("[ptid {}] Ended PipeThread.", threadID);
     });
 }
 
@@ -256,7 +257,7 @@ void PipeThread::stop()
 {
     std::unique_lock<std::mutex> lock(m_mutex);
 
-    BRIDGE_INFO("Closing PipeThread [ptid {}]...", m_id);
+    BRIDGE_DEBUG("Closing PipeThread [ptid {}]...", m_id);
 
     if (m_running)
     {
@@ -282,7 +283,7 @@ void PipeThread::stop()
     // Allow thread to be started again.
     m_threadStarted = false;
 
-    BRIDGE_INFO("PipeThread [ptid {}] Closed!", m_id);
+    BRIDGE_DEBUG("PipeThread [ptid {}] Closed!", m_id);
 }
 
 void PipeThread::sendMessage(const std::string& msg, MessageType type)

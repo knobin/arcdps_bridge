@@ -94,12 +94,6 @@ namespace BridgeHandler
         public PlayerInfo[] members { get; set; }
     }
 
-    class StatusEvent
-    {
-        public bool success { get; set; }
-        public string error { get; set; }
-    }
-
     internal class Handler
     {
         private class BridgeInfo
@@ -127,6 +121,12 @@ namespace BridgeHandler
             public SquadPlayerEvent update { get; set; }
         }
 
+        private class StatusEvent
+        {
+            public bool success { get; set; }
+            public string error { get; set; }
+        }
+
         private class BridgeEvent
         {
             public string type { get; set; }
@@ -135,6 +135,24 @@ namespace BridgeHandler
             public ArcEvent combat { get; set; }
             public PlayerInfo extras { get; set; }
             public SquadData squad { get; set; }
+        }
+
+        private enum MessageType : Byte
+        {
+            NONE = 0,
+            Combat = 1,
+            Extras = 2,
+            Squad = 4
+        }
+
+        private static class EventType
+        {
+            public const string Info = "info";          // Bridge Information.
+            public const string Status = "status";      // Status.
+            public const string Squad = "squad";        // Squad information (initial squad data | player added, updated, or removed).
+            public const string Combat = "combat";      // ArcDPS event.
+            public const string Extras = "extras";      // Unofficial Extras event.
+            public const string Closing = "closing";    // Server is closing the connection.
         }
 
         public static string ReadFromPipe(NamedPipeClientStream stream)
@@ -160,14 +178,6 @@ namespace BridgeHandler
         {
             byte[] messageBytes = Encoding.UTF8.GetBytes(message);
             stream.Write(messageBytes, 0, messageBytes.Length);
-        }
-
-        private enum MessageType : Byte
-        {
-            NONE = 0,
-            Combat = 1,
-            Extras = 2,
-            Squad = 4
         }
 
         public delegate void SquadInfo(SquadStatus squad);
@@ -284,7 +294,20 @@ namespace BridgeHandler
                 tData.Handle.OnConnectionInfo?.Invoke(info);
 
                 // Both ArcDPS and Unofficial Extras are required.
-                if (!bInfo.arcLoaded || !bInfo.extrasLoaded)
+
+                if (!bInfo.arcLoaded)
+                {
+                    // arc isn't available, exit.
+                    // No need to retry here.
+
+                    tData.Run = false;
+                    tData.ClientStream.Close();
+                    tData.ClientStream = null;
+                    tData.Connected = false;
+                    continue;
+                }
+                
+                if (!bInfo.extrasLoaded)
                 {
                     // Both ArcDPS and Unofficial Extras is needed for squad events.
 
@@ -299,7 +322,7 @@ namespace BridgeHandler
                     tData.ClientStream.Close();
                     tData.ClientStream = null;
                     tData.Connected = false;
-                    continue; // Thread will close after this.
+                    continue;
                 }
 
                 // Send subscribe data to server.
@@ -361,15 +384,6 @@ namespace BridgeHandler
                 // Bridge disconnected here, invoke callback.
                 tData.Handle.OnConnectionUpdate?.Invoke(false);
             }
-        }
-        private static class EventType
-        {
-            public const string Info = "info";          // Bridge Information.
-            public const string Status = "status";      // Status.
-            public const string Squad = "squad";        // Squad information (initial squad data | player added, updated, or removed).
-            public const string Combat = "combat";      // ArcDPS event.
-            public const string Extras = "extras";      // Unofficial Extras event.
-            public const string Closing = "closing";    // Server is closing the connection.
         }
 
         private void HandleBrideEvent(BridgeEvent evt, ThreadData tData)

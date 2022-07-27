@@ -19,14 +19,14 @@ void Logger::init(const std::string& filepath)
     spdlog::set_pattern("%^[%Y-%m-%d %T.%e] [t %t] [%n] [%l] %v%$");
     s_logger = spdlog::rotating_logger_mt("bridge", filepath, BRIDGE_LOG_FILESIZE, 3);
 
-#if BRIDGE_DEBUG_LEVEL > 3 || defined(BRIDGE_BUILD_DEBUG) // 4 and above or debug build.
+#if BRIDGE_LOG_LEVEL >= BRIDGE_LOG_LEVEL_DEBUG || defined(BRIDGE_BUILD_DEBUG) // 4 and above or debug build.
     s_logger->set_level(spdlog::level::debug);
     s_logger->flush_on(spdlog::level::info);
     s_logger->info("Logger started with level: {} ({}) and flush on: {} ({}).", spdlog::level::debug, "debug", spdlog::level::info, "info");
 #else
     s_logger->set_level(spdlog::level::info);
-    s_logger->flush_on(spdlog::level::warn);
-    s_logger->info("Logger started with level: {} ({}) and flush on: {} ({}).", spdlog::level::info, "info", spdlog::level::warn, "warn");
+    s_logger->flush_on(spdlog::level::err);
+    s_logger->info("Logger started with level: {} ({}) and flush on: {} ({}).", spdlog::level::info, "info", spdlog::level::err, "err");
 #endif
 }
 

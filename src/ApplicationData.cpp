@@ -41,8 +41,8 @@ static void PrintConfigs(std::ostream& os, const Configs& config)
 {
     os << "[general]\n";
     os << "enabled = " << ((config.enabled) ? "true" : "false") << "\n";
-    os << "extras = " << ((config.extras) ? "true" : "false") << "\n";
     os << "arcDPS = " << ((config.arcDPS) ? "true" : "false") << "\n";
+    os << "extras = " << ((config.extras) ? "true" : "false") << "\n";
 
     os << "\n[server]\n";
     os << "maxClients = " << config.maxClients << "\n";
@@ -61,10 +61,10 @@ void CreateConfigFile(const std::string& filepath)
     PrintConfigs(configFile, config);
     configFile.close();
 
-#if BRIDGE_DEBUG_LEVEL > 0
+#if BRIDGE_LOG_LEVEL >= BRIDGE_LOG_LEVEL_DEBUG
     std::ostringstream oss{};
     PrintConfigs(oss, config);
-    BRIDGE_INFO("Configs values set: \n\n{}", oss.str());
+    BRIDGE_DEBUG("Configs values set: \n\n{}", oss.str());
 #endif
 }
 
@@ -79,28 +79,28 @@ void Configs::set(const std::string header, const std::string& entry, const std:
         else if (entry == "arcDPS")
             arcDPS = ((value == "true") ? true : false);
     }
-    else if (header == "thread")
+    else if (header == "server")
     {
         if (entry == "maxClients")
         {
             if (auto conv = StringTo<std::size_t>(value))
                 maxClients = *conv;
             else
-                BRIDGE_INFO("Failed to convert \"{}\" to std::size_t", value);
+                BRIDGE_WARN("Failed to convert \"{}\" to std::size_t", value);
         }
         else if (entry == "clientTimeoutTimer")
         {
             if (auto conv = StringTo<std::size_t>(value))
                 clientTimeoutTimer = *conv;
             else
-                BRIDGE_INFO("Failed to convert \"{}\" to std::size_t", value);
+                BRIDGE_WARN("Failed to convert \"{}\" to std::size_t", value);
         }
         else if (entry == "msgQueueSize")
         {
             if (auto conv = StringTo<std::size_t>(value))
                 msgQueueSize = *conv;
             else
-                BRIDGE_INFO("Failed to convert \"{}\" to std::size_t", value);
+                BRIDGE_WARN("Failed to convert \"{}\" to std::size_t", value);
         }
     }
 }
@@ -127,7 +127,7 @@ Configs LoadConfigFile(const std::string& filepath)
             if (line.front() == '[' && line.back() == ']')
             {
                 header = line.substr(1, line.size() - 2);
-                BRIDGE_INFO("Found Config Header \"{}\"", header);
+                BRIDGE_DEBUG("Found Config Header \"{}\"", header);
             }
             else if (!header.empty())
             {
@@ -143,10 +143,10 @@ Configs LoadConfigFile(const std::string& filepath)
         }
     }
 
-#if BRIDGE_DEBUG_LEVEL > 0
+#if BRIDGE_LOG_LEVEL >= BRIDGE_LOG_LEVEL_DEBUG
     std::ostringstream oss{};
     PrintConfigs(oss, config);
-    BRIDGE_INFO("Configs values set: \n\n{}", oss.str());
+    BRIDGE_DEBUG("Configs values set: \n\n{}", oss.str());
 #endif
 
     return config;

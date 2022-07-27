@@ -10,19 +10,29 @@
 
 //
 // No log    -> level 0
-// Info      -> level 1
+// Error     -> level 1
 // Warning   -> level 2
-// Error     -> level 3
+// Info      -> level 3
 // Debug     -> level 4
 // Msg Debug -> level 5 (Prints messages and info between client and server.)
 //
 
-// Standard log output.
-#if !defined(BRIDGE_DEBUG_LEVEL) // Should be defined in CMakeLists.txt.
-    #define BRIDGE_DEBUG_LEVEL 3 // Includes: info, warn and error.
+#define BRIDGE_LOG_LEVEL_ERROR 1
+#define BRIDGE_LOG_LEVEL_WARNING 2
+#define BRIDGE_LOG_LEVEL_INFO 3
+#define BRIDGE_LOG_LEVEL_DEBUG 4
+#define BRIDGE_LOG_LEVEL_MSG_DEBUG 5
+
+// Standard log output (should be defined in CMakeLists.txt).
+#if !defined(BRIDGE_LOG_LEVEL) 
+    #ifdef BRIDGE_BUILD_DEBUG
+        #define BRIDGE_LOG_LEVEL BRIDGE_LOG_LEVEL_DEBUG
+    #else
+        #define BRIDGE_LOG_LEVEL BRIDGE_LOG_LEVEL_INFO
+    #endif
 #endif
 
-#if BRIDGE_DEBUG_LEVEL > 0 // 1 and above.
+#if BRIDGE_LOG_LEVEL > 0 // 1 and above.
 
     // spdlog Headers
     #if defined(_MSC_VER)
@@ -51,32 +61,37 @@
 
     #define BRIDGE_LOG_INIT(...) Logger::init(__VA_ARGS__)
     #define BRIDGE_LOG_DESTROY(...) Logger::destroy()
-    #define BRIDGE_INFO(...) Logger::getLogger()->info(__VA_ARGS__)
 #else
     #define BRIDGE_LOG_INIT(...)
     #define BRIDGE_LOG_DESTROY(...)
-    #define BRIDGE_INFO(...)
+    
 #endif
 
-#if BRIDGE_DEBUG_LEVEL > 1 // 2 and above.
-    #define BRIDGE_WARN(...) Logger::getLogger()->warn(__VA_ARGS__)
-#else
-    #define BRIDGE_WARN(...)
-#endif
-
-#if BRIDGE_DEBUG_LEVEL > 2 // 3 and above.
+#if BRIDGE_LOG_LEVEL > 0 // 1 and above.
     #define BRIDGE_ERROR(...) Logger::getLogger()->error(__VA_ARGS__)
 #else
     #define BRIDGE_ERROR(...)
 #endif
 
-#if BRIDGE_DEBUG_LEVEL > 3 // 4 and above.
+#if BRIDGE_LOG_LEVEL > 1 // 2 and above.
+    #define BRIDGE_WARN(...) Logger::getLogger()->warn(__VA_ARGS__)
+#else
+    #define BRIDGE_WARN(...)
+#endif
+
+#if BRIDGE_LOG_LEVEL > 2 // 3 and above.
+    #define BRIDGE_INFO(...) Logger::getLogger()->info(__VA_ARGS__)
+#else
+    #define BRIDGE_INFO(...)
+#endif
+
+#if BRIDGE_LOG_LEVEL > 3 // 4 and above.
     #define BRIDGE_DEBUG(...) Logger::getLogger()->debug(__VA_ARGS__)
 #else
     #define BRIDGE_DEBUG(...)
 #endif
 
-#if BRIDGE_DEBUG_LEVEL > 4 // 5 and above.
+#if BRIDGE_LOG_LEVEL > 4 // 5 and above.
     #define BRIDGE_MSG_DEBUG(...) Logger::getLogger()->debug(__VA_ARGS__)
 #else
     #define BRIDGE_MSG_DEBUG(...)
