@@ -43,6 +43,7 @@ public:
     bool waitingForConnection() const { return m_waitingForConnection; }
 
     void sendMessage(const std::string& msg, MessageType type);
+    void sendBridgeInfo(const std::string& msg, uint64_t validator);
 
     bool trackingEvent(MessageType mt) const;
 

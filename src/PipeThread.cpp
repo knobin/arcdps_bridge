@@ -50,7 +50,15 @@ void PipeThread::start()
         BRIDGE_DEBUG("[ptid {}] Started PipeThread", threadID);
 
         BRIDGE_DEBUG("[ptid {}] Client connected, sending bridge information...", threadID);
-        std::string msg = BridgeInfoToJSON(handler->m_appData.Info);
+        std::string msg{};
+        {
+            std::unique_lock<std::mutex> infoLock(handler->m_appData.Info.mutex);
+            msg = BridgeInfoToJSON(handler->m_appData.Info);
+            {
+                std::unique_lock<std::mutex> handlerLock(handler->m_mutex);
+                handler->m_bridgeValidator = handler->m_appData.Info.validator;
+            }
+        }
         handler->m_status = Status::Sending;
         BRIDGE_MSG_DEBUG("[ptid {}] Sending \"{}\" to client.", threadID, msg);
         SendStatus sendStatus = WriteToPipe(handle, msg);
@@ -286,6 +294,24 @@ void PipeThread::stop()
     BRIDGE_DEBUG("PipeThread [ptid {}] Closed!", m_id);
 }
 
+void PipeThread::sendBridgeInfo(const std::string& msg, uint64_t validator)
+{
+    std::unique_lock<std::mutex> lock(m_mutex);
+
+    if (validator > m_bridgeValidator)
+    {
+        m_bridgeValidator = validator;
+
+        std::unique_lock<std::mutex> msgLock(m_msgCont.mutex);
+        if (m_msgCont.queue.size() < m_appData.Config.msgQueueSize)
+        {
+            BRIDGE_DEBUG("Sending updated BridgeInfo to client [ptid {}].", m_id);
+            m_msgCont.queue.push(msg);
+            m_msgCont.cv.notify_one();
+        }
+    }
+}
+
 void PipeThread::sendMessage(const std::string& msg, MessageType type)
 {
     std::unique_lock<std::mutex> lock(m_mutex);
@@ -332,12 +358,12 @@ SendStatus WriteToPipe(HANDLE handle, const std::string& msg)
     return status;
 }
 
-#define BUFSIZE 512
+constexpr std::size_t BUFSIZE{512};
 
 ReadStatus ReadFromPipe(HANDLE handle)
 {
     ReadStatus status{};
-    TCHAR buffer[BUFSIZE];
+    TCHAR buffer[BUFSIZE]{};
 
     do
     {

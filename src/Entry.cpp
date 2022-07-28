@@ -616,9 +616,10 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
 extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(const ExtrasAddonInfo* pExtrasInfo,
                                                                                void* pSubscriberInfo)
 {
-    AppData.Info.extrasFound = true;
-    AppData.Info.extrasVersion = std::string{pExtrasInfo->StringVersion};
-    BRIDGE_INFO("Unofficial Extras version: \"{}\"", AppData.Info.extrasVersion);
+    bool loaded{false};
+    std::string version{pExtrasInfo->StringVersion};
+
+    BRIDGE_INFO("Unofficial Extras version: \"{}\"", version);
 
     if (!AppData.Config.enabled || !AppData.Config.extras)
     {
@@ -635,7 +636,7 @@ extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(c
     if (pExtrasInfo->MaxInfoVersion == 1)
     {
         BRIDGE_INFO("Unofficial Extras is enabled.");
-        AppData.Info.extrasLoaded = true;
+        loaded = true;
 
         ExtrasSubscriberInfoV1 extrasInfo{};
         extrasInfo.InfoVersion = 1;
@@ -647,8 +648,23 @@ extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(c
         AppData.Self.accountName = pExtrasInfo->SelfAccountName;
         AppData.Self.self = true;
         BRIDGE_DEBUG("Self account name (Extras): \"{}\"", AppData.Self.accountName);
-        return;
+    }
+    else
+    {
+        BRIDGE_ERROR("Extra max info version \"{}\" is not supported.", pExtrasInfo->MaxInfoVersion);
     }
 
-    BRIDGE_ERROR("Extra max info version \"{}\" is not supported.", pExtrasInfo->MaxInfoVersion);
+    // Send updated bridge information.
+    {
+        std::unique_lock<std::mutex> lock(AppData.Info.mutex);
+
+        AppData.Info.extrasFound = true;
+        AppData.Info.extrasLoaded = loaded;
+        AppData.Info.extrasVersion = std::string{version};
+        ++AppData.Info.validator;
+        BRIDGE_DEBUG("Updated BridgeInfo");
+
+        // Send the new info to connected clients that have already received the old information.
+        Server->sendBridgeInfo(BridgeInfoToJSON(AppData.Info), AppData.Info.validator);
+    }
 }

@@ -60,7 +60,9 @@ public:
 
     std::size_t id() const { return m_id; }
 
+    void sendBridgeInfo(const std::string& msg, uint64_t validator);
     void sendMessage(const std::string& msg, MessageType type);
+
     EventTracking eventTracking() const { return m_eventTrack; }
 
 private:
@@ -75,6 +77,7 @@ private:
     std::atomic<bool> m_run{false};
     std::atomic<bool> m_running{false};
     std::size_t m_id;
+    uint64_t m_bridgeValidator{0}; // 0 = not sent to client yet.
     bool m_threadStarted{false};
 };
 

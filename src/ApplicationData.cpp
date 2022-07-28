@@ -27,14 +27,16 @@ std::string BridgeInfoToJSON(const BridgeInfo& info)
 {
     std::ostringstream ss{};
     ss << "{\"type\":\"info\",";
-    ss << "\"info\":{" 
+    ss << "\"info\":{"
        << "\"version\":\"" << std::string{info.version} << "\","
        << "\"extrasVersion\":\"" << info.extrasVersion << "\","
        << "\"arcVersion\":\"" << info.arcvers << "\","
        << "\"arcLoaded\":" << ((info.arcLoaded) ? "true" : "false") << ","
        << "\"extrasFound\":" << ((info.extrasFound) ? "true" : "false") << ","
-       << "\"extrasLoaded\":" << ((info.extrasLoaded) ? "true" : "false") << "}}";
-    return ss.str(); 
+       << "\"extrasLoaded\":" << ((info.extrasLoaded) ? "true" : "false") << ","
+       << "\"validator\":" << info.validator
+       << "}}";
+    return ss.str();
 }
 
 static void PrintConfigs(std::ostream& os, const Configs& config)

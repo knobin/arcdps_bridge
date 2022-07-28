@@ -14,6 +14,7 @@
 // C++ Headers
 #include <cstddef>
 #include <optional>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 
@@ -31,6 +32,9 @@ struct BridgeInfo
     bool arcLoaded{false};              // Is ArcDPS loaded (enabled in the bridge).
     bool extrasFound{false};            // Has the Unofficial Extras init callback been called.
     bool extrasLoaded{false};           // Is Unofficial Extras loaded (enabled in the bridge).
+
+    uint64_t validator{1}; // Version of the BridgeInfo, if any value changes this will be incremented.
+    mutable std::mutex mutex;
 };
 
 struct Configs

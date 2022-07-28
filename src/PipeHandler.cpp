@@ -180,6 +180,18 @@ void PipeHandler::stop()
     BRIDGE_DEBUG("PipeHandler stopped.");
 }
 
+void PipeHandler::sendBridgeInfo(const std::string& msg, uint64_t validator)
+{
+    std::unique_lock<std::mutex> lock(m_mutex);
+
+    if (m_running)
+    {
+        for (std::unique_ptr<PipeThread>& pt : m_threads)
+            if (pt->started())
+                pt->sendBridgeInfo(msg, validator);
+    }
+}
+
 void PipeHandler::sendMessage(const std::string& msg, MessageType type)
 {
     std::unique_lock<std::mutex> lock(m_mutex);
