@@ -32,6 +32,7 @@ struct PlayerInfo
     uint8_t subgroup{};
     bool inInstance{false};
     bool self{false};
+    bool readyStatus{false};
 
     std::string toJSON() const;
 };
@@ -45,7 +46,7 @@ struct PlayerInfoEntry
 class PlayerContainer
 {
 public:
-    enum class Status : int
+    enum class Status : uint8_t
     {
         Invalid = 0,    // Operation can never be successful.
         ValidatorError, // Invalid validator.

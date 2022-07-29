@@ -24,7 +24,8 @@ std::string PlayerInfo::toJSON() const
        << "\"role\":" << static_cast<int>(role) << ","
        << "\"subgroup\":" << static_cast<int>(subgroup)<< ","
        << "\"self\":" << ((self) ? "true" : "false") << ","
-       << "\"inInstance\":" << ((inInstance) ? "true" : "false") 
+       << "\"inInstance\":" << ((inInstance) ? "true" : "false") << ","
+       << "\"readyStatus\":" << ((readyStatus) ? "true" : "false")
        << "}";
     return ss.str();
 }

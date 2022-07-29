@@ -526,6 +526,7 @@ static void UpdateExtrasPlayerInfo(const PlayerInfoEntry& existing, const UserIn
     {
         player.role = static_cast<uint8_t>(user.Role);
         player.subgroup = user.Subgroup + 1; // Starts at 0.
+        player.readyStatus = user.ReadyStatus;
         if (player.joinTime != 0 && user.JoinTime != 0)
             player.joinTime = user.JoinTime;
     };
@@ -580,6 +581,7 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
                     player.role = static_cast<uint8_t>(uinfo->Role);
                     player.subgroup = uinfo->Subgroup + 1; // Starts at 0.
                     player.joinTime = uinfo->JoinTime;
+                    player.readyStatus = uinfo->ReadyStatus;
 
                     auto success = [](const PlayerInfoEntry& entry)
                     { 

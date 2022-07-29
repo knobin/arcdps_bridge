@@ -91,6 +91,7 @@ def player_diff(old, new):
     updates += compare_key(old, new, "subgroup")
     updates += compare_key(old, new, "inInstance")
     updates += compare_key(old, new, "self")
+    updates += compare_key(old, new, "readyStatus")
     return updates.removesuffix(",")
 
 
@@ -124,6 +125,9 @@ def pipe_client():
                 if (data["type"] == "closing"):
                     print("Server is closing.")
                     break
+                if (data["type"] == "info"):
+                    # New bridge information is available.
+                    print(f"New bridge informaion received: {data}")
 
     except pywintypes.error as e:
         print("Exception caught: ", str(e))

@@ -70,12 +70,14 @@ namespace BridgeHandler
     {
         public string accountName { get; set; }
         public string characterName { get; set; }
+        public long joinTime { get; set; }
         public UInt32 profession { get; set; }
         public UInt32 elite { get; set; }
         public Byte role { get; set; }
         public Byte subgroup { get; set; }
         public bool inInstance { get; set; }
         public bool self { get; set; }
+        public bool readyStatus { get; set; }
     }
 
     class ArcEvent
@@ -217,10 +219,14 @@ namespace BridgeHandler
         public void Start(Subscribe subscribe)
         {
             _t = new Thread(PipeThreadMain);
-            _tData = new ThreadData();
-            _tData.Handle = this;
-
-            _tData.EnabledTypes = (Byte)MessageType.NONE;
+            _tData = new ThreadData()
+            {
+                Handle = this,
+                EnabledTypes = (Byte)MessageType.NONE,
+                Run = true,
+                Connected = false
+            };
+            
             if (subscribe.Combat)
                 _tData.EnabledTypes |= (Byte)MessageType.Combat;
             if (subscribe.Extras)
@@ -228,8 +234,6 @@ namespace BridgeHandler
             if (subscribe.Squad)
                 _tData.EnabledTypes |= (Byte)MessageType.Squad;
 
-            _tData.Run = true;
-            _tData.Connected = false;
             _t.Start(_tData);
         }
 
@@ -258,7 +262,6 @@ namespace BridgeHandler
         private static void PipeThreadMain(Object parameterData)
         {
             ThreadData tData = (ThreadData)parameterData;
-            uint retries = 3;
             while (tData.Run)
             {
                 tData.ClientStream = new NamedPipeClientStream(".", "arcdps-bridge", PipeDirection.InOut, PipeOptions.None, TokenImpersonationLevel.Impersonation);
@@ -292,38 +295,6 @@ namespace BridgeHandler
                     SquadEnabled = bInfo.arcLoaded && bInfo.extrasLoaded
                 };
                 tData.Handle.OnConnectionInfo?.Invoke(info);
-
-                // Both ArcDPS and Unofficial Extras are required.
-
-                if (!bInfo.arcLoaded)
-                {
-                    // arc isn't available, exit.
-                    // No need to retry here.
-
-                    tData.Run = false;
-                    tData.ClientStream.Close();
-                    tData.ClientStream = null;
-                    tData.Connected = false;
-                    continue;
-                }
-                
-                if (!bInfo.extrasLoaded)
-                {
-                    // Both ArcDPS and Unofficial Extras is needed for squad events.
-
-                    if (retries > 0)
-                    {
-                        --retries;
-                        Thread.Sleep(2000);
-                    }
-                    else
-                        tData.Run = false;
-
-                    tData.ClientStream.Close();
-                    tData.ClientStream = null;
-                    tData.Connected = false;
-                    continue;
-                }
 
                 // Send subscribe data to server.
                 Byte subscribe = tData.EnabledTypes; // id for squad messages.
@@ -388,7 +359,7 @@ namespace BridgeHandler
 
         private void HandleBrideEvent(BridgeEvent evt, ThreadData tData)
         {
-            // "info" and "status" will never be handled here.
+            // "status" will never be handled here.
 
             if (evt.type == EventType.Squad && evt.squad != null)
             {
@@ -402,6 +373,23 @@ namespace BridgeHandler
             {
                 tData.Handle.OnExtrasEvent?.Invoke(evt.extras);
             }
+            else if (evt.type == EventType.Info && evt.info != null)
+            {
+                HandleBridgeInfo(evt.info, tData);
+            }
+        }
+
+        private void HandleBridgeInfo(BridgeInfo bInfo, ThreadData tData)
+        {
+            // Connection info received here, invoke callback.
+            ConnectionInfo info = new ConnectionInfo()
+            {
+                CombatEnabled = bInfo.arcLoaded,
+                ExtrasEnabled = bInfo.extrasLoaded,
+                ExtrasFound = bInfo.extrasFound,
+                SquadEnabled = bInfo.arcLoaded && bInfo.extrasLoaded
+            };
+            tData.Handle.OnConnectionInfo?.Invoke(info);
         }
 
         private static class SquadTriggers
