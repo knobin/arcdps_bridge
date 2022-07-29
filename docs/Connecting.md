@@ -35,6 +35,7 @@ The event includes:
 - ```info.arcLoaded```: Is ArcDPS used in the bridge, either true or false.
 - ```info.extrasFound```: Is ArcDPS Unofficial Extras present, either true or false.
 - ```info.extrasLoaded```: Is ArcDPS Unofficial Extras used in the bridge, either true or false.
+- ```info.validator```: Indicates what version of bridge information this is. If any value changes this will be incremented. Initial value is ```1```.
 
 Example of BridgeInfo event: 
 
@@ -48,12 +49,15 @@ Example of BridgeInfo event:
         "arcVersion": "20220719.175330-446-x64",
         "arcLoaded": true,
         "extrasFound": true,
-        "extrasLoaded": true
+        "extrasLoaded": true,
+        "validator":  2
     }
 }
 ```
 
 Depending on the contents of this event, the client can decide on if it wants to subscribe to, or drop the connection altogether.
+
+Due to how ArcDPS and Unofficial Extras is loaded, the latter will not be available right away until about 2 seconds after the bridge extension has been loaded. This means that if a client connects in this 2 seconds window, Unofficial Extras will not be available in the bridge information. The server will correct this by sending a new version of the bridge information event to connected clients when (and if) Unofficial Extras has been found.
 
 ## Subscribe to events
 

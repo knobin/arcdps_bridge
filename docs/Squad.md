@@ -36,14 +36,15 @@ All squad events include at least:
 If the event includes player information the object will include:
 
 - ```accountName```: Account name of the player (```combat``` and ```extras```).
-- ```characterName```: Character name of the player (```combat```), null if there is no character name available.
-- ```joinTime```: JoinTime of the player (```extras```), 0 if there is no join time available.
-- ```profession```: Profession of the character (```combat```), 0 if there is no profession available.
-- ```elite```: Elite of the character (```combat```), 0 if there is no elite available.
+- ```characterName```: Character name of the player (```combat```), ```null``` if there is no character name available.
+- ```joinTime```: JoinTime of the player (```extras```), ```0``` if there is no join time available.
+- ```profession```: Profession of the character (```combat```), ```0``` if there is no profession available.
+- ```elite```: Elite of the character (```combat```), ```0``` if there is no elite available.
 - ```role```: Role of the user (```extras```).
 - ```subgroup```: Subgroup of the user (```combat``` and ```extras```).
 - ```self```: Is the user self (```combat``` and ```extras```).
 - ```inInstance```: Is the user in the instance (```combat```).
+- ```readyStatus```: Squad ready check (```true``` or ```false```).
 
 The parentheses describes where the value is retrieved from, if there are multiple origins the latest value is used.
 
@@ -59,7 +60,8 @@ Example of player information object:
     "role": 2,
     "subgroup": 1,
     "self": true,
-    "inInstance": true
+    "inInstance": true,
+    "readyStatus": false
 }
 ```
 
@@ -94,7 +96,8 @@ Example of squad status event:
                     "role": 2,
                     "subgroup": 1,
                     "self": true,
-                    "inInstance": true
+                    "inInstance": true,
+                    "readyStatus": false
                 }
             ]
         }
@@ -135,7 +138,8 @@ Example of squad add event with "extras" source:
                 "role": 2,
                 "subgroup": 1,
                 "self": true,
-                "inInstance": true
+                "inInstance": true,
+                "readyStatus": false
             }
         }
     }
@@ -164,7 +168,8 @@ Example of squad add event with "combat" source:
                 "role": 0,
                 "subgroup": 1,
                 "self": true,
-                "inInstance": true
+                "inInstance": true,
+                "readyStatus": false
             }
         }
     }
@@ -206,7 +211,8 @@ Example of squad remove event:
                 "role": 2,
                 "subgroup": 1,
                 "self": true,
-                "inInstance": true
+                "inInstance": true,
+                "readyStatus": false
             }
         }
     }
@@ -246,7 +252,8 @@ Example of squad update event with "combat" source:
                 "role": 2,
                 "subgroup": 1,
                 "self": true,
-                "inInstance": true
+                "inInstance": true,
+                "readyStatus": false
             }
         }
     }
