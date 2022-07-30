@@ -47,7 +47,7 @@ void PipeThread::start()
         std::size_t threadID = handler->m_id;
         void* handle = handler->m_handle;
         handler->m_running = true;
-        BRIDGE_DEBUG("[ptid {}] Started PipeThread", threadID);
+        BRIDGE_INFO("[ptid {}] Started PipeThread.", threadID);
 
         BRIDGE_DEBUG("[ptid {}] Client connected, sending bridge information...", threadID);
         std::string msg{};
@@ -257,7 +257,7 @@ void PipeThread::start()
         handler->m_running = false;
 
         BRIDGE_INFO("[ptid {}] Closed client connection.", threadID);
-        BRIDGE_DEBUG("[ptid {}] Ended PipeThread.", threadID);
+        BRIDGE_INFO("[ptid {}] Ended PipeThread.", threadID);
     });
 }
 
