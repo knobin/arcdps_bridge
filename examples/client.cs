@@ -169,7 +169,7 @@ namespace BridgeHandler
                 messageBuilder.Append(messageChunk);
                 messageBuffer = new byte[messageBuffer.Length];
             }
-            while (!stream.IsMessageComplete);
+            while (stream.IsConnected && !stream.IsMessageComplete);
 
             string data = messageBuilder.ToString();
             data = data.Replace("\0", "");
@@ -264,7 +264,7 @@ namespace BridgeHandler
             ThreadData tData = (ThreadData)parameterData;
             while (tData.Run)
             {
-                tData.ClientStream = new NamedPipeClientStream(".", "arcdps-bridge", PipeDirection.InOut, PipeOptions.None, TokenImpersonationLevel.Impersonation);
+                tData.ClientStream = new NamedPipeClientStream(".", "arcdps-bridge", PipeDirection.InOut, PipeOptions.Asynchronous, TokenImpersonationLevel.Impersonation);
                 if (tData.ClientStream == null)
                     continue;
 
@@ -284,17 +284,7 @@ namespace BridgeHandler
                 // Read BridgeInfo.
                 String infoData = ReadFromPipe(tData.ClientStream);
                 BridgeEvent bEvent = JsonSerializer.Deserialize<BridgeEvent>(infoData)!;
-                BridgeInfo bInfo = bEvent.info;
-
-                // Connection info received here, invoke callback.
-                ConnectionInfo info = new ConnectionInfo()
-                {
-                    CombatEnabled = bInfo.arcLoaded,
-                    ExtrasEnabled = bInfo.extrasLoaded,
-                    ExtrasFound = bInfo.extrasFound,
-                    SquadEnabled = bInfo.arcLoaded && bInfo.extrasLoaded
-                };
-                tData.Handle.OnConnectionInfo?.Invoke(info);
+                tData.Handle.HandleBridgeInfo(bEvent.info, tData);
 
                 // Send subscribe data to server.
                 Byte subscribe = tData.EnabledTypes; // id for squad messages.
@@ -339,9 +329,11 @@ namespace BridgeHandler
                 }
 
                 // Stream is not connected here, or tData.Run is false.
-                tData.ClientStream.Close();
+                if (tData.ClientStream != null)
+                    tData.ClientStream.Close();
                 tData.ClientStream = null;
                 tData.Connected = false;
+
                 // Bridge disconnected here, invoke callback.
                 tData.Handle.OnConnectionUpdate?.Invoke(false);
             }
