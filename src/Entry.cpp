@@ -635,7 +635,7 @@ extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(c
         return;
     }
 
-    if (pExtrasInfo->MaxInfoVersion == 1)
+    if (pExtrasInfo->MaxInfoVersion >= 1)
     {
         BRIDGE_INFO("Unofficial Extras is enabled.");
         loaded = true;
@@ -653,7 +653,7 @@ extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(c
     }
     else
     {
-        BRIDGE_ERROR("Extra max info version \"{}\" is not supported.", pExtrasInfo->MaxInfoVersion);
+        BRIDGE_ERROR("Extras MaxInfoVersion: \"{}\" is not supported.", pExtrasInfo->MaxInfoVersion);
     }
 
     // Send updated bridge information.
@@ -662,7 +662,7 @@ extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(c
 
         AppData.Info.extrasFound = true;
         AppData.Info.extrasLoaded = loaded;
-        AppData.Info.extrasVersion = std::string{version};
+        AppData.Info.extrasVersion = version;
         ++AppData.Info.validator;
         BRIDGE_DEBUG("Updated BridgeInfo");
 
