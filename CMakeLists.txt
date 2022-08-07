@@ -59,7 +59,8 @@ add_library(arcdps_bridge SHARED src/Entry.cpp
     src/PipeThread.hpp
     src/PipeThread.cpp
     src/PlayerContainer.hpp
-    src/PlayerContainer.cpp)
+    src/PlayerContainer.cpp
+    src/SquadModifyHandler.hpp)
 
 target_compile_definitions(arcdps_bridge PRIVATE ${BRIDGE_COMPILE_DEFINITIONS} BRIDGE_VERSION_STR="${CMAKE_PROJECT_VERSION}")
 

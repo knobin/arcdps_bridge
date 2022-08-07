@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <limits>
 #include <memory>
+#include <sstream>
 
 // Windows Headers
 #include <windows.h>
@@ -213,62 +214,44 @@ static void SendPlayerMsg(const std::string& trigger, const std::string& sType,
     }
 }
 
-static void UpdateCombatPlayerSuccess(const PlayerInfoEntry& entry)
+static void UpdateCombatPlayerSender(const std::string& trigger, const PlayerInfoEntry& entry)
 {
-    SendPlayerMsg("update", "combat", entry.player, entry.validator);
+    SendPlayerMsg(trigger, "combat", entry.player, entry.validator);
 }
 
-static void UpdateCombatAddPlayerInfo(const PlayerInfoEntry& existing, ag* src, ag* dst)
+static void UpdateCombatPlayerInfo(PlayerInfo& player, ag* src, ag* dst)
 {
-    std::string charName{src->name};
-    auto update = [charName, prof = dst->prof, elite = dst->elite](PlayerInfo& player)
-    {
-        player.characterName = charName;
-        player.profession = prof;
-        player.elite = elite;
-        player.inInstance = true;
-
-    };
-    SquadHandler->updatePlayer(existing, update, UpdateCombatPlayerSuccess);
+    player.characterName = std::string{src->name};
+    player.profession = dst->prof;
+    player.elite = dst->elite;
+    player.inInstance = true;
 }
 
 static void UpdateCombatCharInfo(const std::string& name, CharacterType ct)
 {
-    auto existing = AppData.Squad.find_if([&name](const auto& p){ return p.second.player.characterName == name; });
-
-    if (existing)
+    auto p = [&name](const PlayerInfo& player) { return player.characterName == name; };
+    auto updater = [ct](PlayerInfo& player)
     {
-        auto update = [ct](PlayerInfo& player)
-        {
-            player.profession = ct.profession;
-            player.elite = ct.elite;
-        };
-        SquadHandler->updatePlayer(*existing, update, UpdateCombatPlayerSuccess);
-    }
+        player.profession = ct.profession;
+        player.elite = ct.elite;
+    };
+    SquadHandler->updatePlayer(p, UpdateCombatPlayerSender, updater);
 }
 
 static void RemoveFromSquad(const std::string& accountName, const std::string& sType)
 {
-    if (auto entry = AppData.Squad.find(accountName))
+    auto success = [accountName , sType](PlayerInfoEntry& entry)
     {
-        if (entry->player.self)
+        SendPlayerMsg("remove", sType, entry.player, entry.validator);
+
+        if (entry.player.self)
         {
-            BRIDGE_DEBUG("Removing self \"{}\", saving character info for \"{}\".", accountName, entry->player.characterName);
-            AppData.Self = entry->player;
-            
+            BRIDGE_DEBUG("Removing self \"{}\", saving character info for \"{}\".", accountName,
+                            entry.player.characterName);
+            AppData.Self = entry.player;
         }
-        
-        // Will send an event to clients.
-        auto success = [sType](PlayerInfoEntry& entry)
-        {
-            SendPlayerMsg("remove", sType, entry.player, entry.validator);
-        };
-        SquadHandler->removePlayer(accountName, success);
-        
-        // Clear squad after event is sent.
-        if (entry->player.self)
-            SquadHandler->clear();
-    }
+    };
+    SquadHandler->removePlayer(accountName, success);
 }
 
 /* combat callback -- may be called asynchronously, use id param to keep track of order, first event id will be 2.
@@ -286,44 +269,32 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
             BRIDGE_DEBUG("Added, checking dst->name \"{}\"", src->name);
             std::string accountName{dst->name};
 
-            if (auto exists = AppData.Squad.find(accountName))
+            PlayerInfo player{};
+            player.accountName = accountName;
+            player.characterName = std::string{src->name};
+            player.profession = dst->prof;
+            player.elite = dst->elite;
+            player.inInstance = true;
+            player.subgroup = static_cast<uint8_t>(dst->team);
+            player.self = dst->self;
+
+            // If there is no knowledge of self account name, set it here.
+            if (dst->self && AppData.Self.accountName.empty())
             {
-                // Update existing listing.
-                UpdateCombatAddPlayerInfo(*exists, src, dst);
+                AppData.Self = player;
+                BRIDGE_DEBUG("Self account name (Combat): \"{}\"", AppData.Self.accountName);
             }
-            else
+
+            auto sender = [](const std::string& trigger, const PlayerInfoEntry& entry)
             {
-                // Player not already in squad.
-                // This event happened before the extras event, add the player.
-
-                PlayerInfo player{};
-                player.accountName = accountName;
-                player.characterName = std::string{src->name};
-                player.profession = dst->prof;
-                player.elite = dst->elite;
-                player.inInstance = true;
-                player.subgroup = static_cast<uint8_t>(dst->team);
-                player.self = dst->self;
-
-                // If there is no knowledge of self account name, set it here.
-                if (dst->self && AppData.Self.accountName.empty())
-                {
-                    AppData.Self = player;
-                    BRIDGE_DEBUG("Self account name (Combat): \"{}\"", AppData.Self.accountName);
-                }
-
-                auto success = [](const PlayerInfoEntry& entry)
-                { 
-                    SendPlayerMsg("add", "combat", entry.player, entry.validator); 
-                };
-                auto failedAdd = [accountName, src, dst]()
-                {
-                    // Entry got added just in the right time for add() to fail.
-                    if (auto added = AppData.Squad.find(accountName))
-                        UpdateCombatAddPlayerInfo(*added, src, dst);
-                };
-                SquadHandler->addPlayer(player, success, failedAdd);
-            }
+                SendPlayerMsg(trigger, "combat", entry.player, entry.validator); 
+            };
+            auto updater = [accountName, src, dst](PlayerInfo& player)
+            {
+                // Entry got added just in the right time for add to fail.
+                UpdateCombatPlayerInfo(player, src, dst);
+            };
+            SquadHandler->addPlayer(player, sender, updater);
 
             CharacterType ct{};
             ct.profession = dst->prof;
@@ -343,38 +314,30 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
             BRIDGE_DEBUG("Removed, checking dst->name \"{}\"", src->name);
             std::string accountName{dst->name};
 
-            if (auto exists = AppData.Squad.find(accountName))
+            if (AppData.Info.extrasLoaded)
             {
-                if (exists->player.role != static_cast<uint8_t>(UserRole::None))
-                {
-                    // Player was added by ArcDPS Unofficial Extras.
-                    // Update information.
+                // Unofficial Extras is present and used in the bridge.
+                // Therefore only Unofficial Extras can remove players.
+                // Update information.
 
-                    auto update = [](PlayerInfo& player)
-                    { 
-                        player.inInstance = false;
-                    };
-                    SquadHandler->updatePlayer(*exists, update, UpdateCombatPlayerSuccess);
-                }
-                else
-                {
-                    // Player was added by ArcDPS combat api.
+                auto updater = [](PlayerInfo& player)
+                { 
+                    player.inInstance = false;
+                };
+                SquadHandler->updatePlayer(accountName, UpdateCombatPlayerSender, updater);
+            }
+            else
+            {
+                // Unofficial Extras is not used (callback not set or extension not present at all).
+                // Then only combat events can add/remove players.
 
-                    if (!AppData.Info.extrasLoaded)
-                    {
-                        // Unofficial Extras is not used (callback not set or extension not present at all).
-                        // Then only combat events can add/remove players.
+                // If extras is loaded it will remove the player. This will ensure that players 
+                // added by combat api will not be removed when not in the same instance.
+                // Which enables the ability to "recover" over time from a crash if the game 
+                // crashed when in a squad.
 
-                        // If extras is loaded it will remove the player. This will ensure that players 
-                        // added by combat api will not be removed when not in the same instance.
-                        // Which enables the ability to "recover" over time from a crash if the game 
-                        // crashed when in a squad.
-
-                        BRIDGE_DEBUG("ArcDPS combat event removed \"{}\", since extras is not used.", accountName);
-                        RemoveFromSquad(accountName, "combat");
-                    }
-                }
-                
+                BRIDGE_DEBUG("ArcDPS combat event removed \"{}\", since extras is not used.", accountName);
+                RemoveFromSquad(accountName, "combat");
             }
 
             BRIDGE_DEBUG("Removed, CharCache, checking src->name \"{}\"", src->name);
@@ -520,21 +483,18 @@ static std::string ExtrasDataToJSON(const UserInfo* user)
     return ss.str();
 }
 
-static void UpdateExtrasPlayerInfo(const PlayerInfoEntry& existing, const UserInfo& user)
+static void ExtrasPlayerInfoUpdater(PlayerInfo& player, const UserInfo& user)
 {
-    auto update = [&user](PlayerInfo& player)
-    {
-        player.role = static_cast<uint8_t>(user.Role);
-        player.subgroup = user.Subgroup + 1; // Starts at 0.
-        player.readyStatus = user.ReadyStatus;
-        if (player.joinTime != 0 && user.JoinTime != 0)
-            player.joinTime = user.JoinTime;
-    };
-    auto success = [](const PlayerInfoEntry& entry)
-    { 
-        SendPlayerMsg("update", "extras", entry.player, entry.validator); 
-    };
-    SquadHandler->updatePlayer(existing, update, success);
+    player.role = static_cast<uint8_t>(user.Role);
+    player.subgroup = user.Subgroup + 1; // Starts at 0.
+    player.readyStatus = user.ReadyStatus;
+    if (player.joinTime != 0 && user.JoinTime != 0)
+        player.joinTime = user.JoinTime;
+}
+
+static void ExtrasPlayerInfoSender(const std::string& trigger, const PlayerInfoEntry& entry)
+{
+    SendPlayerMsg(trigger, "extras", entry.player, entry.validator); 
 }
 
 // Callback for arcDPS unofficial extras API.
@@ -546,60 +506,41 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
         if (uinfo)
         {
             std::string accountName{uinfo->AccountName};
+            UserRole role{uinfo->Role};
 
-            if (uinfo->Role == UserRole::None)
+            if (role == UserRole::None)
             {
                 // Remove.
                 RemoveFromSquad(accountName, "extras");
             }
-            else
+            else if (role == UserRole::SquadLeader || role == UserRole::Lieutenant || role == UserRole::Member)
             {
-                // ArcDPS might have added the player already.
-                auto exists = AppData.Squad.find(accountName);
-                if (!exists)
+                // Add.
+                
+                PlayerInfo player{};
+                        
+                if (AppData.Self.accountName == accountName)
                 {
-                    // Add.
-
-                    PlayerInfo player{};
-                    
-                    if (AppData.Self.accountName == accountName)
+                    BRIDGE_DEBUG("Adding self, using character name: \"{}\".", AppData.Self.characterName);
+                    player = AppData.Self;
+                    player.inInstance = true;
+                    player.self = true;
+                    auto it = AppData.CharacterTypeCache.find(player.characterName);
+                    if (it != AppData.CharacterTypeCache.end())
                     {
-                        BRIDGE_DEBUG("Adding self, using character name: \"{}\".", AppData.Self.characterName);
-                        player = AppData.Self;
-                        player.inInstance = true;
-                        player.self = true;
-                        auto it = AppData.CharacterTypeCache.find(player.characterName);
-                        if (it != AppData.CharacterTypeCache.end())
-                        {
-                            player.profession = it->second.profession;
-                            player.elite = it->second.elite;
-                        }
+                        player.profession = it->second.profession;
+                        player.elite = it->second.elite;
                     }
-                    else
-                        player.accountName = accountName;
-                    
-                    player.role = static_cast<uint8_t>(uinfo->Role);
-                    player.subgroup = uinfo->Subgroup + 1; // Starts at 0.
-                    player.joinTime = uinfo->JoinTime;
-                    player.readyStatus = uinfo->ReadyStatus;
-
-                    auto success = [](const PlayerInfoEntry& entry)
-                    { 
-                        SendPlayerMsg("add", "extras", entry.player, entry.validator); 
-                    };
-                    auto failedAdd = [accountName, uinfo]()
-                    {
-                        // Entry got added just in the right time for add() to fail.
-                        if (auto added = AppData.Squad.find(accountName))
-                            UpdateExtrasPlayerInfo(*added, *uinfo);
-                    };
-                    SquadHandler->addPlayer(player, success, failedAdd);
                 }
                 else
                 {
-                    // Update.
-                    UpdateExtrasPlayerInfo(*exists, *uinfo);
+                    player.accountName = accountName;
                 }
+
+                ExtrasPlayerInfoUpdater(player, *uinfo);
+                
+                auto updater = [uinfo](PlayerInfo& player) { ExtrasPlayerInfoUpdater(player, *uinfo); };
+                SquadHandler->addPlayer(player, ExtrasPlayerInfoSender, updater);
             }
 
             if (Server->trackingEvent(MessageType::Extras))

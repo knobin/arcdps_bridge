@@ -72,7 +72,9 @@ public:
     {
         std::unique_lock<std::mutex> lock(m_mutex);
 
-        auto it = std::find_if(m_squad.cbegin(), m_squad.cend(), p);
+        auto it = std::find_if(m_squad.cbegin(), m_squad.cend(), [&p](const auto& entry) { 
+            return entry.first && p(entry.second.player);
+        });
 
         if (it != m_squad.cend())
             return it->second;
