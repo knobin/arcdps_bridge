@@ -19,9 +19,11 @@ PipeHandler::PipeHandler(const std::string pipeName, const ApplicationData& appd
 
 PipeHandler::~PipeHandler()
 {
-    BRIDGE_DEBUG("~PipeHandler tracking combat events: {}.", m_trackedEvents.isTracking(MessageType::Combat));
-    BRIDGE_DEBUG("~PipeHandler tracking extras events: {}.", m_trackedEvents.isTracking(MessageType::Extras));
-    BRIDGE_DEBUG("~PipeHandler tracking squad events: {}.", m_trackedEvents.isTracking(MessageType::Squad));
+    BRIDGE_DEBUG("~PipeHandler tracking combat events: {}.", m_msgTracking.isTrackingEvent(MessageSource::Combat));
+    BRIDGE_DEBUG("~PipeHandler tracking extras events: {}.", m_msgTracking.isTrackingEvent(MessageSource::Extras));
+    BRIDGE_DEBUG("~PipeHandler tracking squad events: {}.", m_msgTracking.isTrackingEvent(MessageSource::Squad));
+    BRIDGE_DEBUG("~PipeHandler using protocol: {}.", m_msgTracking.usingProtocol(MessageProtocol::Serial));
+    BRIDGE_DEBUG("~PipeHandler using protocol: {}.", m_msgTracking.usingProtocol(MessageProtocol::JSON));
     BRIDGE_DEBUG("~PipeHandler, running: {} threads: {}", m_run, m_threads.size());
 }
 
@@ -110,7 +112,7 @@ PipeThread* PipeHandler::dispatchPipeThread(void* handle, std::size_t id)
     if (m_threads.size() < m_appData.Config.maxClients)
     {
         // Maybe add some error handling here in case if vector throws.
-        return m_threads.emplace_back(std::make_unique<PipeThread>(id, handle, &m_trackedEvents, m_appData)).get();
+        return m_threads.emplace_back(std::make_unique<PipeThread>(id, handle, &m_msgTracking, m_appData)).get();
     }
 
     BRIDGE_ERROR("Could not create PipeThread due to max amount of clients are connected.");
@@ -180,8 +182,11 @@ void PipeHandler::stop()
     BRIDGE_DEBUG("PipeHandler stopped.");
 }
 
-void PipeHandler::sendBridgeInfo(const std::string& msg, uint64_t validator)
+void PipeHandler::sendBridgeInfo(const Message& msg, uint64_t validator)
 {
+    if (msg.empty())
+        return;
+    
     std::unique_lock<std::mutex> lock(m_mutex);
 
     if (m_running)
@@ -192,36 +197,42 @@ void PipeHandler::sendBridgeInfo(const std::string& msg, uint64_t validator)
     }
 }
 
-void PipeHandler::sendMessage(const std::string& msg, MessageType type)
+void PipeHandler::sendMessage(const Message& msg)
 {
+    if (msg.empty())
+        return;
+
     std::unique_lock<std::mutex> lock(m_mutex);
 
     if (m_running)
     {
         for (std::unique_ptr<PipeThread>& pt : m_threads)
             if (pt->started())
-                pt->sendMessage(msg, type);
+                pt->sendMessage(msg);
     }
 }
 
-bool PipeHandler::trackingEvent(MessageType mt) const
+bool PipeHandler::trackingEvent(MessageSource src) const
 {
-    return m_trackedEvents.isTracking(mt);
+    return m_msgTracking.isTrackingEvent(src);
 }
 
-void TrackedEvents::startTracking(MessageType mt)
+bool PipeHandler::usingProtocol(MessageProtocol protocol) const
 {
-    switch (mt)
+    return m_msgTracking.usingProtocol(protocol);
+}
+
+void MessageTracking::trackEvent(MessageSource src)
+{
+    switch (src)
     {
-        case MessageType::NONE:
-            break;
-        case MessageType::Combat:
+        case MessageSource::Combat:
             ++m_combat;
             break;
-        case MessageType::Extras:
+        case MessageSource::Extras:
             ++m_extras;
             break;
-        case MessageType::Squad:
+        case MessageSource::Squad:
             ++m_squad;
             break;
         default:
@@ -229,19 +240,17 @@ void TrackedEvents::startTracking(MessageType mt)
     }
 }
 
-void TrackedEvents::untrack(MessageType mt)
+void MessageTracking::untrackEvent(MessageSource src)
 {
-    switch (mt)
+    switch (src)
     {
-        case MessageType::NONE:
-            break;
-        case MessageType::Combat:
+        case MessageSource::Combat:
             --m_combat;
             break;
-        case MessageType::Extras:
+        case MessageSource::Extras:
             --m_extras;
             break;
-        case MessageType::Squad:
+        case MessageSource::Squad:
             --m_squad;
             break;
         default:
@@ -249,22 +258,69 @@ void TrackedEvents::untrack(MessageType mt)
     }
 }
 
-bool TrackedEvents::isTracking(MessageType mt) const
+bool MessageTracking::isTrackingEvent(MessageSource src) const
 {
     bool ret = false;
 
-    switch (mt)
+    switch (src)
     {
-        case MessageType::NONE:
-            break;
-        case MessageType::Combat:
+        case MessageSource::Combat:
             ret = static_cast<bool>(m_combat);
             break;
-        case MessageType::Extras:
+        case MessageSource::Extras:
             ret = static_cast<bool>(m_extras);
             break;
-        case MessageType::Squad:
+        case MessageSource::Squad:
             ret = static_cast<bool>(m_squad);
+            break;
+        default:
+            break;
+    }
+
+    return ret;
+}
+
+void MessageTracking::useProtocol(MessageProtocol protocol)
+{
+    switch (protocol)
+    {
+        case MessageProtocol::Serial:
+            ++m_serial;
+            break;
+        case MessageProtocol::JSON:
+            ++m_json;
+            break;
+        default:
+            break;
+    }
+}
+
+void MessageTracking::unuseProtocol(MessageProtocol protocol)
+{
+    switch (protocol)
+    {
+        case MessageProtocol::Serial:
+            --m_serial;
+            break;
+        case MessageProtocol::JSON:
+            --m_json;
+            break;
+        default:
+            break;
+    }
+}
+
+bool MessageTracking::usingProtocol(MessageProtocol protocol) const
+{
+    bool ret = false;
+
+    switch (protocol)
+    {
+        case MessageProtocol::Serial:
+            ret = static_cast<bool>(m_serial);
+            break;
+        case MessageProtocol::JSON:
+            ret = static_cast<bool>(m_json);
             break;
         default:
             break;

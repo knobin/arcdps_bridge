@@ -12,22 +12,25 @@
 // C++ Headers
 #include <sstream>
 
-std::string PlayerInfo::toJSON() const
+nlohmann::json PlayerInfo::toJSON() const
 {
-    std::ostringstream ss{};
-    ss << "{"
-       << "\"accountName\":\"" << accountName << "\","
-       << "\"characterName\":" << ((!characterName.empty()) ? "\"" + characterName + "\"" : "null") << ","
-       << "\"joinTime\":" << joinTime << ","
-       << "\"profession\":" << profession << ","
-       << "\"elite\":" << elite << ","
-       << "\"role\":" << static_cast<int>(role) << ","
-       << "\"subgroup\":" << static_cast<int>(subgroup)<< ","
-       << "\"self\":" << ((self) ? "true" : "false") << ","
-       << "\"inInstance\":" << ((inInstance) ? "true" : "false") << ","
-       << "\"readyStatus\":" << ((readyStatus) ? "true" : "false")
-       << "}";
-    return ss.str();
+    nlohmann::json j{
+        {"accountName", accountName},  
+        {"characterName", nullptr},
+        {"joinTime", joinTime},
+        {"profession", profession},          
+        {"elite", elite},
+        {"role", static_cast<int>(role)},
+        {"subgroup", static_cast<int>(subgroup)},
+        {"self", self},
+        {"inInstance", inInstance},
+        {"readyStatus", readyStatus}
+    };
+
+    if (!characterName.empty())
+        j["characterName"] = characterName;
+
+    return j;
 }
 
 #if BRIDGE_LOG_LEVEL >= BRIDGE_LOG_LEVEL_DEBUG
@@ -171,20 +174,16 @@ void PlayerContainer::clear()
     BRIDGE_DEBUG("Cleared squad.");
 }
 
-std::string PlayerContainer::toJSON() const
+nlohmann::json PlayerContainer::toJSON() const
 {
     std::unique_lock<std::mutex> lock(m_mutex);
     
-    std::ostringstream ss{};
-    ss << "[";
-
-    uint8_t added{0};
+    nlohmann::json members = nlohmann::json::array();
     for (std::size_t i{0}; i < m_squad.size(); ++i)
         if (m_squad[i].first)
-            ss << ((added++ > 0) ? "," : "") << m_squad[i].second.player.toJSON();
+            members.push_back(m_squad[i].second.player.toJSON());
 
-    ss << "]";
-    return ss.str();
+    return {"members", members};
 }
 
 bool operator==(const PlayerInfo& lhs, const PlayerInfo& rhs)

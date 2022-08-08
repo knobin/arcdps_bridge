@@ -11,6 +11,9 @@
 // ArcDPS Unofficial Extras Header
 #include "Definitions.h"
 
+// nlohmann_json Headers
+#include <nlohmann/json.hpp>
+
 // C++ Headers
 #include <array>
 #include <cstdint>
@@ -34,7 +37,7 @@ struct PlayerInfo
     bool self{false};
     bool readyStatus{false};
 
-    std::string toJSON() const;
+    nlohmann::json toJSON() const;
 };
 
 struct PlayerInfoEntry
@@ -84,7 +87,7 @@ public:
 
     void clear();
 
-    std::string toJSON() const;
+    nlohmann::json toJSON() const;
 
 private:
     std::array<std::pair<bool, PlayerInfoEntry>, 50> m_squad{};

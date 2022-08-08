@@ -10,6 +10,7 @@
 
 // Local Headers
 #include "ApplicationData.hpp"
+#include "Message.hpp"
 
 // C++ Headers
 #include <atomic>
@@ -21,7 +22,7 @@
 // Windows Headers
 #include <windows.h>
 
-class TrackedEvents;
+class MessageTracking;
 
 class PipeThread
 {
@@ -39,7 +40,7 @@ public:
     {
         std::mutex mutex{};
         std::condition_variable cv{};
-        std::queue<std::string> queue{};
+        std::queue<Message> queue{};
     };
 
     struct EventTracking
@@ -51,7 +52,7 @@ public:
 
 public:
     PipeThread() = delete;
-    PipeThread(std::size_t id, void* handle, TrackedEvents* te, const ApplicationData& appdata);
+    PipeThread(std::size_t id, void* handle, MessageTracking* mt, const ApplicationData& appdata);
     ~PipeThread();
 
     void start();
@@ -60,8 +61,8 @@ public:
 
     std::size_t id() const { return m_id; }
 
-    void sendBridgeInfo(const std::string& msg, uint64_t validator);
-    void sendMessage(const std::string& msg, MessageType type);
+    void sendBridgeInfo(const Message& msg, uint64_t validator);
+    void sendMessage(const Message& msg);
 
     EventTracking eventTracking() const { return m_eventTrack; }
 
@@ -72,7 +73,7 @@ private:
     std::mutex m_mutex{};
     EventTracking m_eventTrack{};
     void* m_handle{nullptr};
-    TrackedEvents* m_te{nullptr};
+    MessageTracking* m_mt{nullptr};
     Status m_status{Status::NONE};
     std::atomic<bool> m_run{false};
     std::atomic<bool> m_running{false};

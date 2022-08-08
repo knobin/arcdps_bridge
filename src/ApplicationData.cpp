@@ -23,20 +23,17 @@ Configs InitConfigs(const std::string& filepath)
     return Configs{};
 }
 
-std::string BridgeInfoToJSON(const BridgeInfo& info)
+nlohmann::json BridgeInfoToJSON(const BridgeInfo& info)
 {
-    std::ostringstream ss{};
-    ss << "{\"type\":\"info\",";
-    ss << "\"info\":{"
-       << "\"version\":\"" << std::string{info.version} << "\","
-       << "\"extrasVersion\":\"" << info.extrasVersion << "\","
-       << "\"arcVersion\":\"" << info.arcvers << "\","
-       << "\"arcLoaded\":" << ((info.arcLoaded) ? "true" : "false") << ","
-       << "\"extrasFound\":" << ((info.extrasFound) ? "true" : "false") << ","
-       << "\"extrasLoaded\":" << ((info.extrasLoaded) ? "true" : "false") << ","
-       << "\"validator\":" << info.validator
-       << "}}";
-    return ss.str();
+    return {
+        {"version", std::string{info.version}}, 
+        {"extrasVersion", info.extrasVersion}, 
+        {"arcVersion", info.arcvers}, 
+        {"arcLoaded", info.arcLoaded},
+        {"extrasFound", info.extrasFound},
+        {"extrasLoaded", info.extrasLoaded},
+        {"validator", info.validator}
+    };
 }
 
 static void PrintConfigs(std::ostream& os, const Configs& config)

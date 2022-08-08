@@ -9,24 +9,36 @@
 #define BRIDGE_PIPEHANDLER_HPP
 
 // Local Headers
-#include "PipeThread.hpp"
 #include "ApplicationData.hpp"
+#include "Message.hpp"
+#include "PipeThread.hpp"
 
 // C++ Headers
 #include <memory>
 #include <vector>
 
-class TrackedEvents
+class MessageTracking
 {
 public:
-    void startTracking(MessageType mt);
-    void untrack(MessageType mt);
-    bool isTracking(MessageType mt) const;
+    // Tracked event sources.
+    void trackEvent(MessageSource src);
+    void untrackEvent(MessageSource src);
+    bool isTrackingEvent(MessageSource src) const;
+
+    // Using protocols.
+    void useProtocol(MessageProtocol protocol);
+    void unuseProtocol(MessageProtocol protocol);
+    bool usingProtocol(MessageProtocol protocol) const;
 
 private:
-    std::atomic<uint32_t> m_combat{false};
-    std::atomic<uint32_t> m_extras{false};
-    std::atomic<uint32_t> m_squad{false};
+    // Sources.
+    std::atomic<std::size_t> m_combat{0};
+    std::atomic<std::size_t> m_extras{0};
+    std::atomic<std::size_t> m_squad{0};
+
+    // Protocols.
+    std::atomic<std::size_t> m_serial{0};
+    std::atomic<std::size_t> m_json{0};
 };
 
 class PipeHandler
@@ -42,10 +54,11 @@ public:
     bool started() const { return m_threadStarted; }
     bool waitingForConnection() const { return m_waitingForConnection; }
 
-    void sendMessage(const std::string& msg, MessageType type);
-    void sendBridgeInfo(const std::string& msg, uint64_t validator);
+    void sendBridgeInfo(const Message& msg, uint64_t validator);
+    void sendMessage(const Message& msg);
 
-    bool trackingEvent(MessageType mt) const;
+    bool trackingEvent(MessageSource src) const;
+    bool usingProtocol(MessageProtocol protocol) const;
 
 private:
     PipeThread* dispatchPipeThread(void* handle, std::size_t id);
@@ -57,7 +70,7 @@ private:
     std::string m_pipeName{};
     std::mutex m_mutex{};
     std::thread m_pipeMain;
-    TrackedEvents m_trackedEvents{};
+    MessageTracking m_msgTracking{};
     std::atomic<bool> m_run{false};
     std::atomic<bool> m_running{false};
     std::atomic<bool> m_waitingForConnection{false};

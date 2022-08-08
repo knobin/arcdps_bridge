@@ -11,6 +11,9 @@
 // Local Headers
 #include "PlayerContainer.hpp"
 
+// nlohmann_json Headers
+#include <nlohmann/json.hpp>
+
 // C++ Headers
 #include <cstddef>
 #include <optional>
@@ -63,14 +66,6 @@ private:
     }
 };
 
-enum class MessageType : uint8_t
-{
-    NONE = 0,
-    Combat = 1,
-    Extras = 2,
-    Squad = 4
-};
-
 struct CharacterType
 {
     uint32_t profession{};
@@ -95,6 +90,6 @@ struct ApplicationData
 Configs InitConfigs(const std::string& filepath);
 void CreateConfigFile(const std::string& filepath);
 Configs LoadConfigFile(const std::string& filepath);
-std::string BridgeInfoToJSON(const BridgeInfo& info);
+nlohmann::json BridgeInfoToJSON(const BridgeInfo& info);
 
 #endif // BRIDGE_APPLICATIONDATA_HPP

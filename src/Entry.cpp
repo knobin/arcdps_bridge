@@ -144,34 +144,33 @@ struct cbtevent
     uint8_t pad64;
 };
 
-static std::string cbteventToJSON(cbtevent* evt)
+static nlohmann::json cbteventToJSON(const cbtevent* evt)
 {
-    std::ostringstream ss{};
-    ss << "{"
-       << "\"time\":" << evt->time << ","
-       << "\"src_agent\":" << evt->src_agent << ","
-       << "\"dst_agent\":" << evt->dst_agent << ","
-       << "\"value\":" << evt->value << ","
-       << "\"buff_dmg\":" << evt->buff_dmg << ","
-       << "\"overstack_value\":" << evt->overstack_value << ","
-       << "\"skillid\":" << evt->skillid << ","
-       << "\"src_instid\":" << evt->src_instid << ","
-       << "\"dst_instid\":" << evt->dst_instid << ","
-       << "\"src_master_instid\":" << evt->src_master_instid << ","
-       << "\"dst_master_instid\":" << evt->dst_master_instid << ","
-       << "\"iff\":" << static_cast<uint32_t>(evt->iff) << ","
-       << "\"buff\":" << static_cast<uint32_t>(evt->buff) << ","
-       << "\"result\":" << static_cast<uint32_t>(evt->result) << ","
-       << "\"is_activation\":" << static_cast<uint32_t>(evt->is_activation) << ","
-       << "\"is_buffremove\":" << static_cast<uint32_t>(evt->is_buffremove) << ","
-       << "\"is_ninety\":" << static_cast<uint32_t>(evt->is_ninety) << ","
-       << "\"is_fifty\":" << static_cast<uint32_t>(evt->is_fifty) << ","
-       << "\"is_moving\":" << static_cast<uint32_t>(evt->is_moving) << ","
-       << "\"is_statechange\":" << static_cast<uint32_t>(evt->is_statechange) << ","
-       << "\"is_flanking\":" << static_cast<uint32_t>(evt->is_flanking) << ","
-       << "\"is_shields\":" << static_cast<uint32_t>(evt->is_shields) << ","
-       << "\"is_offcycle\":" << static_cast<uint32_t>(evt->is_offcycle) << "}";
-    return ss.str();
+    return {
+        {"time", evt->time},
+        {"src_agent", evt->src_agent},
+        {"dst_agent", evt->dst_agent},
+        {"value", evt->value},
+        {"buff_dmg", evt->buff_dmg},
+        {"overstack_value", evt->overstack_value},
+        {"skillid", evt->skillid},
+        {"src_instid", evt->src_instid},
+        {"dst_instid", evt->dst_instid},
+        {"src_master_instid", evt->src_master_instid},
+        {"dst_master_instid", evt->dst_master_instid},
+        {"iff", static_cast<uint32_t>(evt->iff)},
+        {"buff", static_cast<uint32_t>(evt->buff)},
+        {"result", static_cast<uint32_t>(evt->result)},
+        {"is_activation", static_cast<uint32_t>(evt->is_activation)},
+        {"is_buffremove", static_cast<uint32_t>(evt->is_buffremove)},
+        {"is_ninety", static_cast<uint32_t>(evt->is_ninety)},
+        {"is_fifty", static_cast<uint32_t>(evt->is_fifty)},
+        {"is_moving", static_cast<uint32_t>(evt->is_moving)},
+        {"is_statechange", static_cast<uint32_t>(evt->is_statechange)},
+        {"is_flanking", static_cast<uint32_t>(evt->is_flanking)},
+        {"is_shields", static_cast<uint32_t>(evt->is_shields)},
+        {"is_offcycle", static_cast<uint32_t>(evt->is_offcycle)}
+    };
 }
 
 /* agent short */
@@ -185,38 +184,66 @@ struct ag
     uint16_t team;  /* sep21+ */
 };
 
-static std::string agToJSON(ag* agent)
+static nlohmann::json agToJSON(const ag* agent)
 {
-    std::ostringstream ss{};
-    ss << "{"
-       << "\"name\":" << ((agent->name) ? "\"" + std::string{agent->name} + "\"" : "null") << ","
-       << "\"id\":" << agent->id << ","
-       << "\"prof\":" << agent->prof << ","
-       << "\"elite\":" << agent->elite << ","
-       << "\"self\":" << agent->self << ","
-       << "\"team\":" << agent->team << "}";
-    return ss.str();
+    nlohmann::json json{
+        {"name", nullptr},
+        {"id", agent->id}, 
+        {"prof", agent->prof},
+        {"elite", agent->elite}, 
+        {"self", agent->self}, 
+        {"team", agent->team}
+    };
+
+    if (agent->name)
+        json["name"] = std::string{agent->name};
+
+    return json;
 }
 
-static void SendPlayerMsg(const std::string& trigger, const std::string& sType,
-                          const PlayerInfo& player, std::size_t validator)
+template<MessageType Type>
+static void SendPlayerMsg(const PlayerInfo& player, std::size_t validator)
 {
-    if (Server->trackingEvent(MessageType::Squad))
+    static_assert(Type == MessageType::SquadAdd || Type == MessageType::SquadRemove ||
+                    Type == MessageType::SquadUpdate,
+                  "Type is not a Squad message");
+
+    if (Server->trackingEvent(MessageSource::Squad))
     {
-        std::ostringstream ss{};
-        ss << "{\"type\":\"squad\",\"squad\":{"
-           << "\"trigger\":\"" << trigger << "\","
-           << "\"" << trigger << "\":{"
-           << "\"source\":\"" << sType << "\","
-           << "\"validator\":" << validator << ","
-           << "\"member\":" << player.toJSON() << "}}}";
-        Server->sendMessage(ss.str(), MessageType::Squad);
+        SerialData serial{};
+        nlohmann::json json{};
+
+        if (Server->usingProtocol(MessageProtocol::Serial))
+        {
+            ; // TODO.
+        }
+
+        if (Server->usingProtocol(MessageProtocol::JSON))
+        {
+            json = {{"validator", validator},
+                    {"member", player.toJSON()}
+            };
+        }
+
+        const Message squadMsg{SquadMessage<Type>(serial, json)};
+        Server->sendMessage(squadMsg);
     }
 }
 
-static void UpdateCombatPlayerSender(const std::string& trigger, const PlayerInfoEntry& entry)
+static void SquadModifySender(SquadAction action, const PlayerInfoEntry& entry)
 {
-    SendPlayerMsg(trigger, "combat", entry.player, entry.validator);
+    switch (action)
+    {
+        case SquadAction::Add:
+            SendPlayerMsg<MessageType::SquadAdd>(entry.player, entry.validator);
+            break;
+        case SquadAction::Update:
+            SendPlayerMsg<MessageType::SquadUpdate>(entry.player, entry.validator);
+            break;
+        case SquadAction::Remove:
+            SendPlayerMsg<MessageType::SquadRemove>(entry.player, entry.validator);
+            break;
+    }
 }
 
 static void UpdateCombatPlayerInfo(PlayerInfo& player, ag* src, ag* dst)
@@ -235,14 +262,14 @@ static void UpdateCombatCharInfo(const std::string& name, CharacterType ct)
         player.profession = ct.profession;
         player.elite = ct.elite;
     };
-    SquadHandler->updatePlayer(p, UpdateCombatPlayerSender, updater);
+    SquadHandler->updatePlayer(p, SquadModifySender, updater);
 }
 
 static void RemoveFromSquad(const std::string& accountName, const std::string& sType)
 {
-    auto success = [accountName , sType](PlayerInfoEntry& entry)
+    auto success = [accountName , sType](SquadAction, PlayerInfoEntry& entry)
     {
-        SendPlayerMsg("remove", sType, entry.player, entry.validator);
+        SendPlayerMsg<MessageType::SquadRemove>(entry.player, entry.validator);
 
         if (entry.player.self)
         {
@@ -252,6 +279,59 @@ static void RemoveFromSquad(const std::string& accountName, const std::string& s
         }
     };
     SquadHandler->removePlayer(accountName, success);
+}
+
+static Message GenerateCombatMessage(cbtevent* ev, ag* src, ag* dst, char* skillname, uint64_t id, uint64_t revision)
+{
+    const bool useSerial{Server->usingProtocol(MessageProtocol::Serial)};
+    const bool useJSON{Server->usingProtocol(MessageProtocol::JSON)};
+
+    if (!useSerial && !useJSON)
+        return Message{};
+
+    SerialData serial{};
+    nlohmann::json json{};
+
+    std::string sn{};
+    if (skillname)
+    {
+        sn = std::string{skillname};
+        std::size_t pos = 0;
+        while ((pos = sn.find("\"", pos)) != std::string::npos)
+        {
+            sn.replace(pos, 1, "\\\"");
+            pos += 2;
+        }
+    }
+
+    if (useSerial)
+    {
+        ; // TODO.
+    }
+
+    if (useJSON)
+    {
+        json = {
+            {"id", id},
+            {"revision", revision},
+            {"ev", nullptr},
+            {"src", nullptr}, 
+            {"dst", nullptr}, 
+            {"skillname", nullptr},
+        };
+
+        if (ev)
+            json["ev"] = cbteventToJSON(ev);
+        if (src)
+            json["src"] = agToJSON(src);
+        if (dst)
+            json["dst"] = agToJSON(dst);
+
+        if (!sn.empty())
+            json["skillname"] = sn;
+    }
+   
+    return CombatMessage<MessageType::CombatEvent>(serial, json);
 }
 
 /* combat callback -- may be called asynchronously, use id param to keep track of order, first event id will be 2.
@@ -285,16 +365,12 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
                 BRIDGE_DEBUG("Self account name (Combat): \"{}\"", AppData.Self.accountName);
             }
 
-            auto sender = [](const std::string& trigger, const PlayerInfoEntry& entry)
-            {
-                SendPlayerMsg(trigger, "combat", entry.player, entry.validator); 
-            };
             auto updater = [accountName, src, dst](PlayerInfo& player)
             {
                 // Entry got added just in the right time for add to fail.
                 UpdateCombatPlayerInfo(player, src, dst);
             };
-            SquadHandler->addPlayer(player, sender, updater);
+            SquadHandler->addPlayer(player, SquadModifySender, updater);
 
             CharacterType ct{};
             ct.profession = dst->prof;
@@ -324,7 +400,7 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
                 { 
                     player.inInstance = false;
                 };
-                SquadHandler->updatePlayer(accountName, UpdateCombatPlayerSender, updater);
+                SquadHandler->updatePlayer(accountName, SquadModifySender, updater);
             }
             else
             {
@@ -361,35 +437,13 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
         }
     }
 
-    if (!Server->trackingEvent(MessageType::Combat))
+    if (!Server->trackingEvent(MessageSource::Combat))
         return 0;
 
-    // Combat event.
-    std::ostringstream ss{};
-    ss << "{\"type\":\"combat\",\"combat\":{";
-
-    ss << "\"id\":" << id << ",\"revision\":" << revision;
-
-    ss << ",\"ev\":" << ((ev) ? cbteventToJSON(ev) : "null");
-    ss << ",\"src\":" << ((src) ? agToJSON(src) : "null");
-    ss << ",\"dst\":" << ((dst) ? agToJSON(dst) : "null");
-
-    std::string sn{};
-    if (skillname)
-    {
-        sn = std::string{skillname};
-        std::size_t pos = 0;
-        while ((pos = sn.find("\"", pos)) != std::string::npos)
-        {
-            sn.replace(pos, 1, "\\\"");
-            pos += 2;
-        }
-    }
-
-    ss << ",\"skillname\":" << ((!sn.empty()) ? "\"" + sn + "\"" : "null");
-    ss << "}}\0";
-
-    Server->sendMessage(ss.str(), MessageType::Combat);
+    Message combatMsg{GenerateCombatMessage(ev, src, dst, skillname, id, revision)};
+    
+    if (!combatMsg.empty())
+        Server->sendMessage(combatMsg);
 
     return 0;
 }
@@ -472,15 +526,15 @@ extern "C" __declspec(dllexport) void* get_release_addr()
     return mod_release;
 }
 
-static std::string ExtrasDataToJSON(const UserInfo* user)
+static nlohmann::json ExtrasDataToJSON(const UserInfo* user)
 {
-    std::ostringstream ss{};
-    ss << "{\"accountName\":\"" << std::string{user->AccountName} << "\","
-       << "\"role\":" << static_cast<int>(static_cast<uint8_t>(user->Role)) << ","
-       << "\"subgroup\":" << static_cast<int>(user->Subgroup + 1) << ","
-       << "\"joinTime\":" << user->JoinTime << ","
-       << "\"readyStatus\":" << ((user->ReadyStatus) ? "true" : "false") << "}";
-    return ss.str();
+    return {
+        {"accountName", std::string{user->AccountName}},
+        {"role", static_cast<int>(static_cast<uint8_t>(user->Role))},
+        {"subgroup", static_cast<int>(user->Subgroup + 1)}, 
+        {"joinTime", user->JoinTime},
+        {"readyStatus", user->ReadyStatus}
+    };
 }
 
 static void ExtrasPlayerInfoUpdater(PlayerInfo& player, const UserInfo& user)
@@ -490,11 +544,6 @@ static void ExtrasPlayerInfoUpdater(PlayerInfo& player, const UserInfo& user)
     player.readyStatus = user.ReadyStatus;
     if (player.joinTime != 0 && user.JoinTime != 0)
         player.joinTime = user.JoinTime;
-}
-
-static void ExtrasPlayerInfoSender(const std::string& trigger, const PlayerInfoEntry& entry)
-{
-    SendPlayerMsg(trigger, "extras", entry.player, entry.validator); 
 }
 
 // Callback for arcDPS unofficial extras API.
@@ -540,16 +589,24 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
                 ExtrasPlayerInfoUpdater(player, *uinfo);
                 
                 auto updater = [uinfo](PlayerInfo& player) { ExtrasPlayerInfoUpdater(player, *uinfo); };
-                SquadHandler->addPlayer(player, ExtrasPlayerInfoSender, updater);
+                SquadHandler->addPlayer(player, SquadModifySender, updater);
             }
 
-            if (Server->trackingEvent(MessageType::Extras))
+            if (Server->trackingEvent(MessageSource::Extras))
             {
-                const std::string data{ExtrasDataToJSON(uinfo)};
-                std::ostringstream ss{};
-                ss << "{\"type\":\"extras\","
-                   << "\"extras\":" << data << "}";
-                Server->sendMessage(ss.str(), MessageType::Extras);
+                SerialData serial{};
+                nlohmann::json json{};
+
+                if (Server->usingProtocol(MessageProtocol::Serial))
+                {
+                    ; // TODO.
+                }
+
+                if (Server->usingProtocol(MessageProtocol::JSON))
+                    json = ExtrasDataToJSON(uinfo);
+
+                const Message extrasMsg{ExtrasMessage<MessageType::ExtrasSquadUpdate>(serial, json)};
+                Server->sendMessage(extrasMsg);
             }
         }
     }
@@ -607,7 +664,19 @@ extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(c
         ++AppData.Info.validator;
         BRIDGE_DEBUG("Updated BridgeInfo");
 
+        SerialData serial{};
+        nlohmann::json json{};
+
+        if (Server->usingProtocol(MessageProtocol::Serial))
+        {
+            ; // TODO.
+        }
+
+        if (Server->usingProtocol(MessageProtocol::JSON))
+            json = BridgeInfoToJSON(AppData.Info);
+
         // Send the new info to connected clients that have already received the old information.
-        Server->sendBridgeInfo(BridgeInfoToJSON(AppData.Info), AppData.Info.validator);
+        const Message bridgeMsg{InfoMessage<MessageType::BridgeInfo>(serial, json)};
+        Server->sendBridgeInfo(bridgeMsg, AppData.Info.validator);
     }
 }

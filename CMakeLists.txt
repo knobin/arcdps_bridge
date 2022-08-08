@@ -49,11 +49,15 @@ set(BRIDGE_COMPILE_DEFINITIONS ${BRIDGE_COMPILE_DEFINITIONS} BRIDGE_LOG_LEVEL=${
 
 include_directories("${CMAKE_SOURCE_DIR}/third_party/arcdps_unofficial_extras_releases")
 
+set(JSON_BuildTests OFF CACHE INTERNAL "")
+add_subdirectory(third_party/nlohmann_json)
+
 # Library
 add_library(arcdps_bridge SHARED src/Entry.cpp
     src/ApplicationData.hpp
     src/ApplicationData.cpp
     ${LOG_FILES}
+    src/Message.hpp
     src/PipeHandler.hpp
     src/PipeHandler.cpp
     src/PipeThread.hpp
@@ -65,7 +69,9 @@ add_library(arcdps_bridge SHARED src/Entry.cpp
 target_compile_definitions(arcdps_bridge PRIVATE ${BRIDGE_COMPILE_DEFINITIONS} BRIDGE_VERSION_STR="${CMAKE_PROJECT_VERSION}")
 
 if (${BRIDGE_SET_LOG_LEVEL} GREATER 0)
-    target_link_libraries(arcdps_bridge PRIVATE spdlog::spdlog)
+    target_link_libraries(arcdps_bridge PRIVATE spdlog::spdlog nlohmann_json::nlohmann_json)
+else()
+    target_link_libraries(arcdps_bridge PRIVATE nlohmann_json::nlohmann_json)
 endif()
 
 if (MSVC)

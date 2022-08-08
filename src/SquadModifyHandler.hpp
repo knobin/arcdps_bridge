@@ -15,6 +15,13 @@
 #include <functional>
 #include <mutex>
 
+enum class SquadAction : uint8_t
+{
+    Add     = 1,
+    Remove  = 2,
+    Update  = 4
+};
+
 class SquadModifyHandler
 {
 public:
@@ -58,7 +65,7 @@ private:
     struct QueuedPlayer
     {
         PlayerInfo player;
-        std::function<void(const std::string&, const PlayerInfoEntry&)> sender;
+        std::function<void(SquadAction, const PlayerInfoEntry&)> sender;
     };
 
 private:
@@ -95,7 +102,7 @@ void SquadModifyHandler::addPlayer(const PlayerInfo& player, Sender sender, Upda
 
                 // The add here should always succeed, otherwise it is an error.
                 if (m_squad.add(member.player) == PlayerContainer::Status::Success)
-                    member.sender("add", PlayerInfoEntry{member.player, PLAYER_VALIDATOR_START});
+                    member.sender(SquadAction::Add, PlayerInfoEntry{member.player, PLAYER_VALIDATOR_START});
 
                 m_addQueue[i] = {false, {}};
             }
@@ -145,7 +152,7 @@ void SquadModifyHandler::removePlayer(const std::string& accountName, Sender sen
             m_squad.clear();
         }
 
-        sender(*entry);
+        sender(SquadAction::Remove, *entry);
     }
     else
     {
@@ -160,7 +167,7 @@ void SquadModifyHandler::addPlayerToSquad(const PlayerInfo& player, Sender sende
 {
     if (m_squad.add(player) == PlayerContainer::Status::Success)
     {
-        sender("add", PlayerInfoEntry{player, PLAYER_VALIDATOR_START});
+        sender(SquadAction::Add, PlayerInfoEntry{player, PLAYER_VALIDATOR_START});
     }
     else
     {
@@ -183,7 +190,7 @@ void SquadModifyHandler::updatePlayerInSquad(const PlayerInfoEntry& existing, Se
     }
     
     if (update.entry && update.status == PlayerContainer::Status::Success)
-        sender("update", *update.entry);
+        sender(SquadAction::Update, *update.entry);
 }
 
 template<typename Sender, typename Updater>
