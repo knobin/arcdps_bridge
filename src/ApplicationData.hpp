@@ -40,6 +40,8 @@ struct BridgeInfo
     mutable std::mutex mutex;
 };
 
+void to_json(nlohmann::json& j, const BridgeInfo& info);
+
 struct Configs
 {
     // General.
@@ -90,6 +92,5 @@ struct ApplicationData
 Configs InitConfigs(const std::string& filepath);
 void CreateConfigFile(const std::string& filepath);
 Configs LoadConfigFile(const std::string& filepath);
-nlohmann::json BridgeInfoToJSON(const BridgeInfo& info);
 
 #endif // BRIDGE_APPLICATIONDATA_HPP

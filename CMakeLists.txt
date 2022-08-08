@@ -56,6 +56,8 @@ add_subdirectory(third_party/nlohmann_json)
 add_library(arcdps_bridge SHARED src/Entry.cpp
     src/ApplicationData.hpp
     src/ApplicationData.cpp
+    src/Combat.hpp
+    src/Extras.hpp
     ${LOG_FILES}
     src/Message.hpp
     src/PipeHandler.hpp

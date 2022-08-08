@@ -78,7 +78,7 @@ void PipeThread::start()
         Message msg{};
         {
             std::unique_lock<std::mutex> infoLock(handler->m_appData.Info.mutex);
-            msg = InfoMessage<MessageType::BridgeInfo>({}, BridgeInfoToJSON(handler->m_appData.Info));
+            msg = InfoMessage<MessageType::BridgeInfo>({}, handler->m_appData.Info);
             {
                 std::unique_lock<std::mutex> handlerLock(handler->m_mutex);
                 handler->m_bridgeValidator = handler->m_appData.Info.validator;

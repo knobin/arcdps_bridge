@@ -23,9 +23,9 @@ Configs InitConfigs(const std::string& filepath)
     return Configs{};
 }
 
-nlohmann::json BridgeInfoToJSON(const BridgeInfo& info)
+void to_json(nlohmann::json& j, const BridgeInfo& info)
 {
-    return {
+    j = nlohmann::json{
         {"version", std::string{info.version}}, 
         {"extrasVersion", info.extrasVersion}, 
         {"arcVersion", info.arcvers}, 
