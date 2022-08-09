@@ -136,39 +136,39 @@ void PipeThread::start()
         nlohmann::json j = nlohmann::json::parse(readStatus.data);
 
         // Subscribe.
-        using MessageSourceU = std::underlying_type_t<MessageSource>;
-        MessageSourceU filter = 0;
+        using MessageCategoryU = std::underlying_type_t<MessageCategory>;
+        MessageCategoryU filter = 0;
 
         if (j.contains("subscribe") && j["subscribe"].is_number())
         {
             int32_t sub_value = j["subscribe"].get<int32_t>();
 
-            constexpr auto ui8min = static_cast<int32_t>(std::numeric_limits<MessageSourceU>::min());
-            constexpr auto ui8max = static_cast<int32_t>(std::numeric_limits<MessageSourceU>::max());
+            constexpr auto ui8min = static_cast<int32_t>(std::numeric_limits<MessageCategoryU>::min());
+            constexpr auto ui8max = static_cast<int32_t>(std::numeric_limits<MessageCategoryU>::max());
 
             if (sub_value >= ui8min && sub_value <= ui8max)
-                filter = static_cast<MessageSourceU>(sub_value);
+                filter = static_cast<MessageCategoryU>(sub_value);
 
             BRIDGE_DEBUG("[ptid {}] Recieved filter \"{}\" from client.", threadID, static_cast<int>(filter));    
         }
 
-        MessageSourceU combatValue = static_cast<MessageSourceU>(MessageSource::Combat);
+        MessageCategoryU combatValue = static_cast<MessageCategoryU>(MessageCategory::Combat);
         if ((filter & combatValue) == combatValue)
         {
             handler->m_eventTrack.combat = true;
-            handler->m_mt->trackEvent(MessageSource::Combat);
+            handler->m_mt->trackCategory(MessageCategory::Combat);
         }
-        MessageSourceU extrasValue = static_cast<MessageSourceU>(MessageSource::Extras);
+        MessageCategoryU extrasValue = static_cast<MessageCategoryU>(MessageCategory::Extras);
         if ((filter & extrasValue) == extrasValue)
         {
             handler->m_eventTrack.extras = true;
-            handler->m_mt->trackEvent(MessageSource::Extras);
+            handler->m_mt->trackCategory(MessageCategory::Extras);
         }
-        MessageSourceU squadValue = static_cast<MessageSourceU>(MessageSource::Squad);
+        MessageCategoryU squadValue = static_cast<MessageCategoryU>(MessageCategory::Squad);
         if ((filter & squadValue) == squadValue)
         {
             handler->m_eventTrack.squad = true;
-            handler->m_mt->trackEvent(MessageSource::Squad);
+            handler->m_mt->trackCategory(MessageCategory::Squad);
         }
 
         BRIDGE_INFO("[ptid {}] Client has subscribed to \"Combat\": {}", threadID, handler->m_eventTrack.combat);
@@ -335,11 +335,11 @@ void PipeThread::start()
 
         // Untrack events.
         if (handler->m_eventTrack.combat)
-            handler->m_mt->untrackEvent(MessageSource::Combat);
+            handler->m_mt->untrackCategory(MessageCategory::Combat);
         if (handler->m_eventTrack.extras)
-            handler->m_mt->untrackEvent(MessageSource::Extras);
+            handler->m_mt->untrackCategory(MessageCategory::Extras);
         if (handler->m_eventTrack.squad)
-            handler->m_mt->untrackEvent(MessageSource::Squad);
+            handler->m_mt->untrackCategory(MessageCategory::Squad);
 
         handler->m_status = Status::NONE;
         CloseHandle(handle);
@@ -409,15 +409,15 @@ void PipeThread::sendMessage(const Message& msg)
 
     bool send = false;
 
-    switch (msg.source())
+    switch (msg.category())
     {
-        case MessageSource::Combat:
+        case MessageCategory::Combat:
             send = m_eventTrack.combat;
             break;
-        case MessageSource::Extras:
+        case MessageCategory::Extras:
             send = m_eventTrack.extras;
             break;
-        case MessageSource::Squad:
+        case MessageCategory::Squad:
             send = m_eventTrack.squad;
             break;
         default:

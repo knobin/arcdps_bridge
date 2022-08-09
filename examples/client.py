@@ -15,7 +15,7 @@ PipeName = r'\\.\pipe\arcdps-bridge'
 Players = {}
 
 
-class MessageSource(Enum):
+class MessageCategory(Enum):
     Info    = 1,
     Combat  = 2,
     Extras  = 4,
@@ -48,7 +48,7 @@ def subscribe_message():
     # Event subscribe values: Combat = 2, Extras = 4, Squad = 8.
     # These values can be combined (or).
     # Protocols available: "JSON".
-    sub = MessageSource.Squad.value
+    sub = MessageCategory.Squad.value
     return '{"subscribe": ' + str(sub) + ', "protocol": "JSON"}'
 
 
@@ -155,10 +155,10 @@ def pipe_client():
                 result, msg = win32file.ReadFile(handle, 64*1024)
                 evt = json.loads(msg)
 
-                if (evt["source"] == MessageSource.Squad.name):
+                if (evt["category"] == MessageCategory.Squad.name):
                     squad_message(evt["type"], evt["data"])
 
-                if (evt["source"] == MessageSource.Info.name):
+                if (evt["category"] == MessageCategory.Info.name):
                     if (evt["type"] == MessageType.BridgeInfo.name):
                         # New bridge information is available.
                         binfo = evt["data"]

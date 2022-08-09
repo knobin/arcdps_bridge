@@ -90,7 +90,7 @@ static void SendPlayerMsg(const PlayerInfoEntry& entry)
                     Type == MessageType::SquadUpdate,
                   "Type is not a Squad message");
 
-    if (Server->trackingEvent(MessageSource::Squad))
+    if (Server->trackingCategory(MessageCategory::Squad))
     {
         SerialData serial{};
         nlohmann::json json{};
@@ -326,7 +326,7 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
         }
     }
 
-    if (!Server->trackingEvent(MessageSource::Combat))
+    if (!Server->trackingCategory(MessageCategory::Combat))
         return 0;
 
     Message combatMsg{GenerateCombatMessage(ev, src, dst, skillname, id, revision)};
@@ -472,7 +472,7 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
                 SquadHandler->addPlayer(player, SquadModifySender, updater);
             }
 
-            if (Server->trackingEvent(MessageSource::Extras))
+            if (Server->trackingCategory(MessageCategory::Extras))
             {
                 SerialData serial{};
                 nlohmann::json json{};
@@ -490,6 +490,13 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
             }
         }
     }
+}
+
+static void InitExtrasV1(ExtrasSubscriberInfoV1& info)
+{
+    info.InfoVersion = 1;
+    info.SubscriberName = "Unofficial Bridge";
+    info.SquadUpdateCallback = squad_update_callback;
 }
 
 // Exported init function for arcDPS unofficial extras API.
@@ -519,9 +526,7 @@ extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(c
         loaded = true;
 
         ExtrasSubscriberInfoV1 extrasInfo{};
-        extrasInfo.InfoVersion = 1;
-        extrasInfo.SubscriberName = "Unofficial Bridge";
-        extrasInfo.SquadUpdateCallback = squad_update_callback;
+        InitExtrasV1(extrasInfo);
         *static_cast<ExtrasSubscriberInfoV1*>(pSubscriberInfo) = extrasInfo;
 
         // PlayerCollection.self.accountName = pExtrasInfo->SelfAccountName;

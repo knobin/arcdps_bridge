@@ -19,9 +19,9 @@ PipeHandler::PipeHandler(const std::string pipeName, const ApplicationData& appd
 
 PipeHandler::~PipeHandler()
 {
-    BRIDGE_DEBUG("~PipeHandler tracking combat events: {}.", m_msgTracking.isTrackingEvent(MessageSource::Combat));
-    BRIDGE_DEBUG("~PipeHandler tracking extras events: {}.", m_msgTracking.isTrackingEvent(MessageSource::Extras));
-    BRIDGE_DEBUG("~PipeHandler tracking squad events: {}.", m_msgTracking.isTrackingEvent(MessageSource::Squad));
+    BRIDGE_DEBUG("~PipeHandler tracking combat events: {}.", m_msgTracking.isTrackingCategory(MessageCategory::Combat));
+    BRIDGE_DEBUG("~PipeHandler tracking extras events: {}.", m_msgTracking.isTrackingCategory(MessageCategory::Extras));
+    BRIDGE_DEBUG("~PipeHandler tracking squad events: {}.", m_msgTracking.isTrackingCategory(MessageCategory::Squad));
     BRIDGE_DEBUG("~PipeHandler using protocol: {}.", m_msgTracking.usingProtocol(MessageProtocol::Serial));
     BRIDGE_DEBUG("~PipeHandler using protocol: {}.", m_msgTracking.usingProtocol(MessageProtocol::JSON));
     BRIDGE_DEBUG("~PipeHandler, running: {} threads: {}", m_run, m_threads.size());
@@ -212,9 +212,9 @@ void PipeHandler::sendMessage(const Message& msg)
     }
 }
 
-bool PipeHandler::trackingEvent(MessageSource src) const
+bool PipeHandler::trackingCategory(MessageCategory category) const
 {
-    return m_msgTracking.isTrackingEvent(src);
+    return m_msgTracking.isTrackingCategory(category);
 }
 
 bool PipeHandler::usingProtocol(MessageProtocol protocol) const
@@ -222,17 +222,17 @@ bool PipeHandler::usingProtocol(MessageProtocol protocol) const
     return m_msgTracking.usingProtocol(protocol);
 }
 
-void MessageTracking::trackEvent(MessageSource src)
+void MessageTracking::trackCategory(MessageCategory category)
 {
-    switch (src)
+    switch (category)
     {
-        case MessageSource::Combat:
+        case MessageCategory::Combat:
             ++m_combat;
             break;
-        case MessageSource::Extras:
+        case MessageCategory::Extras:
             ++m_extras;
             break;
-        case MessageSource::Squad:
+        case MessageCategory::Squad:
             ++m_squad;
             break;
         default:
@@ -240,17 +240,17 @@ void MessageTracking::trackEvent(MessageSource src)
     }
 }
 
-void MessageTracking::untrackEvent(MessageSource src)
+void MessageTracking::untrackCategory(MessageCategory category)
 {
-    switch (src)
+    switch (category)
     {
-        case MessageSource::Combat:
+        case MessageCategory::Combat:
             --m_combat;
             break;
-        case MessageSource::Extras:
+        case MessageCategory::Extras:
             --m_extras;
             break;
-        case MessageSource::Squad:
+        case MessageCategory::Squad:
             --m_squad;
             break;
         default:
@@ -258,19 +258,19 @@ void MessageTracking::untrackEvent(MessageSource src)
     }
 }
 
-bool MessageTracking::isTrackingEvent(MessageSource src) const
+bool MessageTracking::isTrackingCategory(MessageCategory category) const
 {
     bool ret = false;
 
-    switch (src)
+    switch (category)
     {
-        case MessageSource::Combat:
+        case MessageCategory::Combat:
             ret = static_cast<bool>(m_combat);
             break;
-        case MessageSource::Extras:
+        case MessageCategory::Extras:
             ret = static_cast<bool>(m_extras);
             break;
-        case MessageSource::Squad:
+        case MessageCategory::Squad:
             ret = static_cast<bool>(m_squad);
             break;
         default:

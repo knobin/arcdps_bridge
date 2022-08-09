@@ -20,10 +20,10 @@
 class MessageTracking
 {
 public:
-    // Tracked event sources.
-    void trackEvent(MessageSource src);
-    void untrackEvent(MessageSource src);
-    bool isTrackingEvent(MessageSource src) const;
+    // Tracked event categories.
+    void trackCategory(MessageCategory category);
+    void untrackCategory(MessageCategory category);
+    bool isTrackingCategory(MessageCategory category) const;
 
     // Using protocols.
     void useProtocol(MessageProtocol protocol);
@@ -31,7 +31,7 @@ public:
     bool usingProtocol(MessageProtocol protocol) const;
 
 private:
-    // Sources.
+    // Categories.
     std::atomic<std::size_t> m_combat{0};
     std::atomic<std::size_t> m_extras{0};
     std::atomic<std::size_t> m_squad{0};
@@ -57,7 +57,7 @@ public:
     void sendBridgeInfo(const Message& msg, uint64_t validator);
     void sendMessage(const Message& msg);
 
-    bool trackingEvent(MessageSource src) const;
+    bool trackingCategory(MessageCategory category) const;
     bool usingProtocol(MessageProtocol protocol) const;
 
 private:
