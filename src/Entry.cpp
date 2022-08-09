@@ -18,8 +18,6 @@
 // C++ Headers
 #include <cstddef>
 #include <limits>
-#include <memory>
-#include <sstream>
 
 // Windows Headers
 #include <windows.h>
@@ -86,7 +84,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID)
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 template<MessageType Type>
-static void SendPlayerMsg(const PlayerInfo& player, std::size_t validator)
+static void SendPlayerMsg(const PlayerInfoEntry& entry)
 {
     static_assert(Type == MessageType::SquadAdd || Type == MessageType::SquadRemove ||
                     Type == MessageType::SquadUpdate,
@@ -104,9 +102,7 @@ static void SendPlayerMsg(const PlayerInfo& player, std::size_t validator)
 
         if (Server->usingProtocol(MessageProtocol::JSON))
         {
-            json = {{"validator", validator},
-                    {"member", player.toJSON()}
-            };
+            json = entry;
         }
 
         const Message squadMsg{SquadMessage<Type>(serial, json)};
@@ -119,13 +115,13 @@ static void SquadModifySender(SquadAction action, const PlayerInfoEntry& entry)
     switch (action)
     {
         case SquadAction::Add:
-            SendPlayerMsg<MessageType::SquadAdd>(entry.player, entry.validator);
+            SendPlayerMsg<MessageType::SquadAdd>(entry);
             break;
         case SquadAction::Update:
-            SendPlayerMsg<MessageType::SquadUpdate>(entry.player, entry.validator);
+            SendPlayerMsg<MessageType::SquadUpdate>(entry);
             break;
         case SquadAction::Remove:
-            SendPlayerMsg<MessageType::SquadRemove>(entry.player, entry.validator);
+            SendPlayerMsg<MessageType::SquadRemove>(entry);
             break;
     }
 }
@@ -153,7 +149,7 @@ static void RemoveFromSquad(const std::string& accountName, const std::string& s
 {
     auto success = [accountName , sType](SquadAction, PlayerInfoEntry& entry)
     {
-        SendPlayerMsg<MessageType::SquadRemove>(entry.player, entry.validator);
+        SendPlayerMsg<MessageType::SquadRemove>(entry);
 
         if (entry.player.self)
         {

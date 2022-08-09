@@ -8,15 +8,48 @@
 
 import win32pipe, win32file, pywintypes
 import json
+from enum import Enum
 
 
 PipeName = r'\\.\pipe\arcdps-bridge'
 Players = {}
 
+
+class MessageSource(Enum):
+    Info    = 1,
+    Combat  = 2,
+    Extras  = 4,
+    Squad   = 8
+
+
+class MessageType(str, Enum):
+    # Info types.
+    BridgeInfo  = 1
+    Status      = 2
+    Closing     = 3
+
+    # ArcDPS combat api types.
+    CombatEvent = 4
+
+    # Extras event types.
+    ExtrasSquadUpdate       = 5
+    ExtrasLanguageChanged   = 6
+    ExtrasKeyBindChanged    = 7
+    ExtrasChatMessage       = 8
+
+    # Squad event types.
+    SquadStatus     = 9
+    SquadAdd        = 10
+    SquadUpdate     = 11
+    SquadRemove     = 12
+
+
 def subscribe_message():
-    # Event subscribe values: Combat = 1, Extras = 2, Squad = 4.
-    # These values can be combined (or):
-    return '{"subscribe":"4"}'
+    # Event subscribe values: Combat = 2, Extras = 4, Squad = 8.
+    # These values can be combined (or).
+    # Protocols available: "JSON".
+    sub = MessageSource.Squad.value
+    return '{"subscribe": ' + str(sub) + ', "protocol": "JSON"}'
 
 
 def bridge_info(handle):
@@ -26,49 +59,50 @@ def bridge_info(handle):
     print(f"Bride info: {info}")
     # Send subscription to Server.
     win32file.WriteFile(handle, str.encode(subscribe_message()))
-    # Server will send a success message.
+    # Server will return a success message.
     result, msg = win32file.ReadFile(handle, 64*1024)
-    data = json.loads(msg)
-    if data["status"]["success"] == False:
-        err = data["status"]["error"]
+    status = json.loads(msg)
+    print(f"Status: {status}")
+    if status["data"]["success"] == False:
+        err = status["data"]["error"]
         print(f"Server return with error msg: {err}")
-    return data["status"]["success"]
+    return status["data"]["success"]
 
 
-def squad_message(data):
-    if (data["trigger"] == "status"):
+def squad_message(msg_type, data):
+    if (msg_type == MessageType.SquadStatus.name):
         # Initial Squad information.
-        print("Self: ", data["status"]["self"])
+        print("Self: ", data["self"])
         members = []
-        for member in data["status"]["members"]:
+        for member in data["members"]:
             members.append(member["accountName"])
             Players[member["accountName"]] = member
         print("Squad members: ", members)
-    if (data["trigger"] == "add"):
+    if (msg_type == MessageType.SquadAdd.name):
         # Player has been added to squad.
-        name = data["add"]["member"]["accountName"]
+        name = data["member"]["accountName"]
         print("Added \"", name, "\" to squad!")
-        Players[name] = data["add"]["member"]
-    if (data["trigger"] == "update"):
+        Players[name] = data["member"]
+    if (msg_type == MessageType.SquadUpdate.name):
         # Player has been updated in squad.
-        name = data["update"]["member"]["accountName"]
+        name = data["member"]["accountName"]
         updates = ""
         if name in Players:
             print("old ", Players[name])
-            print("new ", data["update"]["member"])
-            updates += player_diff(Players[name], data["update"]["member"])
-            Players[name] = data["update"]["member"]
+            print("new ", data["member"])
+            updates += player_diff(Players[name], data["member"])
+            Players[name] = data["member"]
         else:
             print("Tried to update \"", name, "\", player not in squad.")
         print("Updated \"", name, "\" in squad with: {", updates, "}.")
-    if (data["trigger"] == "remove"):
+    if (msg_type == MessageType.SquadRemove.name):
         # Player has been removed from squad.
-        name = data["remove"]["member"]["accountName"]
+        name = data["member"]["accountName"]
         print("Removed \"", name, "\" from squad!")
         if name in Players:
             del Players[name]
-            if data["remove"]["member"]["self"]:
-                print("Clearing squad..")
+            if data["member"]["self"]:
+                print("Self left, clearing squad...")
                 Players.clear()
 
 
@@ -119,15 +153,20 @@ def pipe_client():
             # Server will now send events to client.
             while True:
                 result, msg = win32file.ReadFile(handle, 64*1024)
-                data = json.loads(msg)
-                if (data["type"] == "squad"):
-                    squad_message(data["squad"])
-                if (data["type"] == "closing"):
-                    print("Server is closing.")
-                    break
-                if (data["type"] == "info"):
-                    # New bridge information is available.
-                    print(f"New bridge informaion received: {data}")
+                evt = json.loads(msg)
+
+                if (evt["source"] == MessageSource.Squad.name):
+                    squad_message(evt["type"], evt["data"])
+
+                if (evt["source"] == MessageSource.Info.name):
+                    if (evt["type"] == MessageType.BridgeInfo.name):
+                        # New bridge information is available.
+                        binfo = evt["data"]
+                        print(f"New bridge informaion received: {binfo}")
+                    elif (evt["type"] == MessageType.Closing.name):
+                        # Server is closing here, no further messages will be sent.
+                        print("Server is closing.")
+                        break;
 
     except pywintypes.error as e:
         print("Exception caught: ", str(e))

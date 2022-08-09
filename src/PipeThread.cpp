@@ -5,6 +5,8 @@
 //  Created by Robin Gustafsson on 2022-06-21.
 //
 
+#define NOMINMAX
+
 // Local Headers
 #include "PipeThread.hpp"
 #include "Log.hpp"
@@ -15,6 +17,7 @@
 
 // C++ Headers
 #include <cstdint>
+#include <limits>
 #include <sstream>
 
 static Message StatusMessage(bool success, std::string error = "")
@@ -23,7 +26,12 @@ static Message StatusMessage(bool success, std::string error = "")
     if (!success)
         j["error"] = error;
 
-    return InfoMessage<MessageType::Status>({}, j.dump());
+    return InfoMessage<MessageType::Status>(SerialData{}, j);
+}
+
+static Message ClosingMessage()
+{
+    return InfoMessage<MessageType::Closing>();
 }
 
 static std::underlying_type_t<MessageProtocol> IsProtocolStr(const std::string& str)
@@ -78,7 +86,7 @@ void PipeThread::start()
         Message msg{};
         {
             std::unique_lock<std::mutex> infoLock(handler->m_appData.Info.mutex);
-            msg = InfoMessage<MessageType::BridgeInfo>({}, handler->m_appData.Info);
+            msg = InfoMessage<MessageType::BridgeInfo>(SerialData{}, handler->m_appData.Info);
             {
                 std::unique_lock<std::mutex> handlerLock(handler->m_mutex);
                 handler->m_bridgeValidator = handler->m_appData.Info.validator;
@@ -112,15 +120,35 @@ void PipeThread::start()
         // Expecting: {"subscribe":15}
         // The number is the MessageType's you want to recieved. 15 in this case is all of them.
         // This was to extract the number should probably change in the future.
+
+        // Check if data is valid json.
+        if (!nlohmann::json::accept(readStatus.data))
+        {
+            const Message statusMsg{StatusMessage(false, "invalid JSON")};
+            WriteToPipe(handle, statusMsg.toJSON());
+            BRIDGE_ERROR("[ptid {}] Recieved invalid JSON, Ending PipeThread.", threadID);
+            CloseHandle(handle);
+            handler->m_handle = nullptr;
+            handler->m_running = false;
+            return;
+        }
+
         nlohmann::json j = nlohmann::json::parse(readStatus.data);
 
         // Subscribe.
         using MessageSourceU = std::underlying_type_t<MessageSource>;
         MessageSourceU filter = 0;
 
-        if (j.contains("subscribe"))
+        if (j.contains("subscribe") && j["subscribe"].is_number())
         {
-            filter = j["subscribe"].get<MessageSourceU>();
+            int32_t sub_value = j["subscribe"].get<int32_t>();
+
+            constexpr auto ui8min = static_cast<int32_t>(std::numeric_limits<MessageSourceU>::min());
+            constexpr auto ui8max = static_cast<int32_t>(std::numeric_limits<MessageSourceU>::max());
+
+            if (sub_value >= ui8min && sub_value <= ui8max)
+                filter = static_cast<MessageSourceU>(sub_value);
+
             BRIDGE_DEBUG("[ptid {}] Recieved filter \"{}\" from client.", threadID, static_cast<int>(filter));    
         }
 
@@ -163,7 +191,7 @@ void PipeThread::start()
         using MessageProtocolU = std::underlying_type_t<MessageProtocol>;
         MessageProtocolU protocolNum = 0;
         
-        if (j.contains("protocol"))
+        if (j.contains("protocol") && j["protocol"].is_string())
         {
             std::string protocol = j["protocol"].get<std::string>();
             BRIDGE_DEBUG("[ptid {}] Recieved protocol \"{}\" from client.", threadID, protocol);
@@ -215,7 +243,7 @@ void PipeThread::start()
             }
 
             msg = SquadMessage<MessageType::SquadStatus>(serial, json);
-            BRIDGE_MSG_DEBUG("[ptid {}] Sending Squad information to client: {}", threadID, ss.str());
+            BRIDGE_MSG_DEBUG("[ptid {}] Sending Squad information to client: {}", threadID, msg.toJSON());
             SendStatus send = WriteToPipe(handle, msg.toJSON());
             if (!send.success)
             {
@@ -297,8 +325,8 @@ void PipeThread::start()
         {
             // If client is still connected and the thread is closing, send closing event.
             BRIDGE_DEBUG("[ptid {}] Sending closing event to client.", threadID);
-            const auto disconnectedObj = "{\"type\":\"closing\"}";
-            WriteToPipe(handle, disconnectedObj);
+            Message closingMsg{ClosingMessage()};
+            WriteToPipe(handle, closingMsg.toJSON());
         
         }
 

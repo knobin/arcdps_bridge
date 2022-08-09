@@ -12,27 +12,6 @@
 // C++ Headers
 #include <sstream>
 
-nlohmann::json PlayerInfo::toJSON() const
-{
-    nlohmann::json j{
-        {"accountName", accountName},  
-        {"characterName", nullptr},
-        {"joinTime", joinTime},
-        {"profession", profession},          
-        {"elite", elite},
-        {"role", static_cast<int>(role)},
-        {"subgroup", static_cast<int>(subgroup)},
-        {"self", self},
-        {"inInstance", inInstance},
-        {"readyStatus", readyStatus}
-    };
-
-    if (!characterName.empty())
-        j["characterName"] = characterName;
-
-    return j;
-}
-
 #if BRIDGE_LOG_LEVEL >= BRIDGE_LOG_LEVEL_DEBUG
 static std::string PrintPlayerInfoDiff(const PlayerInfo& p1, const PlayerInfo& p2)
 {
@@ -181,9 +160,36 @@ nlohmann::json PlayerContainer::toJSON() const
     nlohmann::json members = nlohmann::json::array();
     for (std::size_t i{0}; i < m_squad.size(); ++i)
         if (m_squad[i].first)
-            members.push_back(m_squad[i].second.player.toJSON());
+            members.push_back(m_squad[i].second.player);
 
     return {"members", members};
+}
+
+void to_json(nlohmann::json& j, const PlayerInfo& player)
+{
+    j = nlohmann::json{
+        {"accountName", player.accountName},
+        {"characterName", nullptr},
+        {"joinTime", player.joinTime},
+        {"profession", player.profession},
+        {"elite", player.elite},
+        {"role", static_cast<int>(player.role)},
+        {"subgroup", static_cast<int>(player.subgroup)},
+        {"self", player.self},
+        {"inInstance", player.inInstance},
+        {"readyStatus", player.readyStatus}
+    };
+
+    if (!player.characterName.empty())
+        j["characterName"] = player.characterName;
+}
+
+void to_json(nlohmann::json& j, const PlayerInfoEntry& entry)
+{
+    j = nlohmann::json{
+        {"validator", entry.validator}, 
+        {"member", entry.player}
+    };
 }
 
 bool operator==(const PlayerInfo& lhs, const PlayerInfo& rhs)

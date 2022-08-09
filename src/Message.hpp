@@ -12,11 +12,17 @@
 #include <nlohmann/json.hpp>
 
 // C++ Headers
+#include <array>
 #include <cstdint>
 #include <functional>
 #include <memory>
 #include <type_traits>
 #include <sstream>
+
+//
+// MessageSource.
+// Main type of the message.
+//
 
 enum class MessageSource : uint8_t
 {
@@ -43,11 +49,17 @@ constexpr std::string_view MessageSourceToStr(MessageSource source) noexcept
     return "";
 }
 
+//
+// MessageType.
+// Sub type of MessageSource for the message.
+//
+
 enum class MessageType : uint8_t
 {
     // Info types.
     BridgeInfo = 1,
     Status,
+    Closing,
 
     // ArcDPS combat api types.
     CombatEvent,
@@ -73,6 +85,8 @@ constexpr std::string_view MessageTypeToStr(MessageType type) noexcept
             return "BridgeInfo";
         case MessageType::Status:
             return "Status";
+        case MessageType::Closing:
+            return "Closing";
         case MessageType::CombatEvent:
             return "CombatEvent";
         case MessageType::ExtrasSquadUpdate:
@@ -89,6 +103,65 @@ constexpr std::string_view MessageTypeToStr(MessageType type) noexcept
 
     return "";
 }
+
+//
+// Implementation for matching MessageInfo types to MessageSource.
+//
+
+template<MessageSource source>
+struct MatchTypeToSource
+{
+    template<MessageType Type>
+    static constexpr bool Match() noexcept
+    {
+        return false;
+    }
+};
+
+template<MessageType...Types>
+struct MsgTypeMatcher
+{
+    template<MessageType Type>
+    static constexpr bool Match() noexcept
+    {
+        return ((Types == Type) || ...);
+    }
+};
+
+//
+// Specialized Matchers.
+//
+
+template<>
+struct MatchTypeToSource<MessageSource::Info> 
+    : MsgTypeMatcher<MessageType::BridgeInfo, MessageType::Status, MessageType::Closing>
+{};
+
+template<>
+struct MatchTypeToSource<MessageSource::Combat> : MsgTypeMatcher<MessageType::CombatEvent>
+{};
+
+template<>
+struct MatchTypeToSource<MessageSource::Extras> : MsgTypeMatcher<MessageType::ExtrasSquadUpdate>
+{};
+
+template<>
+struct MatchTypeToSource<MessageSource::Squad> 
+    : MsgTypeMatcher<MessageType::SquadStatus, MessageType::SquadAdd, MessageType::SquadUpdate, MessageType::SquadRemove>
+{};
+
+//
+// Matcher.
+//
+
+template<MessageSource Source, MessageType Type>
+struct MatchSourceAndType : std::integral_constant<bool, MatchTypeToSource<Source>::Match<Type>()>
+{};
+
+//
+// MessageProtocol.
+// Types of message protocols supported.
+//
 
 enum class MessageProtocol : uint8_t
 {
@@ -118,27 +191,45 @@ struct SerialData
 // First two bytes are reserved for MessageSource and MessageType.
 constexpr std::size_t SerialStartPadding = 2;
 
+//
+// Message class.
+//
+
 class Message
 {
 public:
     Message() = default;
-    Message(MessageSource source, MessageType type, const SerialData& serial, const nlohmann::json& jdata)
-        : m_serial{serial},
-          m_source{static_cast<std::underlying_type_t<MessageSource>>(source)},
+    Message(MessageSource source, MessageType type)
+        : m_source{static_cast<std::underlying_type_t<MessageSource>>(source)},
           m_type{static_cast<std::underlying_type_t<MessageType>>(type)}
+    {
+        generate();
+    }
+    Message(MessageSource source, MessageType type, const SerialData& serial, const nlohmann::json& jdata) 
+        : m_source{static_cast<std::underlying_type_t<MessageSource>>(source)},
+          m_type{static_cast<std::underlying_type_t<MessageType>>(type)},
+          m_serial{serial}
     {
         generate(jdata);
     }
     virtual ~Message() = default;
 
     const SerialData& toSerial() const { return m_serial; }
-    std::string toJSON() const { return m_json; }
+    const std::string& toJSON() const { return m_json; }
 
     MessageSource source() const noexcept { return static_cast<MessageSource>(m_source); }
     MessageType type() const noexcept { return static_cast<MessageType>(m_type); }
     bool empty() const noexcept { return !m_source || !m_type; }
 
 private:
+    void generate()
+    {
+        m_json = nlohmann::json{
+            {"source", MessageSourceToStr(source())},
+            {"type", MessageTypeToStr(type())},
+        }.dump();
+    }
+
     void generate(const nlohmann::json& data)
     {
         // Set first two bytes in serial data.
@@ -150,57 +241,66 @@ private:
 
         // Generate json header for message.
         m_json = nlohmann::json{
-            {"origin", MessageSourceToStr(source())}, 
+            {"source", MessageSourceToStr(source())}, 
             {"type", MessageTypeToStr(type())}, 
             {"data", data}
-        };
+        }.dump();
     }
 
 private:
-    SerialData m_serial;
+    SerialData m_serial{};
     std::string m_json{};
     std::underlying_type_t<MessageSource> m_source{0};
     std::underlying_type_t<MessageType> m_type{0};
 };
 
-template<MessageType Type>
-Message InfoMessage(const SerialData& serial, const nlohmann::json& jdata)
+//
+// Message create functions.
+//
+
+template<MessageSource Source, MessageType Type, typename... Args>
+Message CreateMessage(Args&&... args)
 {
-    static_assert(Type == MessageType::BridgeInfo || 
-                  Type == MessageType::Status,
+    static_assert(MatchSourceAndType<Source, Type>::value, 
+                  "MessageSource and MessageType does not match");
+
+    return Message{Source, Type, std::forward<Args>(args)...};
+}
+
+template<MessageType Type, typename... Args>
+Message InfoMessage(Args&&... args)
+{
+    static_assert(MatchSourceAndType<MessageSource::Info, Type>::value,
                   "Type is not an Info message");
 
-    return Message(MessageSource::Info, Type, serial, jdata);
+    return CreateMessage<MessageSource::Info, Type>(std::forward<Args>(args)...);
 }
 
-template<MessageType Type>
-Message CombatMessage(const SerialData& serial, const nlohmann::json& jdata)
+template<MessageType Type, typename... Args>
+Message CombatMessage(Args&&... args)
 {
-    static_assert(Type == MessageType::CombatEvent,
+    static_assert(MatchSourceAndType<MessageSource::Combat, Type>::value,
                   "Type is not a Combat message");
 
-    return Message(MessageSource::Combat, Type, serial, jdata);
+    return CreateMessage<MessageSource::Combat, Type>(std::forward<Args>(args)...);
 }
 
-template<MessageType Type>
-Message ExtrasMessage(const SerialData& serial, const nlohmann::json& jdata)
+template<MessageType Type, typename... Args>
+Message ExtrasMessage(Args&&... args)
 {
-    static_assert(Type == MessageType::ExtrasSquadUpdate,
+    static_assert(MatchSourceAndType<MessageSource::Extras, Type>::value,
                   "Type is not an Extras message");
 
-    return Message(MessageSource::Extras, Type, serial, jdata);
+    return CreateMessage<MessageSource::Extras, Type>(std::forward<Args>(args)...);
 }
 
-template<MessageType Type>
-Message SquadMessage(const SerialData& serial, const nlohmann::json& jdata)
+template<MessageType Type, typename... Args>
+Message SquadMessage(Args&&... args)
 {
-    static_assert(Type == MessageType::SquadAdd || 
-                  Type == MessageType::SquadRemove || 
-                  Type == MessageType::SquadStatus || 
-                  Type == MessageType::SquadUpdate,
+    static_assert(MatchSourceAndType<MessageSource::Squad, Type>::value,
                   "Type is not a Squad message");
 
-    return Message(MessageSource::Squad, Type, serial, jdata);
+    return CreateMessage<MessageSource::Squad, Type>(std::forward<Args>(args)...);
 }
 
 #endif // BRIDGE_MESSAGE_HPP

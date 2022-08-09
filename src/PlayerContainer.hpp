@@ -36,8 +36,6 @@ struct PlayerInfo
     bool inInstance{false};
     bool self{false};
     bool readyStatus{false};
-
-    nlohmann::json toJSON() const;
 };
 
 struct PlayerInfoEntry
@@ -93,6 +91,9 @@ private:
     std::array<std::pair<bool, PlayerInfoEntry>, 50> m_squad{};
     mutable std::mutex m_mutex;
 };
+
+void to_json(nlohmann::json& j, const PlayerInfo& player);
+void to_json(nlohmann::json& j, const PlayerInfoEntry& entry);
 
 bool operator==(const PlayerInfo& lhs, const PlayerInfo& rhs);
 bool operator!=(const PlayerInfo& lhs, const PlayerInfo& rhs);
