@@ -12,11 +12,12 @@ An ArcDPS Extension which sends the events over a named pipe.
     - Composition changes: character information and subgroup changes.
 - Internally keeps track of the squad and client will receive squad information when connected.
 - Supports any programming language that can interface with Windows Named Pipe and parse JSON.
+- Clients can chose to receive messages in either JSON or Serial format. 
 - Multiple clients can be connected at the same time.
 
 ### Limitations
 
-- Character information (character name, profession and elite) will only be updated when player is in the same instance.
+- Character information (character name, profession and elite) will only be updated when player is in the same instance and the player is the source of an ArcDPS combat event (boon applied to player for example).
 - Game crashing when in a squad will cause the internal squad information to be removed, it will be fully rebuilt when all players in the squad have entered or been in the same instance.
 
 ## Getting Started
@@ -69,4 +70,6 @@ This project is licensed with the [MIT License](LICENSE).
 
 This project uses third-party dependencies:
 * [ArcDPS Unofficial Extras](https://github.com/Krappa322/arcdps_unofficial_extras_releases): Closed source addon where the public API that is used in this project is licensed with the [MIT License](https://github.com/Krappa322/arcdps_unofficial_extras_releases/blob/master/LICENSE).
+* [Catch2](https://github.com/catchorg/Catch2): A unit testing framework for C++ licensed with the [MIT License](https://github.com/catchorg/Catch2/blob/devel/LICENSE.txt)
+* [nlohmann_json](https://github.com/nlohmann/json): JSON for Modern C++ licensed with the [MIT License](https://github.com/nlohmann/json/blob/develop/LICENSE.MIT).
 * [spdlog](https://github.com/gabime/spdlog): Fast C++ logging library licensed with the [MIT License](https://github.com/gabime/spdlog/blob/v1.x/LICENSE).
