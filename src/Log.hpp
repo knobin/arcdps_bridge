@@ -17,11 +17,18 @@
 // Msg Debug -> level 5 (Prints messages and info between client and server.)
 //
 
-#define BRIDGE_LOG_LEVEL_ERROR 1
-#define BRIDGE_LOG_LEVEL_WARNING 2
-#define BRIDGE_LOG_LEVEL_INFO 3
-#define BRIDGE_LOG_LEVEL_DEBUG 4
-#define BRIDGE_LOG_LEVEL_MSG_DEBUG 5
+#define BRIDGE_LOG_LEVEL_0 0
+#define BRIDGE_LOG_LEVEL_1 1
+#define BRIDGE_LOG_LEVEL_2 2
+#define BRIDGE_LOG_LEVEL_3 3
+#define BRIDGE_LOG_LEVEL_4 4
+#define BRIDGE_LOG_LEVEL_5 5
+
+#define BRIDGE_LOG_LEVEL_ERROR BRIDGE_LOG_LEVEL_1
+#define BRIDGE_LOG_LEVEL_WARNING BRIDGE_LOG_LEVEL_2
+#define BRIDGE_LOG_LEVEL_INFO BRIDGE_LOG_LEVEL_3
+#define BRIDGE_LOG_LEVEL_DEBUG BRIDGE_LOG_LEVEL_4
+#define BRIDGE_LOG_LEVEL_MSG_DEBUG BRIDGE_LOG_LEVEL_5
 
 // Standard log output (should be defined in CMakeLists.txt).
 #if !defined(BRIDGE_LOG_LEVEL) 

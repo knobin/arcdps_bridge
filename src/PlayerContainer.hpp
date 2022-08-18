@@ -8,11 +8,11 @@
 #ifndef BRIDGE_PLAYERCONTAINER_HPP
 #define BRIDGE_PLAYERCONTAINER_HPP
 
+// Local Headers
+#include "Message.hpp"
+
 // ArcDPS Unofficial Extras Header
 #include "Definitions.h"
-
-// nlohmann_json Headers
-#include <nlohmann/json.hpp>
 
 // C++ Headers
 #include <array>
@@ -28,7 +28,7 @@ struct PlayerInfo
 {
     std::string accountName{};
     std::string characterName{};
-    long long joinTime{};
+    int64_t joinTime{};
     uint32_t profession{};
     uint32_t elite{};
     uint8_t role{static_cast<uint8_t>(UserRole::None)};
@@ -41,7 +41,7 @@ struct PlayerInfo
 struct PlayerInfoEntry
 {
     PlayerInfo player{};
-    std::size_t validator{};
+    uint64_t validator{};
 };
 
 class PlayerContainer
@@ -86,11 +86,32 @@ public:
     void clear();
 
     nlohmann::json toJSON() const;
+    SerialData toSerial(std::size_t startPadding = 0) const;
 
 private:
     std::array<std::pair<bool, PlayerInfoEntry>, 50> m_squad{};
     mutable std::mutex m_mutex;
 };
+
+constexpr std::size_t PlayerInfo_partial_size = sizeof(PlayerInfo::joinTime) + sizeof(PlayerInfo::profession) +
+                                                sizeof(PlayerInfo::elite) + sizeof(PlayerInfo::role) +
+                                                sizeof(PlayerInfo::subgroup) + (3 * sizeof(uint8_t));
+
+inline std::size_t serial_size(const PlayerInfo& player)
+{
+    const std::size_t acc_str_count{1 + player.accountName.size()};
+    const std::size_t char_str_count{1 + player.characterName.size()};
+
+    return acc_str_count + char_str_count + PlayerInfo_partial_size;
+}
+
+inline std::size_t serial_size(const PlayerInfoEntry& entry)
+{
+    return sizeof(entry.validator) + serial_size(entry.player);
+}
+
+void to_serial(const PlayerInfo& player, uint8_t* storage, std::size_t count);
+void to_serial(const PlayerInfoEntry& entry, uint8_t* storage, std::size_t count);
 
 void to_json(nlohmann::json& j, const PlayerInfo& player);
 void to_json(nlohmann::json& j, const PlayerInfoEntry& entry);

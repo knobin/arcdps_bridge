@@ -12,9 +12,7 @@
 #include <nlohmann/json.hpp>
 
 // C++ Headers
-#include <array>
 #include <cstdint>
-#include <functional>
 #include <memory>
 #include <type_traits>
 #include <sstream>
@@ -57,24 +55,24 @@ constexpr std::string_view MessageCategoryToStr(MessageCategory category) noexce
 enum class MessageType : uint8_t
 {
     // Info types.
-    BridgeInfo = 1,
-    Status,
-    Closing,
+    BridgeInfo  = 1,
+    Status      = 2,
+    Closing     = 3,
 
     // ArcDPS combat api types.
-    CombatEvent,
+    CombatEvent = 4,
 
     // Extras event types.
-    ExtrasSquadUpdate,
-    // ExtrasLanguageChanged,   // TODO
-    // ExtrasKeyBindChanged,    // TODO
-    // ExtrasChatMessage,       // TODO
+    ExtrasSquadUpdate = 5,
+    // ExtrasLanguageChanged = 6,   // TODO
+    // ExtrasKeyBindChanged = 7,    // TODO
+    // ExtrasChatMessage = 8,       // TODO
 
     // Squad event types.
-    SquadStatus,
-    SquadAdd,
-    SquadUpdate,
-    SquadRemove
+    SquadStatus = 9,
+    SquadAdd    = 10,
+    SquadUpdate = 11,
+    SquadRemove = 12
 };
 
 constexpr std::string_view MessageTypeToStr(MessageType type) noexcept
@@ -184,12 +182,34 @@ constexpr std::string_view MessageProtocolToStr(MessageProtocol protocol) noexce
 
 struct SerialData
 {
-    std::shared_ptr<uint8_t[]> data{nullptr};
+    std::shared_ptr<uint8_t[]> ptr{nullptr};
     std::size_t count{0};
 };
 
 // First two bytes are reserved for MessageCategory and MessageType.
 constexpr std::size_t SerialStartPadding = 2;
+
+// Creates a SerialData object to hold count bytes + the serial header bytes.
+inline SerialData CreateSerialData(std::size_t count)
+{
+    const std::size_t byte_count = SerialStartPadding + count;
+    return {std::make_shared<uint8_t[]>(byte_count), byte_count};
+}
+
+template<typename T>
+inline uint8_t* serial_w_integral(uint8_t* storage, T val)
+{
+    static_assert(std::is_integral<T>::value, "Integral required.");
+    *reinterpret_cast<T*>(storage) = val;
+    return storage + sizeof(T);
+}
+
+inline uint8_t* serial_w_string(uint8_t* storage, const char* data, std::size_t count)
+{
+    std::memcpy(storage, data, count);
+    storage[count] = '\0';
+    return storage + count + 1;
+}
 
 //
 // Message class.
@@ -199,52 +219,90 @@ class Message
 {
 public:
     Message() = default;
-    Message(MessageCategory category, MessageType type)
+    Message(MessageCategory category, MessageType type, bool serial = true, bool json = true)
         : m_category{static_cast<std::underlying_type_t<MessageCategory>>(category)},
           m_type{static_cast<std::underlying_type_t<MessageType>>(type)}
     {
-        generate();
+        // Message does not contain any data. 
+        // Generate headers if needed.
+
+        if (serial)
+            setNoDataSerial();
+        if (json)
+            setNoDataJSON();
+    }
+    Message(MessageCategory category, MessageType type, const SerialData& serial)
+        : m_category{static_cast<std::underlying_type_t<MessageCategory>>(category)},
+          m_type{static_cast<std::underlying_type_t<MessageType>>(type)}, m_serial{serial}
+    {
+        setSerialHeaders();
+    }
+    Message(MessageCategory category, MessageType type, const nlohmann::json& jdata)
+        : m_category{static_cast<std::underlying_type_t<MessageCategory>>(category)},
+          m_type{static_cast<std::underlying_type_t<MessageType>>(type)}
+    {
+        setJSON(jdata);
     }
     Message(MessageCategory category, MessageType type, const SerialData& serial, const nlohmann::json& jdata) 
         : m_category{static_cast<std::underlying_type_t<MessageCategory>>(category)},
           m_type{static_cast<std::underlying_type_t<MessageType>>(type)},
           m_serial{serial}
     {
-        generate(jdata);
+        setJSON(jdata);
+        setSerialHeaders();
     }
     virtual ~Message() = default;
 
     const SerialData& toSerial() const { return m_serial; }
     const std::string& toJSON() const { return m_json; }
 
-    MessageCategory category() const noexcept { return static_cast<MessageCategory>(m_category); }
-    MessageType type() const noexcept { return static_cast<MessageType>(m_type); }
+    bool hasSerial() const noexcept { return static_cast<bool>(m_serial.count); }
+    bool hasJSON() const noexcept { return !m_json.empty(); }
+
     bool empty() const noexcept { return !m_category || !m_type; }
 
+    MessageCategory category() const noexcept { return static_cast<MessageCategory>(m_category); }
+    MessageType type() const noexcept { return static_cast<MessageType>(m_type); }
+
 private:
-    void generate()
+    void setNoDataSerial()
     {
+        m_serial.count = SerialStartPadding;
+        m_serial.ptr = std::make_shared<uint8_t[]>(m_serial.count);
+        setSerialHeaders();
+    }
+
+    void setNoDataJSON()
+    {
+        // Generate json header for message.
         m_json = nlohmann::json{
             {"category", MessageCategoryToStr(category())},
-            {"type", MessageTypeToStr(type())},
+            {"type", MessageTypeToStr(type())}
         }.dump();
     }
 
-    void generate(const nlohmann::json& data)
+    void setJSON(const nlohmann::json& data)
     {
-        // Set first two bytes in serial data.
-        if (m_serial.count > 1 && m_serial.data)
-        {
-            m_serial.data[0] = m_category;
-            m_serial.data[1] = m_type;
-        }
-
         // Generate json header for message.
         m_json = nlohmann::json{
-            {"category", MessageCategoryToStr(category())}, 
-            {"type", MessageTypeToStr(type())}, 
-            {"data", data}
-        }.dump();
+            {"category", MessageCategoryToStr(category())},
+            {"type", MessageTypeToStr(type())},
+            {"data",
+        data}}.dump();
+    }
+
+    void setSerialHeaders()
+    {
+        // Set first two bytes in serial data.
+        if (m_serial.count > 1 && m_serial.ptr)
+        {
+            using category_utype = std::underlying_type_t<MessageCategory>;
+            constexpr std::size_t category_size = sizeof(category_utype);
+            *reinterpret_cast<category_utype*>(&m_serial.ptr[0]) = m_category;
+
+            using type_utype = std::underlying_type_t<MessageType>;
+            *reinterpret_cast<type_utype*>(&m_serial.ptr[category_size]) = m_type;
+        }
     }
 
 private:

@@ -12,8 +12,8 @@
 // Windows Headers
 #include <windows.h>
 
-PipeHandler::PipeHandler(const std::string pipeName, const ApplicationData& appdata)
-    : m_pipeName{pipeName}, m_appData{appdata}
+PipeHandler::PipeHandler(const std::string pipeName, const ApplicationData& appdata, const SquadModifyHandler* squadModifyHandler)
+    : m_pipeName{pipeName}, m_appData{appdata}, m_squadModifyHandler{squadModifyHandler}
 {
 }
 
@@ -112,7 +112,7 @@ PipeThread* PipeHandler::dispatchPipeThread(void* handle, std::size_t id)
     if (m_threads.size() < m_appData.Config.maxClients)
     {
         // Maybe add some error handling here in case if vector throws.
-        return m_threads.emplace_back(std::make_unique<PipeThread>(id, handle, &m_msgTracking, m_appData)).get();
+        return m_threads.emplace_back(std::make_unique<PipeThread>(id, handle, &m_msgTracking, m_appData, m_squadModifyHandler)).get();
     }
 
     BRIDGE_ERROR("Could not create PipeThread due to max amount of clients are connected.");

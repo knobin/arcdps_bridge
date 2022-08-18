@@ -12,6 +12,7 @@
 #include "ApplicationData.hpp"
 #include "Message.hpp"
 #include "PipeThread.hpp"
+#include "SquadModifyHandler.hpp"
 
 // C++ Headers
 #include <memory>
@@ -45,7 +46,7 @@ class PipeHandler
 {
 public:
     PipeHandler() = delete;
-    PipeHandler(const std::string pipeName, const ApplicationData& appdata);
+    PipeHandler(const std::string pipeName, const ApplicationData& appdata, const SquadModifyHandler* squadModifyHandler);
     ~PipeHandler();
 
 public:
@@ -70,6 +71,7 @@ private:
     std::string m_pipeName{};
     std::mutex m_mutex{};
     std::thread m_pipeMain;
+    const SquadModifyHandler* m_squadModifyHandler;
     MessageTracking m_msgTracking{};
     std::atomic<bool> m_run{false};
     std::atomic<bool> m_running{false};

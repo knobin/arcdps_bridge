@@ -160,9 +160,40 @@ nlohmann::json PlayerContainer::toJSON() const
     nlohmann::json members = nlohmann::json::array();
     for (std::size_t i{0}; i < m_squad.size(); ++i)
         if (m_squad[i].first)
-            members.push_back(m_squad[i].second.player);
+            members.push_back(m_squad[i].second);
 
-    return {"members", members};
+    return {{"members", members}};
+}
+
+SerialData PlayerContainer::toSerial(std::size_t startPadding) const
+{
+    SerialData data{};
+    data.count = SerialStartPadding + startPadding + sizeof(uint64_t);
+
+    std::size_t entries = 0;
+    for (std::size_t i{0}; i < m_squad.size(); ++i)
+    {
+        if (m_squad[i].first)
+        {
+            data.count += serial_size(m_squad[i].second);
+            ++entries;
+        }
+    }
+
+    data.ptr = std::make_unique<uint8_t[]>(data.count);
+    uint8_t* location = serial_w_integral(&data.ptr[SerialStartPadding + startPadding], static_cast<uint64_t>(entries)); // Set entries count.
+
+    for (std::size_t i{ 0 }; i < m_squad.size(); ++i)
+    {
+        if (m_squad[i].first)
+        {
+            std::size_t count = serial_size(m_squad[i].second);
+            to_serial(m_squad[i].second, location, count);
+            location += count;
+        }
+    }
+    
+    return data;
 }
 
 void to_json(nlohmann::json& j, const PlayerInfo& player)
@@ -184,11 +215,41 @@ void to_json(nlohmann::json& j, const PlayerInfo& player)
         j["characterName"] = player.characterName;
 }
 
+void to_serial(const PlayerInfo& player, uint8_t* storage, std::size_t)
+{
+    uint8_t* location = storage;
+
+    const std::string& acc_name = player.accountName;
+    location = serial_w_string(location, acc_name.c_str(), acc_name.size());
+
+    const std::string& char_name = player.characterName;
+    location = serial_w_string(location, char_name.c_str(), char_name.size());
+
+    location = serial_w_integral(location, player.joinTime);
+    location = serial_w_integral(location, player.profession);
+    location = serial_w_integral(location, player.elite);
+    location = serial_w_integral(location, player.role);
+    location = serial_w_integral(location, player.subgroup);
+
+    location = serial_w_integral(location, static_cast<uint8_t>(player.inInstance));
+    location = serial_w_integral(location, static_cast<uint8_t>(player.self));
+    location = serial_w_integral(location, static_cast<uint8_t>(player.readyStatus));
+}
+
+void to_serial(const PlayerInfoEntry& entry, uint8_t* storage, std::size_t count)
+{
+    const std::size_t player_size = count - sizeof(entry.validator);
+    to_serial(entry.player, storage, player_size);
+
+    uint8_t* location = storage + player_size;
+    location = serial_w_integral(location, entry.validator);
+}
+
 void to_json(nlohmann::json& j, const PlayerInfoEntry& entry)
 {
     j = nlohmann::json{
-        {"validator", entry.validator}, 
-        {"member", entry.player}
+        {"player", entry.player},
+        {"validator", entry.validator}
     };
 }
 

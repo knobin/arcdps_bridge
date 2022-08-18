@@ -11,6 +11,7 @@
 // Local Headers
 #include "ApplicationData.hpp"
 #include "Message.hpp"
+#include "SquadModifyHandler.hpp"
 
 // C++ Headers
 #include <atomic>
@@ -52,7 +53,7 @@ public:
 
 public:
     PipeThread() = delete;
-    PipeThread(std::size_t id, void* handle, MessageTracking* mt, const ApplicationData& appdata);
+    PipeThread(std::size_t id, void* handle, MessageTracking* mt, const ApplicationData& appdata, const SquadModifyHandler* squadModifyHandler);
     ~PipeThread();
 
     void start();
@@ -71,6 +72,7 @@ private:
     const ApplicationData& m_appData;
     std::thread m_thread{};
     std::mutex m_mutex{};
+    const SquadModifyHandler* m_squadModifyHandler;
     EventTracking m_eventTrack{};
     void* m_handle{nullptr};
     MessageTracking* m_mt{nullptr};
@@ -100,5 +102,6 @@ struct SendStatus
     BOOL success{false};
 };
 SendStatus WriteToPipe(HANDLE handle, const std::string& msg);
+SendStatus WriteToPipe(HANDLE handle, const uint8_t* data, std::size_t count);
 
 #endif // BRIDGE_PIPETHREAD_HPP

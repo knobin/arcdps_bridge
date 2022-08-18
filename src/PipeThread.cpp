@@ -34,6 +34,25 @@ static Message ClosingMessage()
     return InfoMessage<MessageType::Closing>();
 }
 
+static Message SquadStatusMessage(const std::string& self, const PlayerContainer& squad, MessageProtocol protocol)
+{
+    SerialData serial{};
+    nlohmann::json json{};
+
+    if (protocol == MessageProtocol::Serial)
+    {
+        serial = squad.toSerial(self.size() + 1); // + 1 for null terminator.
+        serial_w_string(&serial.ptr[SerialStartPadding], self.c_str(), self.size());
+    }
+    else if (protocol == MessageProtocol::JSON)
+    {
+        json = squad.toJSON();
+        json["self"] = self;
+    }
+
+    return SquadMessage<MessageType::SquadStatus>(serial, json);
+}
+
 static std::underlying_type_t<MessageProtocol> IsProtocolStr(const std::string& str)
 {
     using MPU = std::underlying_type_t<MessageProtocol>;
@@ -47,8 +66,63 @@ static std::underlying_type_t<MessageProtocol> IsProtocolStr(const std::string& 
     return 0;
 }
 
-PipeThread::PipeThread(std::size_t id, void* handle, MessageTracking* mt, const ApplicationData& appdata)
-    : m_handle{handle}, m_mt{mt}, m_appData{appdata}, m_id{id}
+#if BRIDGE_LOG_LEVEL >= BRIDGE_LOG_LEVEL_MSG_DEBUG
+static std::string SerialDataToStr(const SerialData& data)
+{
+    std::ostringstream oss{};
+    for (std::size_t i{0}; i < data.count; ++i)
+    {
+        uint8_t mask = 128;
+        int j = 0;
+        while (j < 8)
+        {
+            if (data.ptr[i] & mask)
+                oss << "1";
+            else
+                oss << "0";
+            mask = mask >> 1;
+            ++j;
+        }
+    }
+    return oss.str();
+}
+
+static void PrintMsgDebug(const Message& msg, MessageProtocol protocol, std::size_t threadID)
+{
+    if (protocol == MessageProtocol::Serial)
+    {
+        BRIDGE_MSG_DEBUG("[ptid {}] Sending \"{}\" to client.", threadID, SerialDataToStr(data));
+    }
+    else if (protocol == MessageProtocol::JSON)
+    {
+        BRIDGE_MSG_DEBUG("[ptid {}] Sending \"{}\" to client.", threadID, msg.toJSON());
+    }
+}
+
+    #define BRIDGE_PRINT_MSG(...) PrintMsgDebug(__VA_ARGS__)
+#else
+    #define BRIDGE_PRINT_MSG(...)
+#endif
+
+static SendStatus SendToClient(void* handle, const Message& msg, MessageProtocol protocol)
+{
+    SendStatus send{};
+
+    if (protocol == MessageProtocol::Serial)
+    {
+        SerialData data{msg.toSerial()};
+        send = WriteToPipe(handle, data.ptr.get(), data.count);
+    }
+    else if (protocol == MessageProtocol::JSON)
+    {
+        send = WriteToPipe(handle, msg.toJSON());
+    }
+
+    return send;
+}
+
+PipeThread::PipeThread(std::size_t id, void* handle, MessageTracking* mt, const ApplicationData& appdata, const SquadModifyHandler* squadModifyHandler)
+    : m_handle{handle}, m_mt{mt}, m_appData{appdata}, m_id{id}, m_squadModifyHandler{squadModifyHandler}
 {
     BRIDGE_DEBUG("Created PipeThread [ptid {}]", m_id);
 }
@@ -77,7 +151,9 @@ void PipeThread::start()
             return;
         }
 
-        std::size_t threadID = handler->m_id;
+#if BRIDGE_LOG_LEVEL > BRIDGE_LOG_LEVEL_0
+        const std::size_t threadID = handler->m_id;
+#endif
         void* handle = handler->m_handle;
         handler->m_running = true;
         BRIDGE_INFO("[ptid {}] Started PipeThread.", threadID);
@@ -228,23 +304,17 @@ void PipeThread::start()
         {
             handler->m_status = Status::Sending;
 
-            SerialData serial{};
-            nlohmann::json json{};
-            
-            if (protocol == MessageProtocol::Serial)
-            {
-                ; // TODO.
-            }
+            handler->m_squadModifyHandler->work([&msg, &appData = handler->m_appData, protocol, &msgCont = handler->m_msgCont]() {
+                msg = SquadStatusMessage(appData.Self.accountName, appData.Squad, protocol);
 
-            if (protocol == MessageProtocol::JSON)
-            {
-                json = {{"self", handler->m_appData.Self.accountName},
-                         handler->m_appData.Squad.toJSON()};
-            }
+                // Clear queue if any messages.
+                std::unique_lock<std::mutex> msgLock(msgCont.mutex);
+                if (!msgCont.queue.empty())
+                    std::queue<Message>().swap(msgCont.queue);
+            });
 
-            msg = SquadMessage<MessageType::SquadStatus>(serial, json);
-            BRIDGE_MSG_DEBUG("[ptid {}] Sending Squad information to client: {}", threadID, msg.toJSON());
-            SendStatus send = WriteToPipe(handle, msg.toJSON());
+            SendStatus send{SendToClient(handle, msg, protocol)};
+            BRIDGE_PRINT_MSG(msg, protocol, threadID);
             if (!send.success)
             {
                 BRIDGE_ERROR("[ptid {}] Error sending data with err: {}!", threadID, send.error);   
@@ -302,9 +372,9 @@ void PipeThread::start()
             }
 
             // Send retrieved message.
-            BRIDGE_MSG_DEBUG("[ptid {}] Sending \"{}\" to client.", threadID, msg.toJSON());
             handler->m_status = Status::Sending;
-            sendStatus = WriteToPipe(handle, msg.toJSON());
+            sendStatus = SendToClient(handle, msg, protocol);
+            BRIDGE_PRINT_MSG(msg, protocol, threadID);
 
             if (!sendStatus.success)
             {
@@ -325,9 +395,11 @@ void PipeThread::start()
         {
             // If client is still connected and the thread is closing, send closing event.
             BRIDGE_DEBUG("[ptid {}] Sending closing event to client.", threadID);
-            Message closingMsg{ClosingMessage()};
-            WriteToPipe(handle, closingMsg.toJSON());
-        
+
+            const Message closingMsg{ClosingMessage()};
+            SendToClient(handle, closingMsg, protocol);
+            BRIDGE_PRINT_MSG(closingMsg, protocol, threadID);
+            // Ignore sending error here.
         }
 
         // Untrack protocol.
@@ -435,12 +507,16 @@ void PipeThread::sendMessage(const Message& msg)
     }
 }
 
-
 SendStatus WriteToPipe(HANDLE handle, const std::string& msg)
 {
-    const DWORD length{static_cast<DWORD>(msg.size())};
+    return WriteToPipe(handle, reinterpret_cast<const uint8_t*>(msg.c_str()), msg.size());
+}
+
+SendStatus WriteToPipe(HANDLE handle, const uint8_t *data, std::size_t count)
+{
+    const DWORD length{static_cast<DWORD>(count)};
     SendStatus status{};
-    status.success = WriteFile(handle, msg.c_str(), length, &status.numBytesWritten, NULL);
+    status.success = WriteFile(handle, data, length, &status.numBytesWritten, NULL);
 
     if (!status.success)
         status.error = GetLastError();

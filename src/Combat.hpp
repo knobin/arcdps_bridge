@@ -8,11 +8,15 @@
 #ifndef BRIDGE_COMBAT_HPP
 #define BRIDGE_COMBAT_HPP
 
+// Local Headers
+#include "Message.hpp"
+
 // nlohmann_json Headers
 #include <nlohmann/json.hpp>
 
 // C++ Headers
 #include <cstdint>
+#include <cstring>
 
 /* arcdps export table */
 struct arcdps_exports
@@ -78,48 +82,29 @@ struct ag
     uint16_t team;  /* sep21+ */
 };
 
-inline void to_json(nlohmann::json& j, const cbtevent& evt)
+// Combat event (cbtevent).
+constexpr std::size_t serial_size(const cbtevent& ev) noexcept
 {
-    j = nlohmann::json{
-        {"time", evt.time},
-        {"src_agent", evt.src_agent},
-        {"dst_agent", evt.dst_agent},
-        {"value", evt.value},
-        {"buff_dmg", evt.buff_dmg},
-        {"overstack_value", evt.overstack_value},
-        {"skillid", evt.skillid},
-        {"src_instid", evt.src_instid},
-        {"dst_instid", evt.dst_instid},
-        {"src_master_instid", evt.src_master_instid},
-        {"dst_master_instid", evt.dst_master_instid},
-        {"iff", static_cast<uint32_t>(evt.iff)},
-        {"buff", static_cast<uint32_t>(evt.buff)},
-        {"result", static_cast<uint32_t>(evt.result)},
-        {"is_activation", static_cast<uint32_t>(evt.is_activation)},
-        {"is_buffremove", static_cast<uint32_t>(evt.is_buffremove)},
-        {"is_ninety", static_cast<uint32_t>(evt.is_ninety)},
-        {"is_fifty", static_cast<uint32_t>(evt.is_fifty)},
-        {"is_moving", static_cast<uint32_t>(evt.is_moving)},
-        {"is_statechange", static_cast<uint32_t>(evt.is_statechange)},
-        {"is_flanking", static_cast<uint32_t>(evt.is_flanking)},
-        {"is_shields", static_cast<uint32_t>(evt.is_shields)},
-        {"is_offcycle", static_cast<uint32_t>(evt.is_offcycle)}
-    };
+    return sizeof(ev.time) + sizeof(ev.src_agent) + sizeof(ev.dst_agent) +
+        sizeof(ev.value) + sizeof(ev.buff_dmg) + sizeof(ev.overstack_value) +
+        sizeof(ev.skillid) + sizeof(ev.src_instid) + sizeof(ev.dst_instid) +
+        sizeof(ev.src_master_instid) + sizeof(ev.dst_master_instid) + sizeof(ev.iff) +
+        sizeof(ev.buff) + sizeof(ev.result) + sizeof(ev.is_activation) +
+        sizeof(ev.is_buffremove) + sizeof(ev.is_ninety) + sizeof(ev.is_fifty) +
+        sizeof(ev.is_moving) + sizeof(ev.is_statechange) + sizeof(ev.is_flanking) +
+        sizeof(ev.is_shields) + sizeof(ev.is_offcycle);
 }
+void to_serial(const cbtevent& ev, uint8_t* storage, std::size_t);
 
-inline void to_json(nlohmann::json& j, const ag& agent)
-{
-    j = nlohmann::json{
-        {"name", nullptr},
-        {"id", agent.id}, 
-        {"prof", agent.prof},
-        {"elite", agent.elite}, 
-        {"self", agent.self}, 
-        {"team", agent.team}
-    };
+// Agent (ag).
+constexpr std::size_t ag_partial_size = sizeof(ag::id) + sizeof(ag::prof) + sizeof(ag::elite) + sizeof(ag::self) + sizeof(ag::team);
+void to_json(nlohmann::json& j, const cbtevent& evt);
+std::size_t serial_size(const ag& agent);
+void to_serial(const ag& agent, uint8_t* storage, std::size_t count);
+void to_json(nlohmann::json& j, const ag& agent);
 
-    if (agent.name)
-        j["name"] = std::string{agent.name};
-}
+// Combat Message generators (from mod_combat callback).
+SerialData combat_to_serial(cbtevent* ev, ag* src, ag* dst, char* skillname, uint64_t id, uint64_t revision);
+nlohmann::json combat_to_json(cbtevent* ev, ag* src, ag* dst, char* skillname, uint64_t id, uint64_t revision);
 
 #endif // BRIDGE_COMBAT_HPP

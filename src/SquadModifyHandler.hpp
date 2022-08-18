@@ -33,6 +33,10 @@ public:
             m_addQueue[i] = {false, {}};
     }
 
+    // Run callback with the modify lock.
+    template<typename Callback>
+    void work(Callback cb) const;
+
     template<typename Sender, typename Updater>
     void addPlayer(const PlayerInfo& player, Sender sender, Updater updater);
 
@@ -71,9 +75,16 @@ private:
 private:
     PlayerContainer& m_squad;
     std::array<std::pair<bool, QueuedPlayer>, 50> m_addQueue{};
-    std::mutex m_mutex{};
+    mutable std::mutex m_mutex{};
     bool m_selfInSquad{false};
 };
+
+template<typename Callback>
+void SquadModifyHandler::work(Callback cb) const
+{
+    std::unique_lock<std::mutex> lock(m_mutex);
+    cb();
+}
 
 template<typename Sender, typename Updater>
 void SquadModifyHandler::addPlayer(const PlayerInfo& player, Sender sender, Updater updater)
@@ -235,7 +246,7 @@ void SquadModifyHandler::updateQueuedPlayer(UnaryPredicate p, Updater updater)
     }
 }
 
-void SquadModifyHandler::dequeuePlayer(const std::string& accountName)
+inline void SquadModifyHandler::dequeuePlayer(const std::string& accountName)
 {
     // Get player if exists already.
     auto it = std::find_if(m_addQueue.begin(), m_addQueue.end(), [&accountName](const auto& p) { 

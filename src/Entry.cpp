@@ -60,8 +60,8 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID)
 
             if (AppData.Config.enabled)
             {
-                Server = std::make_unique<PipeHandler>(std::string{AppData.PipeName}, AppData);
                 SquadHandler = std::make_unique<SquadModifyHandler>(AppData.Squad);
+                Server = std::make_unique<PipeHandler>(std::string{AppData.PipeName}, AppData, SquadHandler.get());
 
                 AppData.CharacterTypeCache.reserve(50);
             }
@@ -97,7 +97,9 @@ static void SendPlayerMsg(const PlayerInfoEntry& entry)
 
         if (Server->usingProtocol(MessageProtocol::Serial))
         {
-            ; // TODO.
+            const std::size_t playerentry_size = serial_size(entry);
+            serial = CreateSerialData(playerentry_size);
+            to_serial(entry, &serial.ptr[SerialStartPadding], playerentry_size);
         }
 
         if (Server->usingProtocol(MessageProtocol::JSON))
@@ -174,45 +176,12 @@ static Message GenerateCombatMessage(cbtevent* ev, ag* src, ag* dst, char* skill
     SerialData serial{};
     nlohmann::json json{};
 
-    std::string sn{};
-    if (skillname)
-    {
-        sn = std::string{skillname};
-        std::size_t pos = 0;
-        while ((pos = sn.find("\"", pos)) != std::string::npos)
-        {
-            sn.replace(pos, 1, "\\\"");
-            pos += 2;
-        }
-    }
-
     if (useSerial)
-    {
-        ; // TODO.
-    }
+        serial = combat_to_serial(ev, src, dst, skillname, id, revision);
 
     if (useJSON)
-    {
-        json = {
-            {"id", id},
-            {"revision", revision},
-            {"ev", nullptr},
-            {"src", nullptr}, 
-            {"dst", nullptr}, 
-            {"skillname", nullptr},
-        };
+        json = combat_to_json(ev, src, dst, skillname, id, revision);
 
-        if (ev)
-            json["ev"] = *ev;
-        if (src)
-            json["src"] = *src;
-        if (dst)
-            json["dst"] = *dst;
-
-        if (!sn.empty())
-            json["skillname"] = sn;
-    }
-   
     return CombatMessage<MessageType::CombatEvent>(serial, json);
 }
 
@@ -422,8 +391,7 @@ static void ExtrasPlayerInfoUpdater(PlayerInfo& player, const UserInfo& user)
     player.role = static_cast<uint8_t>(user.Role);
     player.subgroup = user.Subgroup + 1; // Starts at 0.
     player.readyStatus = user.ReadyStatus;
-    if (player.joinTime != 0 && user.JoinTime != 0)
-        player.joinTime = user.JoinTime;
+    player.joinTime = user.JoinTime;
 }
 
 // Callback for arcDPS unofficial extras API.
@@ -479,7 +447,9 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
 
                 if (Server->usingProtocol(MessageProtocol::Serial))
                 {
-                    ; // TODO.
+                    const std::size_t uinfo_count = serial_size(*uinfo);
+                    serial = CreateSerialData(uinfo_count);
+                    to_serial(*uinfo, &serial.ptr[SerialStartPadding], uinfo_count);
                 }
 
                 if (Server->usingProtocol(MessageProtocol::JSON))
@@ -554,7 +524,9 @@ extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(c
 
         if (Server->usingProtocol(MessageProtocol::Serial))
         {
-            ; // TODO.
+            const std::size_t appdata_size = serial_size(AppData.Info);
+            serial = CreateSerialData(appdata_size);
+            to_serial(AppData.Info, &serial.ptr[SerialStartPadding], appdata_size);
         }
 
         if (Server->usingProtocol(MessageProtocol::JSON))
