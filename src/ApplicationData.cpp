@@ -43,7 +43,7 @@ void to_json(nlohmann::json& j, const BridgeInfo& info)
 std::size_t serial_size(const BridgeInfo& info)
 {
     return info.version.size() + info.extrasVersion.size() + info.arcvers.size() + 3 + (3 * sizeof(uint8_t)) +
-           sizeof(info.validator);
+           sizeof(info.validator) + sizeof(info.majorApiVersion) + sizeof(info.minorApiVersion);
 }
 
 void to_serial(const BridgeInfo& info, uint8_t* storage, std::size_t)
