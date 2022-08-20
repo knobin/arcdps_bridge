@@ -2,12 +2,17 @@ cmake_minimum_required(VERSION 3.12.4)
 
 project(arcdps_bridge VERSION 2.0.0 DESCRIPTION "ArcDPS Extension which sends the events over a named pipe.")
 
+# API Version.
+set(BRIDGE_API_VERSION_MAJOR 2)
+set(BRIDGE_API_VERSION_MINOR 1)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
 set(THREADS_PREFER_PTHREAD_FLAG TRUE)
 set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
 
 message(STATUS "Build arcdps_bridge: ${CMAKE_PROJECT_VERSION}")
+message(STATUS "arcdps_bridge API version: ${BRIDGE_API_VERSION_MAJOR}.${BRIDGE_API_VERSION_MINOR}")
 
 # General options
 option(BRIDGE_BUILD_TESTS "Build test programs" OFF)
@@ -53,7 +58,9 @@ if (${BRIDGE_SET_LOG_LEVEL} GREATER 0)
 endif()
 message(STATUS "Logging level set to: ${BRIDGE_SET_LOG_LEVEL}.")
 set(BRIDGE_COMPILE_DEFINITIONS ${BRIDGE_COMPILE_DEFINITIONS} 
-        BRIDGE_VERSION_STR="${CMAKE_PROJECT_VERSION}")
+        BRIDGE_VERSION_STR="${CMAKE_PROJECT_VERSION}"
+        BRIDGE_API_VERSION_MAJOR=${BRIDGE_API_VERSION_MAJOR}
+        BRIDGE_API_VERSION_MINOR=${BRIDGE_API_VERSION_MINOR})
 
 include_directories("${CMAKE_SOURCE_DIR}/third_party/arcdps_unofficial_extras_releases")
 

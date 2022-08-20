@@ -29,49 +29,25 @@
 
 struct BridgeInfo
 {
-    std::string_view version{BRIDGE_VERSION_STR};  // Bridge version.
-    std::string extrasVersion{""};      // Unofficial Extras version.
-    std::string arcvers{""};            // ArcDPS version.
+    std::string_view version{BRIDGE_VERSION_STR};   // Bridge version.
+    std::string extrasVersion{""};                  // Unofficial Extras version.
+    std::string arcvers{""};                        // ArcDPS version.
 
-    uint64_t validator{1};              // Version of the BridgeInfo, if any value changes this will be incremented.
+    uint64_t validator{1};  // Runtime version of the BridgeInfo, if any value changes this will be incremented.
     
-    bool arcLoaded{false};              // Is ArcDPS loaded (enabled in the bridge).
-    bool extrasFound{false};            // Has the Unofficial Extras init callback been called.
-    bool extrasLoaded{false};           // Is Unofficial Extras loaded (enabled in the bridge).
+    uint32_t majorApiVersion{BRIDGE_API_VERSION_MAJOR}; // Incremented when there is a change that breaks backwards compatibility in any way.
+    uint32_t minorApiVersion{BRIDGE_API_VERSION_MINOR}; // Incremented when the API is extended in a way that does not break backwards compatibility.
+
+    bool arcLoaded{false};      // Is ArcDPS loaded (enabled in the bridge).
+    bool extrasFound{false};    // Has the Unofficial Extras init callback been called.
+    bool extrasLoaded{false};   // Is Unofficial Extras loaded (enabled in the bridge).
 
     mutable std::mutex mutex;
 };
 
 void to_json(nlohmann::json& j, const BridgeInfo& info);
-
-inline std::size_t serial_size(const BridgeInfo& info)
-{
-    return info.version.size() + info.extrasVersion.size() + info.arcvers.size() + 3 + (3 * sizeof(uint8_t)) +
-           sizeof(info.validator);
-}
-
-inline void to_serial(const BridgeInfo& info, uint8_t* storage, std::size_t)
-{
-    uint8_t* location = storage;
-
-    std::memcpy(location, &info.version[0], info.version.size());
-    location[info.version.size()] = '\0';
-    location += info.version.size() + 1;
-
-    std::memcpy(location, &info.extrasVersion[0], info.extrasVersion.size());
-    location[info.extrasVersion.size()] = '\0';
-    location += info.extrasVersion.size() + 1;
-
-    std::memcpy(location, &info.arcvers[0], info.arcvers.size());
-    location[info.arcvers.size()] = '\0';
-    location += info.arcvers.size() + 1;
-
-    location = serial_w_integral(location, info.validator);
-    
-    location[0] = static_cast<uint8_t>(info.arcLoaded);
-    location[1] = static_cast<uint8_t>(info.arcLoaded);
-    location[2] = static_cast<uint8_t>(info.arcLoaded);
-}
+std::size_t serial_size(const BridgeInfo& info);
+void to_serial(const BridgeInfo& info, uint8_t* storage, std::size_t);
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
