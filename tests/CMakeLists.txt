@@ -31,6 +31,7 @@ function(define_test)
 endfunction()
 
 # Add tests here!
+define_test(NAME AppDataTest FILES ${BRIDGE_SRC} FuzzHelper.hpp AppDataTest.cpp LINKS arcdps_bridge_static nlohmann_json::nlohmann_json)
 define_test(NAME CombatTest FILES ${BRIDGE_SRC} FuzzHelper.hpp CombatTest.cpp LINKS arcdps_bridge_static nlohmann_json::nlohmann_json)
 define_test(NAME ExtrasTest FILES ${BRIDGE_SRC} FuzzHelper.hpp ExtrasTest.cpp LINKS arcdps_bridge_static nlohmann_json::nlohmann_json)
 define_test(NAME MessageTest FILES ${BRIDGE_SRC} FuzzHelper.hpp MessageTest.cpp LINKS arcdps_bridge_static nlohmann_json::nlohmann_json)

@@ -29,8 +29,8 @@ void to_json(nlohmann::json& j, const BridgeInfo& info)
 {
     j = nlohmann::json{
         {"version", std::string{info.version}}, 
-        {"extrasVersion", info.extrasVersion}, 
-        {"arcVersion", info.arcvers}, 
+        {"extrasVersion", nullptr}, 
+        {"arcVersion", nullptr}, 
         {"arcLoaded", info.arcLoaded},
         {"extrasFound", info.extrasFound},
         {"extrasLoaded", info.extrasLoaded},
@@ -38,6 +38,12 @@ void to_json(nlohmann::json& j, const BridgeInfo& info)
         {"majorApiVersion", info.majorApiVersion},
         {"minorApiVersion", info.minorApiVersion}
     };
+
+    if (!info.extrasVersion.empty())
+        j["extrasVersion"] = info.extrasVersion;
+
+    if (!info.arcvers.empty())
+        j["arcVersion"] = info.arcvers;
 }
 
 std::size_t serial_size(const BridgeInfo& info)
@@ -57,21 +63,15 @@ void to_serial(const BridgeInfo& info, uint8_t* storage, std::size_t)
     // Runtime version of BridgeInfo.
     location = serial_w_integral(location, info.validator);
 
-    std::memcpy(location, &info.version[0], info.version.size());
-    location[info.version.size()] = '\0';
-    location += info.version.size() + 1;
+    // Version strings.
+    location = serial_w_string(location, info.version.data(), info.version.size());
+    location = serial_w_string(location, info.extrasVersion.data(), info.extrasVersion.size());
+    location = serial_w_string(location, info.arcvers.data(), info.arcvers.size());
 
-    std::memcpy(location, &info.extrasVersion[0], info.extrasVersion.size());
-    location[info.extrasVersion.size()] = '\0';
-    location += info.extrasVersion.size() + 1;
-
-    std::memcpy(location, &info.arcvers[0], info.arcvers.size());
-    location[info.arcvers.size()] = '\0';
-    location += info.arcvers.size() + 1;
-
+    // Booleans.
     location[0] = static_cast<uint8_t>(info.arcLoaded);
-    location[1] = static_cast<uint8_t>(info.arcLoaded);
-    location[2] = static_cast<uint8_t>(info.arcLoaded);
+    location[1] = static_cast<uint8_t>(info.extrasFound);
+    location[2] = static_cast<uint8_t>(info.extrasLoaded);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
