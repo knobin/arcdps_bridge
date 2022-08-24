@@ -89,7 +89,7 @@ public:
     SerialData toSerial(std::size_t startPadding = 0) const;
 
 private:
-    std::array<std::pair<bool, PlayerInfoEntry>, 50> m_squad{};
+    std::array<std::pair<bool, PlayerInfoEntry>, 65> m_squad{};
     mutable std::mutex m_mutex;
 };
 
