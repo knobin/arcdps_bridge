@@ -147,20 +147,9 @@ static void UpdateCombatCharInfo(const std::string& name, CharacterType ct)
     SquadHandler->updatePlayer(p, SquadModifySender, updater);
 }
 
-static void RemoveFromSquad(const std::string& accountName, const std::string& sType)
+static void RemoveFromSquad(const std::string& accountName, uint8_t bits)
 {
-    auto success = [accountName , sType](SquadAction, PlayerInfoEntry& entry)
-    {
-        SendPlayerMsg<MessageType::SquadRemove>(entry);
-
-        if (entry.player.self)
-        {
-            BRIDGE_DEBUG("Removing self \"{}\", saving character info for \"{}\".", accountName,
-                            entry.player.characterName);
-            AppData.Self = entry.player;
-        }
-    };
-    SquadHandler->removePlayer(accountName, success);
+    SquadHandler->removePlayer(accountName, SquadModifySender, bits);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -217,10 +206,10 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
             player.self = dst->self;
 
             // If there is no knowledge of self account name, set it here.
-            if (dst->self && AppData.Self.accountName.empty())
+            if (dst->self && AppData.SelfAccountName.empty())
             {
-                AppData.Self = player;
-                BRIDGE_DEBUG("Self account name (Combat): \"{}\"", AppData.Self.accountName);
+                AppData.SelfAccountName = accountName;
+                BRIDGE_DEBUG("Self account name (Combat): \"{}\"", AppData.SelfAccountName);
             }
 
             auto updater = [accountName, src, dst](PlayerInfo& player)
@@ -228,7 +217,7 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
                 // Entry got added just in the right time for add to fail.
                 UpdateCombatPlayerInfo(player, src, dst);
             };
-            SquadHandler->addPlayer(player, SquadModifySender, updater);
+            SquadHandler->addPlayer(player, SquadModifySender, updater, SquadModifyHandler::CombatBit | SquadModifyHandler::ExtrasBit);
 
             CharacterType ct{};
             ct.profession = dst->prof;
@@ -247,32 +236,20 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
             // Removed.
             BRIDGE_DEBUG("Removed, checking dst->name \"{}\"", src->name);
             std::string accountName{dst->name};
-
+            uint8_t bits = SquadModifyHandler::CombatBit;
+            
             if (AppData.Info.extrasLoaded)
             {
-                // Unofficial Extras is present and used in the bridge.
-                // Therefore only Unofficial Extras can remove players.
-                // Update information.
-
-                auto updater = [](PlayerInfo& player)
-                { 
-                    player.inInstance = false;
-                };
+                auto updater = [](PlayerInfo& player) { player.inInstance = false; };
                 SquadHandler->updatePlayer(accountName, SquadModifySender, updater);
             }
             else
             {
-                // Unofficial Extras is not used (callback not set or extension not present at all).
-                // Then only combat events can add/remove players.
-
-                // If extras is loaded it will remove the player. This will ensure that players 
-                // added by combat api will not be removed when not in the same instance.
-                // Which enables the ability to "recover" over time from a crash if the game 
-                // crashed when in a squad.
-
-                BRIDGE_DEBUG("ArcDPS combat event removed \"{}\", since extras is not used.", accountName);
-                RemoveFromSquad(accountName, "combat");
+                bits |= SquadModifyHandler::ExtrasBit;
             }
+
+            // Remove (or decrement counter).
+            RemoveFromSquad(accountName, bits);
 
             BRIDGE_DEBUG("Removed, CharCache, checking src->name \"{}\"", src->name);
             AppData.CharacterTypeCache.erase(std::string{src->name});
@@ -407,37 +384,29 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
 
             if (role == UserRole::None)
             {
-                // Remove.
-                RemoveFromSquad(accountName, "extras");
+                uint8_t bits = SquadModifyHandler::ExtrasBit;
+                if (!AppData.Info.arcLoaded || (AppData.SelfAccountName == accountName))
+                    bits |= SquadModifyHandler::CombatBit;
+
+                RemoveFromSquad(accountName, bits);
             }
             else if (role == UserRole::SquadLeader || role == UserRole::Lieutenant || role == UserRole::Member)
             {
                 // Add.
                 
                 PlayerInfo player{};
+                player.accountName = accountName;
                         
-                if (AppData.Self.accountName == accountName)
+                if (AppData.SelfAccountName == accountName)
                 {
-                    BRIDGE_DEBUG("Adding self, using character name: \"{}\".", AppData.Self.characterName);
-                    player = AppData.Self;
                     player.inInstance = true;
                     player.self = true;
-                    auto it = AppData.CharacterTypeCache.find(player.characterName);
-                    if (it != AppData.CharacterTypeCache.end())
-                    {
-                        player.profession = it->second.profession;
-                        player.elite = it->second.elite;
-                    }
-                }
-                else
-                {
-                    player.accountName = accountName;
                 }
 
                 ExtrasPlayerInfoUpdater(player, *uinfo);
                 
                 auto updater = [uinfo](PlayerInfo& player) { ExtrasPlayerInfoUpdater(player, *uinfo); };
-                SquadHandler->addPlayer(player, SquadModifySender, updater);
+                SquadHandler->addPlayer(player, SquadModifySender, updater, SquadModifyHandler::ExtrasBit);
             }
 
             if (Server->trackingCategory(MessageCategory::Extras))
@@ -500,9 +469,8 @@ extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(c
         *static_cast<ExtrasSubscriberInfoV1*>(pSubscriberInfo) = extrasInfo;
 
         // PlayerCollection.self.accountName = pExtrasInfo->SelfAccountName;
-        AppData.Self.accountName = pExtrasInfo->SelfAccountName;
-        AppData.Self.self = true;
-        BRIDGE_DEBUG("Self account name (Extras): \"{}\"", AppData.Self.accountName);
+        AppData.SelfAccountName = pExtrasInfo->SelfAccountName;
+        BRIDGE_DEBUG("Self account name (Extras): \"{}\"", AppData.SelfAccountName);
     }
     else
     {

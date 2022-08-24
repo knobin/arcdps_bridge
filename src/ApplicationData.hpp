@@ -90,7 +90,7 @@ struct CharacterType
 struct ApplicationData
 {
     PlayerContainer Squad{};
-    PlayerInfo Self{};
+    std::string SelfAccountName{};
 
     std::unordered_map<std::string, CharacterType> CharacterTypeCache{};
 

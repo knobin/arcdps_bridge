@@ -305,7 +305,7 @@ void PipeThread::start()
             handler->m_status = Status::Sending;
 
             handler->m_squadModifyHandler->work([&msg, &appData = handler->m_appData, protocol, &msgCont = handler->m_msgCont]() {
-                msg = SquadStatusMessage(appData.Self.accountName, appData.Squad, protocol);
+                msg = SquadStatusMessage(appData.SelfAccountName, appData.Squad, protocol);
 
                 // Clear queue if any messages.
                 std::unique_lock<std::mutex> msgLock(msgCont.mutex);
