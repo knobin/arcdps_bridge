@@ -54,6 +54,10 @@ constexpr std::string_view MessageCategoryToStr(MessageCategory category) noexce
 
 enum class MessageType : uint8_t
 {
+    // 0 = None or Empty, should never be used.
+    
+    // [1,15] are reserved for future use. 
+    
     // Info types.
     BridgeInfo  = 1,
     Status      = 2,
@@ -64,9 +68,9 @@ enum class MessageType : uint8_t
 
     // Extras event types.
     ExtrasSquadUpdate = 5,
-    // ExtrasLanguageChanged = 6,   // TODO
-    // ExtrasKeyBindChanged = 7,    // TODO
-    // ExtrasChatMessage = 8,       // TODO
+    ExtrasLanguageChanged = 6,
+    ExtrasKeyBindChanged = 7,
+    // ExtrasChatMessage = 8,
 
     // Squad event types.
     SquadStatus = 9,
@@ -89,6 +93,14 @@ constexpr std::string_view MessageTypeToStr(MessageType type) noexcept
             return "CombatEvent";
         case MessageType::ExtrasSquadUpdate:
             return "ExtrasSquadUpdate";
+        case MessageType::ExtrasLanguageChanged:
+            return "ExtrasLanguageChanged";
+        case MessageType::ExtrasKeyBindChanged:
+            return "ExtrasKeyBindChanged";
+        /* 
+        case MessageType::ExtrasSquadUpdate:
+            return "ExtrasSquadUpdate";
+        */
         case MessageType::SquadStatus:
             return "SquadStatus";
         case MessageType::SquadAdd:
@@ -140,7 +152,9 @@ struct MatchTypeToCategory<MessageCategory::Combat> : MsgTypeMatcher<MessageType
 {};
 
 template<>
-struct MatchTypeToCategory<MessageCategory::Extras> : MsgTypeMatcher<MessageType::ExtrasSquadUpdate>
+struct MatchTypeToCategory<MessageCategory::Extras> 
+    : MsgTypeMatcher<MessageType::ExtrasSquadUpdate, MessageType::ExtrasKeyBindChanged,
+                     MessageType::ExtrasLanguageChanged /*, MessageType::ExtrasChatMessage */>
 {};
 
 template<>

@@ -68,8 +68,8 @@ TEST_CASE("MessageType values")
     SECTION("Extras event types")
     {
         REQUIRE(static_cast<utype>(MessageType::ExtrasSquadUpdate) == 5);
-        // REQUIRE(static_cast<utype>(MessageType::ExtrasLanguageChanged) == 6);
-        // REQUIRE(static_cast<utype>(MessageType::ExtrasKeyBindChanged) == 7);
+        REQUIRE(static_cast<utype>(MessageType::ExtrasLanguageChanged) == 6);
+        REQUIRE(static_cast<utype>(MessageType::ExtrasKeyBindChanged) == 7);
         // REQUIRE(static_cast<utype>(MessageType::ExtrasChatMessage) == 8);
     } 
 
@@ -89,6 +89,9 @@ TEST_CASE("MessageType")
     REQUIRE(MessageTypeToStr(MessageType::Closing) == "Closing");
     REQUIRE(MessageTypeToStr(MessageType::CombatEvent) == "CombatEvent");
     REQUIRE(MessageTypeToStr(MessageType::ExtrasSquadUpdate) == "ExtrasSquadUpdate");
+    REQUIRE(MessageTypeToStr(MessageType::ExtrasLanguageChanged) == "ExtrasLanguageChanged");
+    REQUIRE(MessageTypeToStr(MessageType::ExtrasKeyBindChanged) == "ExtrasKeyBindChanged");
+    // REQUIRE(MessageTypeToStr(MessageType::ExtrasChatMessage) == "ExtrasChatMessage");
     REQUIRE(MessageTypeToStr(MessageType::SquadStatus) == "SquadStatus");
     REQUIRE(MessageTypeToStr(MessageType::SquadAdd) == "SquadAdd");
     REQUIRE(MessageTypeToStr(MessageType::SquadUpdate) == "SquadUpdate");
@@ -115,8 +118,8 @@ TEST_CASE("MatchCategoryAndType")
         REQUIRE_FALSE(MatchCategoryAndType<MC::Info, MT::CombatEvent>::value);
 
         REQUIRE_FALSE(MatchCategoryAndType<MC::Info, MT::ExtrasSquadUpdate>::value);
-        // REQUIRE_FALSE(MatchCategoryAndType<MC::Info, MT::ExtrasLanguageChanged>::value);
-        // REQUIRE_FALSE(MatchCategoryAndType<MC::Info, MT::ExtrasKeyBindChanged>::value);
+        REQUIRE_FALSE(MatchCategoryAndType<MC::Info, MT::ExtrasLanguageChanged>::value);
+        REQUIRE_FALSE(MatchCategoryAndType<MC::Info, MT::ExtrasKeyBindChanged>::value);
         // REQUIRE_FALSE(MatchCategoryAndType<MC::Info, MT::ExtrasChatMessage>::value);
         
         REQUIRE_FALSE(MatchCategoryAndType<MC::Info, MT::SquadStatus>::value);
@@ -134,9 +137,9 @@ TEST_CASE("MatchCategoryAndType")
         REQUIRE(MatchCategoryAndType<MC::Combat, MT::CombatEvent>::value);
         
         REQUIRE_FALSE(MatchCategoryAndType<MC::Combat, MT::ExtrasSquadUpdate>::value);
-        // REQUIRE_FALSE(MatchCategoryAndType<MC::Info, MT::ExtrasLanguageChanged>::value);
-        // REQUIRE_FALSE(MatchCategoryAndType<MC::Info, MT::ExtrasKeyBindChanged>::value);
-        // REQUIRE_FALSE(MatchCategoryAndType<MC::Info, MT::ExtrasChatMessage>::value);
+        REQUIRE_FALSE(MatchCategoryAndType<MC::Combat, MT::ExtrasLanguageChanged>::value);
+        REQUIRE_FALSE(MatchCategoryAndType<MC::Combat, MT::ExtrasKeyBindChanged>::value);
+        // REQUIRE_FALSE(MatchCategoryAndType<MC::Combat, MT::ExtrasChatMessage>::value);
         
         REQUIRE_FALSE(MatchCategoryAndType<MC::Combat, MT::SquadStatus>::value);
         REQUIRE_FALSE(MatchCategoryAndType<MC::Combat, MT::SquadAdd>::value);
@@ -153,9 +156,9 @@ TEST_CASE("MatchCategoryAndType")
         REQUIRE_FALSE(MatchCategoryAndType<MC::Extras, MT::CombatEvent>::value);
 
         REQUIRE(MatchCategoryAndType<MC::Extras, MT::ExtrasSquadUpdate>::value);
-        // REQUIRE(MatchCategoryAndType<MC::Info, MT::ExtrasLanguageChanged>::value);
-        // REQUIRE(MatchCategoryAndType<MC::Info, MT::ExtrasKeyBindChanged>::value);
-        // REQUIRE(MatchCategoryAndType<MC::Info, MT::ExtrasChatMessage>::value);
+        REQUIRE(MatchCategoryAndType<MC::Extras, MT::ExtrasLanguageChanged>::value);
+        REQUIRE(MatchCategoryAndType<MC::Extras, MT::ExtrasKeyBindChanged>::value);
+        // REQUIRE(MatchCategoryAndType<MC::Extras, MT::ExtrasChatMessage>::value);
 
         REQUIRE_FALSE(MatchCategoryAndType<MC::Extras, MT::SquadStatus>::value);
         REQUIRE_FALSE(MatchCategoryAndType<MC::Extras, MT::SquadAdd>::value);
@@ -172,9 +175,9 @@ TEST_CASE("MatchCategoryAndType")
         REQUIRE_FALSE(MatchCategoryAndType<MC::Squad, MT::CombatEvent>::value);
 
         REQUIRE_FALSE(MatchCategoryAndType<MC::Squad, MT::ExtrasSquadUpdate>::value);
-        // REQUIRE_FALSE(MatchCategoryAndType<MC::Info, MT::ExtrasLanguageChanged>::value);
-        // REQUIRE_FALSE(MatchCategoryAndType<MC::Info, MT::ExtrasKeyBindChanged>::value);
-        // REQUIRE_FALSE(MatchCategoryAndType<MC::Info, MT::ExtrasChatMessage>::value);
+        REQUIRE_FALSE(MatchCategoryAndType<MC::Squad, MT::ExtrasLanguageChanged>::value);
+        REQUIRE_FALSE(MatchCategoryAndType<MC::Squad, MT::ExtrasKeyBindChanged>::value);
+        // REQUIRE_FALSE(MatchCategoryAndType<MC::Squad, MT::ExtrasChatMessage>::value);
 
         REQUIRE(MatchCategoryAndType<MC::Squad, MT::SquadStatus>::value);
         REQUIRE(MatchCategoryAndType<MC::Squad, MT::SquadAdd>::value);

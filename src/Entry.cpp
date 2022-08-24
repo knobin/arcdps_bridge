@@ -431,11 +431,23 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
     }
 }
 
+static void language_changed_callback(Language pNewLanguage)
+{
+
+}
+
+static void keybind_changed_callback(KeyBinds::KeyBindChanged pChangedKeyBind)
+{
+
+}
+
 static void InitExtrasV1(ExtrasSubscriberInfoV1& info)
 {
     info.InfoVersion = 1;
     info.SubscriberName = "Unofficial Bridge";
     info.SquadUpdateCallback = squad_update_callback;
+    info.LanguageChangedCallback = language_changed_callback;
+    info.KeyBindChangedCallback = keybind_changed_callback;
 }
 
 // Exported init function for arcDPS unofficial extras API.
