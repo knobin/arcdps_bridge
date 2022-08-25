@@ -48,3 +48,19 @@ void to_json(nlohmann::json& j, const UserInfo& user)
     if (user.AccountName)
         j["AccountName"] = user.AccountName;
 }
+
+//
+// Extras Language Callback.
+//
+
+void to_serial(Language language, uint8_t* storage, std::size_t)
+{
+    serial_w_integral(storage, static_cast<std::underlying_type_t<Language>>(language));
+}
+
+void to_json(nlohmann::json& j, Language language)
+{
+    j = nlohmann::json{
+        {"Language", static_cast<std::underlying_type_t<Language>>(language)}
+    };
+}

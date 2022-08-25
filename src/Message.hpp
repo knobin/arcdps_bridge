@@ -56,8 +56,6 @@ enum class MessageType : uint8_t
 {
     // 0 = None or Empty, should never be used.
     
-    // [1,15] are reserved for future use. 
-    
     // Info types.
     BridgeInfo  = 1,
     Status      = 2,

@@ -433,7 +433,24 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
 
 static void language_changed_callback(Language pNewLanguage)
 {
+    if (Server->trackingCategory(MessageCategory::Extras))
+    {
+        SerialData serial{};
+        nlohmann::json json{};
 
+        if (Server->usingProtocol(MessageProtocol::Serial))
+        {
+            constexpr std::size_t lang_count = serial_size(Language{});
+            serial = CreateSerialData(lang_count);
+            to_serial(pNewLanguage, &serial.ptr[SerialStartPadding], lang_count);
+        }
+
+        if (Server->usingProtocol(MessageProtocol::JSON))
+            json = pNewLanguage;
+
+        const Message extrasMsg{ExtrasMessage<MessageType::ExtrasLanguageChanged>(serial, json)};
+        Server->sendMessage(extrasMsg);
+    }
 }
 
 static void keybind_changed_callback(KeyBinds::KeyBindChanged pChangedKeyBind)

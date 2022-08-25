@@ -29,6 +29,11 @@ std::size_t serial_size(const UserInfo& info);
 void to_serial(const UserInfo& info, uint8_t* storage, std::size_t count);
 void to_json(nlohmann::json& j, const UserInfo& user);
 
-
+//
+// Extras Language Callback.
+//
+constexpr std::size_t serial_size(Language) { return sizeof(std::underlying_type_t<Language>); }
+void to_serial(Language language, uint8_t* storage, std::size_t count);
+void to_json(nlohmann::json& j, Language language);
 
 #endif // BRIDGE_EXTRAS_HPP

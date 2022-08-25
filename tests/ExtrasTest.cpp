@@ -195,3 +195,74 @@ TEST_CASE("Budget fuzzing (only UserInfo)")
         return UserInfoNodeCreator(); 
     });
 }
+
+///////////////////////////////////////////////////////////////////////////////
+//                                 Language                                  //
+///////////////////////////////////////////////////////////////////////////////
+
+//
+// serial (Language).
+//
+
+// It's important this value does not change (breaks version compatibility).
+TEST_CASE("serial_size(Language)")
+{
+    constexpr std::size_t expected_size = sizeof(int32_t);
+
+    REQUIRE(serial_size(Language{}) == expected_size);
+}
+
+static uint8_t* RequireLanguage(Language language, uint8_t* storage)
+{
+    return RequireAtLocation(storage, static_cast<std::underlying_type_t<Language>>(language));
+}
+
+static void ValidateLanguageSerialValue(Language language)
+{
+    constexpr std::size_t language_size = serial_size(Language{});
+
+    uint8_t storage[language_size] = {};
+    to_serial(language, storage, language_size);
+
+    uint8_t* location = RequireLanguage(language, storage);
+    REQUIRE(storage + language_size == location);
+}
+
+TEST_CASE("to_serial(Language language, uint8_t* storage, std::size_t)")
+{
+    ValidateLanguageSerialValue(Language::English);
+    ValidateLanguageSerialValue(Language::French);
+    ValidateLanguageSerialValue(Language::German);
+    ValidateLanguageSerialValue(Language::Spanish);
+    ValidateLanguageSerialValue(Language::Chinese);
+}
+
+//
+// json (UserInfo).
+//
+
+static std::string LanguageStrJSON(Language language)
+{
+    std::ostringstream oss{};
+
+    oss << "{"
+        << "\"Language\":" << static_cast<std::underlying_type_t<Language>>(language)
+        << "}";
+
+    return oss.str();
+}
+
+static void ValidateLanguageJSON(Language language)
+{
+    nlohmann::json j = language;
+    REQUIRE(j.dump() == LanguageStrJSON(language));
+}
+
+TEST_CASE("to_json(nlohmann::json& j, Language language)")
+{
+    ValidateLanguageJSON(Language::English);
+    ValidateLanguageJSON(Language::French);
+    ValidateLanguageJSON(Language::German);
+    ValidateLanguageJSON(Language::Spanish);
+    ValidateLanguageJSON(Language::Chinese);
+}
