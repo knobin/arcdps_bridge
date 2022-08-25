@@ -266,3 +266,82 @@ TEST_CASE("to_json(nlohmann::json& j, Language language)")
     ValidateLanguageJSON(Language::Spanish);
     ValidateLanguageJSON(Language::Chinese);
 }
+
+///////////////////////////////////////////////////////////////////////////////
+//                                 KeyBind                                   //
+///////////////////////////////////////////////////////////////////////////////
+
+//
+// serial (KeyBind).
+//
+
+// It's important this value does not change (breaks version compatibility).
+TEST_CASE("serial_size(KeyBinds::KeyBindChanged)")
+{
+    constexpr std::size_t expected_size = sizeof(int32_t) + sizeof(uint32_t) + (3 * sizeof(int32_t));
+
+    REQUIRE(serial_size(KeyBinds::KeyBindChanged{}) == expected_size);
+}
+
+static uint8_t* RequireKeyBindChanged(const KeyBinds::KeyBindChanged& keybind, uint8_t* storage)
+{
+    uint8_t* location = storage;
+
+    const auto keyControl = static_cast<std::underlying_type_t<KeyBinds::KeyControl>>(keybind.KeyControl);
+    location = RequireAtLocation(location, keyControl);
+    location = RequireAtLocation(location, keybind.KeyIndex);
+
+    const auto deviceType = static_cast<std::underlying_type_t<KeyBinds::DeviceType>>(keybind.SingleKey.DeviceType);
+    location = RequireAtLocation(location, deviceType);
+    location = RequireAtLocation(location, keybind.SingleKey.Code);
+    location = RequireAtLocation(location, keybind.SingleKey.Modifier);
+
+    return location;
+}
+
+TEST_CASE("to_serial(const KeyBinds::KeyBindChanged&, uint8_t*, std::size_t)")
+{
+    KeyBinds::KeyBindChanged keyChanged{
+        KeyBinds::KeyControl::Movement_MoveForward, 3, 
+        {KeyBinds::DeviceType::Keyboard, 4, 1}
+    };
+
+    constexpr std::size_t keybind_size = serial_size(KeyBinds::KeyBindChanged{});
+    uint8_t storage[keybind_size] = {};
+    to_serial(keyChanged, storage, keybind_size);
+
+    uint8_t* location = RequireKeyBindChanged(keyChanged, storage);
+    REQUIRE(storage + keybind_size == location);
+}
+
+//
+// json (KeyBind).
+//
+
+static std::string KeyBindChangedStrJSON(const KeyBinds::KeyBindChanged& keyChanged)
+{
+    std::ostringstream oss{};
+
+    oss << "{"
+        << "\"KeyControl\":" << static_cast<std::underlying_type_t<KeyBinds::KeyControl>>(keyChanged.KeyControl) << ","
+        << "\"KeyIndex\":" << keyChanged.KeyIndex << ","
+        << "\"SingleKey\":" << "{" 
+        << "\"Code\":" << keyChanged.SingleKey.Code << ","
+        << "\"DeviceType\":" << static_cast<std::underlying_type_t<KeyBinds::DeviceType>>(keyChanged.SingleKey.DeviceType) << ","
+        << "\"Modifier\":" << keyChanged.SingleKey.Modifier
+        << "}}";
+
+    return oss.str();
+}
+
+TEST_CASE("to_json(nlohmann::json&, const KeyBinds::KeyBindChanged&)")
+{
+    KeyBinds::KeyBindChanged keyChanged{
+        KeyBinds::KeyControl::Movement_MoveForward, 3, 
+        {KeyBinds::DeviceType::Keyboard, 4, 1}
+    };
+
+    nlohmann::json j;
+    to_json(j, keyChanged);
+    REQUIRE(j.dump() == KeyBindChangedStrJSON(keyChanged));
+}

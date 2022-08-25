@@ -455,7 +455,24 @@ static void language_changed_callback(Language pNewLanguage)
 
 static void keybind_changed_callback(KeyBinds::KeyBindChanged pChangedKeyBind)
 {
+    if (Server->trackingCategory(MessageCategory::Extras))
+    {
+        SerialData serial{};
+        nlohmann::json json{};
 
+        if (Server->usingProtocol(MessageProtocol::Serial))
+        {
+            constexpr std::size_t keybind_count = serial_size(KeyBinds::KeyBindChanged{});
+            serial = CreateSerialData(keybind_count);
+            to_serial(pChangedKeyBind, &serial.ptr[SerialStartPadding], keybind_count);
+        }
+
+        if (Server->usingProtocol(MessageProtocol::JSON))
+            to_json(json, pChangedKeyBind);
+
+        const Message extrasMsg{ExtrasMessage<MessageType::ExtrasLanguageChanged>(serial, json)};
+        Server->sendMessage(extrasMsg);
+    }
 }
 
 static void InitExtrasV1(ExtrasSubscriberInfoV1& info)

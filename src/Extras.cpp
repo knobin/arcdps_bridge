@@ -64,3 +64,34 @@ void to_json(nlohmann::json& j, Language language)
         {"Language", static_cast<std::underlying_type_t<Language>>(language)}
     };
 }
+
+//
+// Extras KeyBind Callback.
+//
+
+void to_serial(const KeyBinds::KeyBindChanged& pChangedKeyBind, uint8_t* storage, std::size_t)
+{
+    uint8_t* location = storage;
+
+    const auto keyControl = static_cast<std::underlying_type_t<KeyBinds::KeyControl>>(pChangedKeyBind.KeyControl);
+    location = serial_w_integral(location, keyControl);
+    location = serial_w_integral(location, pChangedKeyBind.KeyIndex);
+
+    const auto deviceType = static_cast<std::underlying_type_t<KeyBinds::DeviceType>>(pChangedKeyBind.SingleKey.DeviceType);
+    location = serial_w_integral(location, deviceType);
+    location = serial_w_integral(location, pChangedKeyBind.SingleKey.Code);
+    location = serial_w_integral(location, pChangedKeyBind.SingleKey.Modifier);
+}
+
+void to_json(nlohmann::json& j, const KeyBinds::KeyBindChanged& pChangedKeyBind)
+{
+    j = nlohmann::json{
+        {"KeyControl", static_cast<std::underlying_type_t<KeyBinds::KeyControl>>(pChangedKeyBind.KeyControl)},
+        {"KeyIndex", pChangedKeyBind.KeyIndex},
+        {"SingleKey", {
+            {"DeviceType", static_cast<std::underlying_type_t<KeyBinds::DeviceType>>(pChangedKeyBind.SingleKey.DeviceType)},
+            {"Code", pChangedKeyBind.SingleKey.Code},
+            {"Modifier", pChangedKeyBind.SingleKey.Modifier}
+        }},
+    };
+}
