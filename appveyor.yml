@@ -15,4 +15,4 @@ build_script:
   - cd build
   - cmake -DCMAKE_BUILD_TYPE=%CONFIGURATION% -G "Visual Studio 17 2022" -A x64 -DBRIDGE_BUILD_TESTS=ON  ..
   - cmake --build . --config %CONFIGURATION%
-  - ctest -C %CONFIGURATION%
+  - ctest --output-on-failure -C %CONFIGURATION%
