@@ -24,10 +24,24 @@
 // Windows Headers
 #include <windows.h>
 
+// Hash function for unordered_multimap.
+struct djb2_hash
+{
+    std::size_t operator()(const std::string& str) const
+    {
+        std::size_t hash = 5381;
+
+        for (const char c : str)
+            hash = ((hash << 5) + hash) + static_cast<int>(c); /* hash * 33 + c */
+
+        return hash;
+    }
+};
+
 static ApplicationData AppData{};
 static std::unique_ptr<PipeHandler> Server{nullptr}; // {std::string{AppData.PipeName}, AppData};
 static std::unique_ptr<SquadModifyHandler> SquadHandler{nullptr};
-static std::unique_ptr<std::unordered_multimap<std::string, CharacterType>> CharacterTypeCache{nullptr};
+static std::unique_ptr<std::unordered_multimap<std::string, CharacterType, djb2_hash>> CharacterTypeCache{nullptr};
 
 static std::string GetDllPath(HMODULE hModule)
 {
@@ -66,7 +80,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID)
                 SquadHandler = std::make_unique<SquadModifyHandler>(AppData.Squad);
                 Server = std::make_unique<PipeHandler>(std::string{AppData.PipeName}, AppData, SquadHandler.get());
 
-                CharacterTypeCache = std::make_unique<std::unordered_multimap<std::string, CharacterType>>();
+                CharacterTypeCache = std::make_unique<std::unordered_multimap<std::string, CharacterType, djb2_hash>>();
                 CharacterTypeCache->reserve(50);
             }
             break;
