@@ -29,7 +29,7 @@ static std::string PrintPlayerInfoDiff(const PlayerInfo& p1, const PlayerInfo& p
     if (p1.role != p2.role)
         ss << ",role: \"" << static_cast<int>(p1.role) << "\" => \"" << static_cast<int>(p2.role) << "\"";
     if (p1.subgroup != p2.subgroup)
-        ss << ",role: \"" << static_cast<int>(p1.subgroup) << "\" => \"" << static_cast<int>(p2.subgroup) << "\"";
+        ss << ",subgroup: \"" << static_cast<int>(p1.subgroup) << "\" => \"" << static_cast<int>(p2.subgroup) << "\"";
     if (p1.inInstance != p2.inInstance)
         ss << ",inInstance: \"" << p1.inInstance << "\" => \"" << p2.inInstance << "\"";
 
