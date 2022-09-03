@@ -34,6 +34,7 @@ void to_json(nlohmann::json& j, const BridgeInfo& info)
         {"arcLoaded", info.arcLoaded},
         {"extrasFound", info.extrasFound},
         {"extrasLoaded", info.extrasLoaded},
+        {"extrasInfoVersion", info.extrasInfoVersion},
         {"validator", info.validator},          
         {"majorApiVersion", info.majorApiVersion},
         {"minorApiVersion", info.minorApiVersion}
@@ -49,7 +50,8 @@ void to_json(nlohmann::json& j, const BridgeInfo& info)
 std::size_t serial_size(const BridgeInfo& info)
 {
     return info.version.size() + info.extrasVersion.size() + info.arcvers.size() + 3 + (3 * sizeof(uint8_t)) +
-           sizeof(info.validator) + sizeof(info.majorApiVersion) + sizeof(info.minorApiVersion);
+           sizeof(info.validator) + sizeof(info.extrasInfoVersion) + sizeof(info.majorApiVersion) +
+           sizeof(info.minorApiVersion);
 }
 
 void to_serial(const BridgeInfo& info, uint8_t* storage, std::size_t)
@@ -67,6 +69,9 @@ void to_serial(const BridgeInfo& info, uint8_t* storage, std::size_t)
     location = serial_w_string(location, info.version.data(), info.version.size());
     location = serial_w_string(location, info.extrasVersion.data(), info.extrasVersion.size());
     location = serial_w_string(location, info.arcvers.data(), info.arcvers.size());
+
+    // Extras InfoVersion used.
+    location = serial_w_integral(location, info.extrasInfoVersion);
 
     // Booleans.
     location[0] = static_cast<uint8_t>(info.arcLoaded);

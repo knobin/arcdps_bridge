@@ -30,7 +30,7 @@ TEST_CASE("BridgeInfo Minimal Size")
 {
     BridgeInfo info{};
 
-    constexpr std::size_t partial_size = sizeof(uint64_t) + (2 * sizeof(uint32_t)) + (3 * sizeof(uint8_t));
+    constexpr std::size_t partial_size = sizeof(uint64_t) + (3 * sizeof(uint32_t)) + (3 * sizeof(uint8_t));
     constexpr std::string_view version{BRIDGE_VERSION_STR};
     constexpr std::size_t version_size = version.size() + 1; // Including null terminator.
     constexpr std::size_t extrasVersion_size = 1; // Only null terminator.
@@ -46,7 +46,7 @@ TEST_CASE("serial_size(const BridgeInfo& info)")
     info.extrasVersion = "extras version string";
     info.arcvers = "arc version string";
 
-    constexpr std::size_t partial_size = sizeof(uint64_t) + (2 * sizeof(uint32_t)) + (3 * sizeof(uint8_t));
+    constexpr std::size_t partial_size = sizeof(uint64_t) + (3 * sizeof(uint32_t)) + (3 * sizeof(uint8_t));
     constexpr std::string_view version{BRIDGE_VERSION_STR};
     constexpr std::size_t version_size = version.size() + 1; // Including null terminator.
     constexpr std::size_t extrasVersion_size = 22; // Including null terminator.
@@ -69,6 +69,8 @@ static uint8_t* RequireBridgeInfo(const BridgeInfo& info, uint8_t* storage)
     location = RequireStringAtLocation(location, info.extrasVersion.data(), info.extrasVersion.size());
     location = RequireStringAtLocation(location, info.arcvers.data(), info.arcvers.size());
 
+    location = RequireAtLocation(location, info.extrasInfoVersion);
+
     location = RequireAtLocation(location, static_cast<uint8_t>(info.arcLoaded));
     location = RequireAtLocation(location, static_cast<uint8_t>(info.extrasFound));
     location = RequireAtLocation(location, static_cast<uint8_t>(info.extrasLoaded));
@@ -82,7 +84,7 @@ TEST_CASE("to_serial(const BridgeInfo& info, uint8_t* storage, std::size_t)")
     info.extrasVersion = "extras version string";
     info.arcvers = "arc version string";
 
-    constexpr std::size_t partial_size = sizeof(uint64_t) + (2 * sizeof(uint32_t)) + (3 * sizeof(uint8_t));
+    constexpr std::size_t partial_size = sizeof(uint64_t) + (3 * sizeof(uint32_t)) + (3 * sizeof(uint8_t));
     constexpr std::string_view version{BRIDGE_VERSION_STR};
     constexpr std::size_t version_size = version.size() + 1; // Including null terminator.
     constexpr std::size_t extrasVersion_size = 22;           // Including null terminator.
@@ -113,6 +115,7 @@ static std::string BridgeInfoStrJSON(const BridgeInfo& info)
         << "\"arcLoaded\":" << ((info.arcLoaded) ? "true" : "false") << ","
         << "\"arcVersion\":" << aV << ","
         << "\"extrasFound\":" << ((info.extrasFound) ? "true" : "false") << ","
+        << "\"extrasInfoVersion\":" << info.extrasInfoVersion << ","
         << "\"extrasLoaded\":" << ((info.extrasLoaded) ? "true" : "false") << ","
         << "\"extrasVersion\":" << eV << ","
         << "\"majorApiVersion\":" << info.majorApiVersion << ","
@@ -141,7 +144,7 @@ TEST_CASE("to_json(nlohmann::json& j, const UserInfo& user)")
 struct BridgeInfoNode : Node
 {
     BridgeInfoNode(const std::string& extraVersion, const std::string& arcVersion, uint64_t validator, uint32_t major,
-                   uint32_t minor, bool arcL, bool extrasF, bool extrasL) 
+                   uint32_t minor, uint32_t infoVersion, bool arcL, bool extrasF, bool extrasL) 
         : value{}
     {
         value.extrasVersion = extraVersion;
@@ -149,6 +152,7 @@ struct BridgeInfoNode : Node
         value.validator = validator;
         value.majorApiVersion = major;
         value.minorApiVersion = minor;
+        value.extrasInfoVersion = infoVersion;
         value.arcLoaded = arcL;
         value.extrasFound = extrasF;
         value.extrasLoaded = extrasL;
@@ -185,13 +189,14 @@ static std::unique_ptr<BridgeInfoNode> BridgeInfoNodeCreator()
     uint64_t va = RandomIntegral<uint64_t>();
     uint32_t major = RandomIntegral<uint32_t>();
     uint32_t minor = RandomIntegral<uint32_t>();
+    uint32_t infoVersion = RandomIntegral<uint32_t>();
 
     bool aL= static_cast<bool>(RandomIntegral<uint32_t>() & 2);
     bool eF = static_cast<bool>(RandomIntegral<uint32_t>() & 2);
     bool eL = static_cast<bool>(RandomIntegral<uint32_t>() & 2);
 
     std::string user_name = RandomString();
-    return std::make_unique<BridgeInfoNode>(eV, aV, va, major, minor, aL, eF, eL);
+    return std::make_unique<BridgeInfoNode>(eV, aV, va, major, minor, infoVersion, aL, eF, eL);
 }
 
 TEST_CASE("Budget fuzzing (only BridgeInfo)")

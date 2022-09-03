@@ -522,6 +522,7 @@ extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(c
 {
     bool loaded{false};
     std::string version{pExtrasInfo->StringVersion};
+    uint32_t infoVersion{0};
 
     BRIDGE_INFO("Unofficial Extras version: \"{}\"", version);
 
@@ -541,6 +542,7 @@ extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(c
     {
         BRIDGE_INFO("Unofficial Extras is enabled.");
         loaded = true;
+        infoVersion = 1;
 
         ExtrasSubscriberInfoV1 extrasInfo{};
         InitExtrasV1(extrasInfo);
@@ -562,6 +564,7 @@ extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(c
         AppData.Info.extrasFound = true;
         AppData.Info.extrasLoaded = loaded;
         AppData.Info.extrasVersion = version;
+        AppData.Info.extrasInfoVersion = infoVersion;
         ++AppData.Info.validator;
         BRIDGE_DEBUG("Updated BridgeInfo");
 

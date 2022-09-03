@@ -37,6 +37,8 @@ struct BridgeInfo
     uint32_t majorApiVersion{BRIDGE_API_VERSION_MAJOR}; // Incremented when there is a change that breaks backwards compatibility in any way.
     uint32_t minorApiVersion{BRIDGE_API_VERSION_MINOR}; // Incremented when the API is extended in a way that does not break backwards compatibility.
 
+    uint32_t extrasInfoVersion{0};  // Extras InfoVersion the bridge is using. 0 if unknown or extras is not initialized.
+
     bool arcLoaded{false};      // Is ArcDPS loaded (enabled in the bridge).
     bool extrasFound{false};    // Has the Unofficial Extras init callback been called.
     bool extrasLoaded{false};   // Is Unofficial Extras loaded (enabled in the bridge).
