@@ -19,7 +19,6 @@
 #include <optional>
 #include <mutex>
 #include <string>
-#include <unordered_map>
 
 #ifdef BRIDGE_BUILD_DEBUG
     #define BRIDGE_BUILD_STR "DEBUG"
@@ -91,8 +90,6 @@ struct ApplicationData
 {
     PlayerContainer Squad{};
     std::string SelfAccountName{};
-
-    std::unordered_map<std::string, CharacterType> CharacterTypeCache{};
 
     Configs Config{};
     BridgeInfo Info{};

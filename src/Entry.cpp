@@ -18,6 +18,8 @@
 // C++ Headers
 #include <cstddef>
 #include <limits>
+#include <iterator>
+#include <unordered_map>
 
 // Windows Headers
 #include <windows.h>
@@ -25,6 +27,7 @@
 static ApplicationData AppData{};
 static std::unique_ptr<PipeHandler> Server{nullptr}; // {std::string{AppData.PipeName}, AppData};
 static std::unique_ptr<SquadModifyHandler> SquadHandler{nullptr};
+static std::unique_ptr<std::unordered_multimap<std::string, CharacterType>> CharacterTypeCache{nullptr};
 
 static std::string GetDllPath(HMODULE hModule)
 {
@@ -63,7 +66,8 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID)
                 SquadHandler = std::make_unique<SquadModifyHandler>(AppData.Squad);
                 Server = std::make_unique<PipeHandler>(std::string{AppData.PipeName}, AppData, SquadHandler.get());
 
-                AppData.CharacterTypeCache.reserve(50);
+                CharacterTypeCache = std::make_unique<std::unordered_multimap<std::string, CharacterType>>();
+                CharacterTypeCache->reserve(50);
             }
             break;
         }
@@ -73,6 +77,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID)
         case DLL_PROCESS_DETACH:
         {
             SquadHandler.reset();
+            CharacterTypeCache.reset();
             BRIDGE_INFO("Ended Bridge service.");
             BRIDGE_LOG_DESTROY();
             break;
@@ -174,6 +179,20 @@ static Message GenerateCombatMessage(cbtevent* ev, ag* src, ag* dst, char* skill
     return CombatMessage<MessageType::CombatEvent>(serial, json);
 }
 
+template <typename Iter>
+static void UpdateCharCacheIter(Iter& it, uint32_t profession, uint32_t elite)
+{
+    constexpr auto uint32_max = std::numeric_limits<uint32_t>::max();
+    if ((it->second.profession != profession || it->second.elite != elite) && (elite != uint32_max))
+    {
+        BRIDGE_DEBUG("CharChache: old = [{}, {}], new = [{}, {}].", it->second.profession, it->second.elite, profession,
+                     elite);
+        it->second.profession = profession;
+        it->second.elite = elite;
+        UpdateCombatCharInfo(it->first, it->second);
+    }
+}
+
 /* window callback -- return is assigned to umsg (return zero to not be processed by arcdps or game)
  */
 static uintptr_t mod_wnd(HWND, UINT uMsg, WPARAM, LPARAM)
@@ -223,9 +242,9 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
             ct.profession = dst->prof;
             ct.elite = dst->elite;
             BRIDGE_DEBUG("Added, CharCache, checking src->name \"{}\"", src->name);
-            AppData.CharacterTypeCache.insert_or_assign(std::string{src->name}, ct);
+            CharacterTypeCache->emplace(std::string{src->name}, ct);
 #ifdef BRIDGE_BUILD_DEBUG
-            if (AppData.CharacterTypeCache.size() > 50)
+            if (CharacterTypeCache->size() > 50)
             {
                 BRIDGE_WARN("CharCache size > 50 !");
             }
@@ -252,24 +271,23 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
             RemoveFromSquad(accountName, bits);
 
             BRIDGE_DEBUG("Removed, CharCache, checking src->name \"{}\"", src->name);
-            AppData.CharacterTypeCache.erase(std::string{src->name});
+            CharacterTypeCache->erase(std::string{src->name});
         }
     }
     else if (src->name)
     {
         // BRIDGE_DEBUG("CharCheck, checking src->name, val = {}", src->name);
-        auto it = AppData.CharacterTypeCache.find(std::string{src->name});
-        if (it != AppData.CharacterTypeCache.end())
-        {
-            constexpr auto uint32_max = std::numeric_limits<uint32_t>::max();
-            if ((it->second.profession != src->prof || it->second.elite != src->elite) && (src->elite != uint32_max))
-            {
-                BRIDGE_DEBUG("CharChache: old = [{}, {}], new = [{}, {}].", it->second.profession, it->second.elite, src->prof, src->elite);
-                it->second.profession = src->prof;
-                it->second.elite = src->elite;
-                UpdateCombatCharInfo(src->name, it->second);
-            }
-        }
+        
+        const std::string charName{src->name};
+        auto range = CharacterTypeCache->equal_range(charName);
+        const auto count = std::distance(range.first, range.second);
+
+        if (count == 1)
+            UpdateCharCacheIter(range.first, src->prof, src->elite);
+        else
+            for (auto it = range.first; it != range.second; ++it)
+                if (it->first == charName)
+                    UpdateCharCacheIter(range.first, src->prof, src->elite);
     }
 
     if (!Server->trackingCategory(MessageCategory::Combat))
