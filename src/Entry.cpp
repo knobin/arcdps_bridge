@@ -507,13 +507,44 @@ static void keybind_changed_callback(KeyBinds::KeyBindChanged pChangedKeyBind)
     }
 }
 
-static void InitExtrasV1(ExtrasSubscriberInfoV1& info)
+static void chat_message_callback(const ChatMessageInfo* pChatMessage)
+{
+
+}
+
+template <typename T>
+void SetExtrasInfo(T&)
+{
+    static_assert(false, "SetExtrasInfo not implemented for type T");
+}
+
+template<>
+void SetExtrasInfo<ExtrasSubscriberInfoV1>(ExtrasSubscriberInfoV1& info)
 {
     info.InfoVersion = 1;
     info.SubscriberName = "Unofficial Bridge";
     info.SquadUpdateCallback = squad_update_callback;
     info.LanguageChangedCallback = language_changed_callback;
     info.KeyBindChangedCallback = keybind_changed_callback;
+}
+
+template<>
+void SetExtrasInfo<ExtrasSubscriberInfoV2>(ExtrasSubscriberInfoV2& info)
+{
+    SetExtrasInfo<ExtrasSubscriberInfoV1>(info);
+    info.InfoVersion = 2;
+    info.ChatMessageCallback = chat_message_callback;
+}
+
+template <typename Info>
+static void InitExtrasInfo(bool& loaded, uint32_t& infoVersion, void* pSubscriberInfo)
+{
+    Info extrasInfo{};
+    SetExtrasInfo<Info>(extrasInfo);
+    *static_cast<Info*>(pSubscriberInfo) = extrasInfo;
+
+    loaded = true;
+    infoVersion = extrasInfo.InfoVersion;
 }
 
 // Exported init function for arcDPS unofficial extras API.
@@ -538,23 +569,22 @@ extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(c
         return;
     }
 
+    if (pExtrasInfo->MaxInfoVersion >= 2)
+        InitExtrasInfo<ExtrasSubscriberInfoV2>(loaded, infoVersion, pSubscriberInfo);
     if (pExtrasInfo->MaxInfoVersion >= 1)
+        InitExtrasInfo<ExtrasSubscriberInfoV1>(loaded, infoVersion, pSubscriberInfo);
+    else
+    {
+        BRIDGE_ERROR("Extras MaxInfoVersion: \"{}\" is not supported.", pExtrasInfo->MaxInfoVersion);
+    }
+
+    if (loaded)
     {
         BRIDGE_INFO("Unofficial Extras is enabled.");
-        loaded = true;
-        infoVersion = 1;
-
-        ExtrasSubscriberInfoV1 extrasInfo{};
-        InitExtrasV1(extrasInfo);
-        *static_cast<ExtrasSubscriberInfoV1*>(pSubscriberInfo) = extrasInfo;
 
         // PlayerCollection.self.accountName = pExtrasInfo->SelfAccountName;
         AppData.SelfAccountName = pExtrasInfo->SelfAccountName;
         BRIDGE_DEBUG("Self account name (Extras): \"{}\"", AppData.SelfAccountName);
-    }
-    else
-    {
-        BRIDGE_ERROR("Extras MaxInfoVersion: \"{}\" is not supported.", pExtrasInfo->MaxInfoVersion);
     }
 
     // Send updated bridge information.
