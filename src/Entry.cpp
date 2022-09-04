@@ -532,14 +532,23 @@ static void chat_message_callback(const ChatMessageInfo* pChatMessage)
     }
 }
 
+template<typename T>
+struct AvoidIllFormed : std::false_type {};
+
 template <typename T>
 void SetExtrasInfo(T&)
 {
-    static_assert(false, "SetExtrasInfo not implemented for type T");
+    // Since this function should not be instantiated on a successful implementation.
+    // The defenition is ill-formed and will be rejected (up to the compiler).
+    // If we use the AvoidIllFormed struct instead of false as first argument in static_assert
+    // the compiler can not reject it until it has instantiate it to know if AvoidIllFormed::value
+    // is true or false, and therefore no error (when there usually is no instantiation).
+    
+    static_assert(AvoidIllFormed<T>::value, "SetExtrasInfo not implemented for type T");
 }
 
 template<>
-void SetExtrasInfo<ExtrasSubscriberInfoV1>(ExtrasSubscriberInfoV1& info)
+inline void SetExtrasInfo<ExtrasSubscriberInfoV1>(ExtrasSubscriberInfoV1& info) noexcept
 {
     info.InfoVersion = 1;
     info.SquadUpdateCallback = squad_update_callback;
@@ -548,7 +557,7 @@ void SetExtrasInfo<ExtrasSubscriberInfoV1>(ExtrasSubscriberInfoV1& info)
 }
 
 template<>
-void SetExtrasInfo<ExtrasSubscriberInfoV2>(ExtrasSubscriberInfoV2& info)
+inline void SetExtrasInfo<ExtrasSubscriberInfoV2>(ExtrasSubscriberInfoV2& info) noexcept
 {
     SetExtrasInfo<ExtrasSubscriberInfoV1>(static_cast<ExtrasSubscriberInfoV1&>(info));
     info.InfoVersion = 2;
@@ -556,7 +565,7 @@ void SetExtrasInfo<ExtrasSubscriberInfoV2>(ExtrasSubscriberInfoV2& info)
 }
 
 template <typename Info>
-static void InitExtrasInfo(bool& loaded, uint32_t& infoVersion, void* pSubscriberInfo)
+inline void InitExtrasInfo(bool& loaded, uint32_t& infoVersion, void* pSubscriberInfo)
 {
     Info extrasInfo{};
     extrasInfo.SubscriberName = "Unofficial Bridge";
