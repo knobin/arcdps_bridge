@@ -542,7 +542,6 @@ template<>
 void SetExtrasInfo<ExtrasSubscriberInfoV1>(ExtrasSubscriberInfoV1& info)
 {
     info.InfoVersion = 1;
-    info.SubscriberName = "Unofficial Bridge";
     info.SquadUpdateCallback = squad_update_callback;
     info.LanguageChangedCallback = language_changed_callback;
     info.KeyBindChangedCallback = keybind_changed_callback;
@@ -551,7 +550,7 @@ void SetExtrasInfo<ExtrasSubscriberInfoV1>(ExtrasSubscriberInfoV1& info)
 template<>
 void SetExtrasInfo<ExtrasSubscriberInfoV2>(ExtrasSubscriberInfoV2& info)
 {
-    SetExtrasInfo<ExtrasSubscriberInfoV1>(info);
+    SetExtrasInfo<ExtrasSubscriberInfoV1>(static_cast<ExtrasSubscriberInfoV1&>(info));
     info.InfoVersion = 2;
     info.ChatMessageCallback = chat_message_callback;
 }
@@ -560,6 +559,8 @@ template <typename Info>
 static void InitExtrasInfo(bool& loaded, uint32_t& infoVersion, void* pSubscriberInfo)
 {
     Info extrasInfo{};
+    extrasInfo.SubscriberName = "Unofficial Bridge";
+
     SetExtrasInfo<Info>(extrasInfo);
     *static_cast<Info*>(pSubscriberInfo) = extrasInfo;
 
