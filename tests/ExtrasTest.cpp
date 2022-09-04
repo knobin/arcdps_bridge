@@ -238,7 +238,7 @@ TEST_CASE("to_serial(Language language, uint8_t* storage, std::size_t)")
 }
 
 //
-// json (UserInfo).
+// json (Language).
 //
 
 static std::string LanguageStrJSON(Language language)
@@ -344,4 +344,191 @@ TEST_CASE("to_json(nlohmann::json&, const KeyBinds::KeyBindChanged&)")
     nlohmann::json j;
     to_json(j, keyChanged);
     REQUIRE(j.dump() == KeyBindChangedStrJSON(keyChanged));
+}
+
+///////////////////////////////////////////////////////////////////////////////
+//                             ChatMessageInfo                               //
+///////////////////////////////////////////////////////////////////////////////
+
+//
+// serial (ChatMessageInfo).
+//
+
+// It's important this value does not change (breaks version compatibility).
+TEST_CASE("ChatMessageInfo_partial_size")
+{
+    constexpr std::size_t expected_size = sizeof(uint32_t) + (3 * sizeof(uint8_t));
+
+    REQUIRE(ChatMessageInfo_partial_size == expected_size);
+}
+
+// It's important this value does not change (breaks version compatibility).
+TEST_CASE("serial_size(const ChatMessageInfo&)")
+{
+    char timestamp[25] = "2022-09-04T00:02:16.606Z";
+    char accountName[19] = ":Test account name";
+    char characterName[20] = "Test character name";
+    char text[16] = "Test text input";
+
+    constexpr std::size_t expected_size = ChatMessageInfo_partial_size + 25 + 19 + 20 + 16;
+
+    ChatMessageInfo chatMsgInfo{4,  ChannelType::Invalid, 2,  1,    0, timestamp, 24, accountName,
+                                18, characterName,        19, text, 15};
+
+    REQUIRE(serial_size(chatMsgInfo) == expected_size);
+}
+
+static uint8_t* RequireChatMessageInfo(const ChatMessageInfo& chatMsgInfo, uint8_t* storage)
+{
+    uint8_t* location = storage;
+
+    location = RequireAtLocation(location, chatMsgInfo.ChannelId);
+    location = RequireAtLocation(location, static_cast<std::underlying_type_t<ChannelType>>(chatMsgInfo.Type));
+    location = RequireAtLocation(location, chatMsgInfo.Subgroup);
+    location = RequireAtLocation(location, chatMsgInfo.IsBroadcast);
+
+    location = RequireStringAtLocation(location, chatMsgInfo.Timestamp, chatMsgInfo.TimestampLength);
+    location = RequireStringAtLocation(location, chatMsgInfo.AccountName, chatMsgInfo.AccountNameLength);
+    location = RequireStringAtLocation(location, chatMsgInfo.CharacterName, chatMsgInfo.CharacterNameLength);
+    location = RequireStringAtLocation(location, chatMsgInfo.Text, chatMsgInfo.TextLength);
+
+    return location;
+}
+
+TEST_CASE("to_serial(const ChatMessageInfo&, uint8_t* storage, std::size_t)")
+{
+    char timestamp[25] = "2022-09-04T00:02:16.606Z";
+    char accountName[19] = ":Test account name";
+    char characterName[20] = "Test character name";
+    char text[16] = "Test text input";
+
+    constexpr std::size_t chat_msg_info_size = ChatMessageInfo_partial_size + 25 + 19 + 20 + 16;
+
+    ChatMessageInfo chatMsgInfo{4,  ChannelType::Invalid, 2,  1,    0, timestamp, 24, accountName,
+                                18, characterName,        19, text, 15};
+
+    uint8_t storage[chat_msg_info_size] = {};
+    to_serial(chatMsgInfo, storage, chat_msg_info_size);
+
+    uint8_t* location = RequireChatMessageInfo(chatMsgInfo, storage);
+    REQUIRE(storage + chat_msg_info_size == location);
+}
+
+//
+// json (ChatMessageInfo).
+//
+
+static std::string ChatMessageInfoStrJSON(const ChatMessageInfo& chatMsgInfo)
+{
+    std::ostringstream oss{};
+
+    const std::string timestamp = (chatMsgInfo.Timestamp) ? "\"" + std::string{chatMsgInfo.Timestamp} + "\"" : "null";
+    const std::string accName = (chatMsgInfo.AccountName) ? "\"" + std::string{chatMsgInfo.AccountName} + "\"" : "null";
+    const std::string charName = (chatMsgInfo.CharacterName) ? "\"" + std::string{chatMsgInfo.CharacterName} + "\"" : "null";
+    const std::string text = (chatMsgInfo.Text) ? "\"" + std::string{chatMsgInfo.Text} + "\"" : "null";
+    const uint32_t type = static_cast<uint32_t>(static_cast<std::underlying_type_t<ChannelType>>(chatMsgInfo.Type));
+
+    oss << "{"
+        << "\"AccountName\":" << accName << ","
+        << "\"ChannelId\":" << chatMsgInfo.ChannelId << ","
+        << "\"CharacterName\":" << charName << ","
+        << "\"IsBroadcast\":" << static_cast<uint32_t>(chatMsgInfo.IsBroadcast) << ","
+        << "\"Subgroup\":" << static_cast<uint32_t>(chatMsgInfo.Subgroup) << ","
+        << "\"Text\":" << text << ","
+        << "\"Timestamp\":" << timestamp << ","
+        << "\"Type\":" << type
+        << "}";
+
+    return oss.str();
+}
+
+TEST_CASE("to_json(nlohmann::json& j, const ChatMessageInfo&)")
+{
+    char timestamp[25] = "2022-09-04T00:02:16.606Z";
+    char accountName[19] = ":Test account name";
+    char characterName[20] = "Test character name";
+    char text[16] = "Test text input";
+
+    ChatMessageInfo chatMsgInfo{4,  ChannelType::Invalid, 2,  1,    0, timestamp, 24, accountName,
+                                18, characterName,        19, text, 15};
+
+    nlohmann::json j = chatMsgInfo;
+    REQUIRE(j.dump() == ChatMessageInfoStrJSON(chatMsgInfo));
+}
+
+//
+// Budget fuzzing (ChatMessageInfo).
+//
+
+struct ChatMessageInfoNode : Node
+{
+    ChatMessageInfoNode(const std::string& at, const std::string& acc, const std::string& ch,
+                        const std::string& str, ChatMessageInfo& info)
+        : timestamp{at}, accountName{acc}, charName{ch}, text{str}, value{info}
+    {
+        value.Timestamp = timestamp.c_str();
+        value.TimestampLength = timestamp.size();
+
+        value.AccountName = accountName.c_str();
+        value.AccountNameLength = accountName.size();
+
+        value.CharacterName = charName.c_str();
+        value.CharacterNameLength = charName.size();
+
+        value.Text = text.c_str();
+        value.TextLength = text.size();
+    }
+
+    std::string timestamp;
+    std::string accountName;
+    std::string charName;
+    std::string text;
+    ChatMessageInfo value;
+
+    uint8_t* write(uint8_t* storage) override
+    {
+        const std::size_t count = serial_size(value);
+        to_serial(value, storage, count);
+        return storage + count;
+    }
+    uint8_t* require(uint8_t* storage) override
+    {
+        return RequireChatMessageInfo(value, storage);
+    }
+    std::size_t count() const override
+    {
+        return serial_size(value);
+    }
+    void json_require() override
+    {
+        nlohmann::json j = value;
+        REQUIRE(j.dump() == ChatMessageInfoStrJSON(value));
+    }
+};
+
+static ChatMessageInfo RandomChatMessageInfo()
+{
+    uint32_t channelId = RandomIntegral<uint32_t>();
+    auto type = RandomIntegral<std::underlying_type_t<ChannelType>>() % 4;
+    uint8_t subgroup = RandomIntegral<uint8_t>();
+    uint8_t isBroadcast = RandomIntegral<uint8_t>() & 2;
+
+    return {channelId, static_cast<ChannelType>(type), subgroup, subgroup, isBroadcast};
+}
+
+static std::unique_ptr<ChatMessageInfoNode> ChatMessageInfoNodeCreator()
+{
+    std::string at = RandomString();
+    std::string acc = RandomString();
+    std::string ch = RandomString();
+    std::string str = RandomString();
+    auto chatMsgInfo = RandomChatMessageInfo();
+    return std::make_unique<ChatMessageInfoNode>(at, acc, ch, str, chatMsgInfo);
+}
+
+TEST_CASE("Budget fuzzing (only ChatMessageInfo)")
+{
+    BudgetFuzzer<32, 1024, 2>([]() { 
+        return ChatMessageInfoNodeCreator(); 
+    });
 }

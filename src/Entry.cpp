@@ -509,7 +509,27 @@ static void keybind_changed_callback(KeyBinds::KeyBindChanged pChangedKeyBind)
 
 static void chat_message_callback(const ChatMessageInfo* pChatMessage)
 {
+    if (!pChatMessage)
+        return;
 
+    if (Server->trackingCategory(MessageCategory::Extras))
+    {
+        SerialData serial{};
+        nlohmann::json json{};
+
+        if (Server->usingProtocol(MessageProtocol::Serial))
+        {
+            const std::size_t chat_msg_count = serial_size(*pChatMessage);
+            serial = CreateSerialData(chat_msg_count);
+            to_serial(*pChatMessage, &serial.ptr[SerialStartPadding], chat_msg_count);
+        }
+
+        if (Server->usingProtocol(MessageProtocol::JSON))
+            json = *pChatMessage;
+
+        const Message extrasMsg{ExtrasMessage<MessageType::ExtrasLanguageChanged>(serial, json)};
+        Server->sendMessage(extrasMsg);
+    }
 }
 
 template <typename T>

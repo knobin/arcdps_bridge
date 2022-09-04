@@ -95,3 +95,60 @@ void to_json(nlohmann::json& j, const KeyBinds::KeyBindChanged& pChangedKeyBind)
         }},
     };
 }
+
+//
+// Extras Chat Message Callback.
+//
+
+std::size_t serial_size(const ChatMessageInfo& chatMsgInfo)
+{
+    const std::size_t timestampCount = chatMsgInfo.TimestampLength + 1;
+    const std::size_t accNameCount = chatMsgInfo.AccountNameLength + 1;
+    const std::size_t charNameCount = chatMsgInfo.CharacterNameLength + 1;
+    const std::size_t textCount = chatMsgInfo.TextLength + 1;
+
+    const std::size_t total_string_size = timestampCount + accNameCount + charNameCount + textCount;
+    return ChatMessageInfo_partial_size + total_string_size;
+}
+
+void to_serial(const ChatMessageInfo& chatMsgInfo, uint8_t* storage, std::size_t)
+{
+    uint8_t* location = storage;
+
+    location = serial_w_integral(location, chatMsgInfo.ChannelId);
+    location = serial_w_integral(location, static_cast<std::underlying_type_t<ChannelType>>(chatMsgInfo.Type));
+    location = serial_w_integral(location, chatMsgInfo.Subgroup);
+    location = serial_w_integral(location, chatMsgInfo.IsBroadcast);
+
+    location = serial_w_string(location, chatMsgInfo.Timestamp, chatMsgInfo.TimestampLength);
+    location = serial_w_string(location, chatMsgInfo.AccountName, chatMsgInfo.AccountNameLength);
+    location = serial_w_string(location, chatMsgInfo.CharacterName, chatMsgInfo.CharacterNameLength);
+    location = serial_w_string(location, chatMsgInfo.Text, chatMsgInfo.TextLength);
+}
+
+void to_json(nlohmann::json& j, const ChatMessageInfo& chatMsgInfo)
+{
+    j = nlohmann::json{
+        {"ChannelId", chatMsgInfo.ChannelId},
+        {"Type", static_cast<std::underlying_type_t<ChannelType>>(chatMsgInfo.Type)},
+        {"Subgroup", static_cast<uint32_t>(chatMsgInfo.Subgroup)},
+        {"IsBroadcast", static_cast<uint32_t>(chatMsgInfo.IsBroadcast)},
+        {"Timestamp", nullptr},
+        {"AccountName", nullptr},
+        {"CharacterName", nullptr},
+        {"Text", nullptr}
+    };
+
+    if (chatMsgInfo.Timestamp)
+        j["Timestamp"] = chatMsgInfo.Timestamp;
+
+    if (chatMsgInfo.AccountName)
+        j["AccountName"] = chatMsgInfo.AccountName;
+
+    if (chatMsgInfo.CharacterName)
+        j["CharacterName"] = chatMsgInfo.CharacterName;
+
+    if (chatMsgInfo.Text)
+        j["Text"] = chatMsgInfo.Text;
+}
+

@@ -52,4 +52,16 @@ constexpr std::size_t serial_size(KeyBinds::KeyBindChanged)
 void to_serial(const KeyBinds::KeyBindChanged& pChangedKeyBind, uint8_t* storage, std::size_t count);
 void to_json(nlohmann::json& j, const KeyBinds::KeyBindChanged& pChangedKeyBind);
 
+//
+// Extras Chat Message Callback.
+//
+
+constexpr std::size_t ChatMessageInfo_partial_size = sizeof(ChatMessageInfo::ChannelId) +
+                                                     sizeof(std::underlying_type_t<ChannelType>) + sizeof(uint8_t) +
+                                                     sizeof(uint8_t);
+std::size_t serial_size(const ChatMessageInfo& chatMsgInfo);
+void to_serial(const ChatMessageInfo& chatMsgInfo, uint8_t* storage, std::size_t count);
+void to_json(nlohmann::json& j, const ChatMessageInfo& chatMsgInfo);
+
+
 #endif // BRIDGE_EXTRAS_HPP
