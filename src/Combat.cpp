@@ -167,20 +167,20 @@ nlohmann::json combat_to_json(cbtevent* ev, ag* src, ag* dst, char* skillname, u
     if (dst)
         json["dst"] = *dst;
 
-    std::string sn{};
+    
     if (skillname)
     {
-        sn = std::string{skillname};
+        std::string sn{skillname};
+
         std::size_t pos = 0;
         while ((pos = sn.find("\"", pos)) != std::string::npos)
         {
             sn.replace(pos, 1, "\\\"");
             pos += 2;
         }
-    }
 
-    if (!sn.empty())
         json["skillname"] = sn;
+    }
 
     return json;
 }

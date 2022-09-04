@@ -143,13 +143,14 @@ TEST_CASE("to_json(nlohmann::json& j, const UserInfo& user)")
 
 struct UserInfoNode : Node
 {
-    UserInfoNode(const std::string& user_name, const UserInfo& info) 
+    UserInfoNode(const std::optional<std::string>& user_name, const UserInfo& info) 
         : name{user_name}, value{info}
     {
-        value.AccountName = name.c_str();
+        if (name)
+            value.AccountName = name->c_str();
     }
 
-    std::string name;
+    std::optional<std::string> name;
     UserInfo value;
 
     uint8_t* write(uint8_t* storage) override
@@ -185,7 +186,7 @@ static UserInfo RandomUserInfo()
 
 static std::unique_ptr<UserInfoNode> UserInfoNodeCreator()
 {
-    std::string user_name = RandomString();
+    std::optional<std::string> user_name = OptionalRandomString();
     return std::make_unique<UserInfoNode>(user_name, RandomUserInfo());
 }
 
@@ -462,27 +463,39 @@ TEST_CASE("to_json(nlohmann::json& j, const ChatMessageInfo&)")
 
 struct ChatMessageInfoNode : Node
 {
-    ChatMessageInfoNode(const std::string& at, const std::string& acc, const std::string& ch,
-                        const std::string& str, ChatMessageInfo& info)
+    ChatMessageInfoNode(const std::optional<std::string>& at, const std::optional<std::string>& acc,
+                        std::optional<std::string>& ch, std::optional<std::string>& str, ChatMessageInfo& info)
         : timestamp{at}, accountName{acc}, charName{ch}, text{str}, value{info}
     {
-        value.Timestamp = timestamp.c_str();
-        value.TimestampLength = timestamp.size();
+        if (timestamp)
+        {
+            value.Timestamp = timestamp->c_str();
+            value.TimestampLength = timestamp->size();
+        }
+        
+        if (accountName)
+        {
+            value.AccountName = accountName->c_str();
+            value.AccountNameLength = accountName->size();
+        }
+        
+        if (charName)
+        {
+            value.CharacterName = charName->c_str();
+            value.CharacterNameLength = charName->size();
+        }
 
-        value.AccountName = accountName.c_str();
-        value.AccountNameLength = accountName.size();
-
-        value.CharacterName = charName.c_str();
-        value.CharacterNameLength = charName.size();
-
-        value.Text = text.c_str();
-        value.TextLength = text.size();
+        if (text)
+        {
+            value.Text = text->c_str();
+            value.TextLength = text->size();
+        }
     }
 
-    std::string timestamp;
-    std::string accountName;
-    std::string charName;
-    std::string text;
+    std::optional<std::string> timestamp;
+    std::optional<std::string> accountName;
+    std::optional<std::string> charName;
+    std::optional<std::string> text;
     ChatMessageInfo value;
 
     uint8_t* write(uint8_t* storage) override
@@ -513,22 +526,23 @@ static ChatMessageInfo RandomChatMessageInfo()
     uint8_t subgroup = RandomIntegral<uint8_t>();
     uint8_t isBroadcast = RandomIntegral<uint8_t>() & 2;
 
-    return {channelId, static_cast<ChannelType>(type), subgroup, subgroup, isBroadcast};
+    return {channelId, static_cast<ChannelType>(type), subgroup, isBroadcast, 0, nullptr, 0, nullptr, 0, nullptr, 0, 
+            nullptr, 0};
 }
 
 static std::unique_ptr<ChatMessageInfoNode> ChatMessageInfoNodeCreator()
 {
-    std::string at = RandomString();
-    std::string acc = RandomString();
-    std::string ch = RandomString();
-    std::string str = RandomString();
+    std::optional<std::string> at = OptionalRandomString();
+    std::optional<std::string> acc = OptionalRandomString();
+    std::optional<std::string> ch = OptionalRandomString();
+    std::optional<std::string> str = OptionalRandomString();
     auto chatMsgInfo = RandomChatMessageInfo();
     return std::make_unique<ChatMessageInfoNode>(at, acc, ch, str, chatMsgInfo);
 }
 
 TEST_CASE("Budget fuzzing (only ChatMessageInfo)")
 {
-    BudgetFuzzer<32, 1024, 2>([]() { 
+    BudgetFuzzer<32, 1024, 2>([]() {
         return ChatMessageInfoNodeCreator(); 
     });
 }

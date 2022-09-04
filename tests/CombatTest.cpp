@@ -367,12 +367,14 @@ TEST_CASE("to_json(nlohmann::json& j, const ag& agent)")
 
 struct AgentNode : Node
 {
-    AgentNode(const std::string& ag_name, const ag& agent) : name{ag_name}, value{agent}
+    AgentNode(const std::optional<std::string>& ag_name, const ag& agent) 
+        : name{ag_name}, value{agent}
     {
-        value.name = &name[0];
+        if (name)
+            value.name = &(*name)[0];
     }
 
-    std::string name{};
+    std::optional<std::string> name{};
     ag value{};
 
     uint8_t* write(uint8_t* storage) override
@@ -400,6 +402,7 @@ static ag RandomAgent()
 {
     ag agent{};
 
+    agent.name = nullptr;
     agent.id = RandomIntegral<decltype(agent.id)>();
     agent.prof = RandomIntegral<decltype(agent.prof)>();
     agent.elite = RandomIntegral<decltype(agent.elite)>();
@@ -411,7 +414,7 @@ static ag RandomAgent()
 
 static std::unique_ptr<AgentNode> AgentNodeCreator()
 {
-    std::string ag_name = RandomString();
+    std::optional<std::string> ag_name = OptionalRandomString();
     return std::make_unique<AgentNode>(ag_name, RandomAgent());
 }
 
@@ -491,16 +494,23 @@ static void FieldTesterSerial(std::size_t count, cbtevent* ev, ag* src, ag* dst,
 }
 
 template<typename Tester>
-void RequireCombatFields(Tester func, cbtevent& ev, ag& src, ag& dst, std::string& skillname, uint64_t id, uint64_t revision)
+void RequireCombatFields(Tester func, cbtevent& ev, ag& src, ag& dst, std::optional<std::string> skillname, uint64_t id, uint64_t revision)
 {
     constexpr std::size_t ev_size = serial_size(cbtevent{});
     const std::size_t src_ag_size = serial_size(src);
     const std::size_t dst_ag_size = serial_size(dst);
-    const std::size_t skillname_size = skillname.size(); // Does not include null terminator.
+
+    std::size_t skillname_size = 0;
+    char* skillname_ptr = nullptr;
+
+    if (skillname)
+    {
+        skillname_size = skillname->size(); // Does not include null terminator.
+        skillname_ptr = &(*skillname)[0];
+    }
 
     // + 1 for non null bits, + 1 for null terminator in skillname.
     const std::size_t total_size = 1 + ev_size + src_ag_size + dst_ag_size + skillname_size + 1 + (2 * sizeof(uint64_t));
-    char* skillname_ptr = &skillname[0];
 
     func(total_size, &ev, &src, &dst, skillname_ptr, id, revision);
     func(total_size - skillname_size, &ev, &src, &dst, nullptr, id, revision);
@@ -533,7 +543,7 @@ TEST_CASE("combat_to_serial()")
     char dst_name[17] = "Destination Name";
     ag dst{dst_name, 1, 2, 3, 4, 5};
 
-    std::string skillname = "Skillname";
+    std::optional<std::string> skillname = "Skillname";
 
     uint64_t id = 1;
     uint64_t revision = 2;
@@ -603,7 +613,9 @@ TEST_CASE("Budget fuzzing (combat args)")
         cbtevent ev = RandomCombatEvent();
         ag src = RandomAgent();
         ag dst = RandomAgent();
-        std::string skillname = RandomString();
+
+        std::optional<std::string> skillname = OptionalRandomString();
+
         uint64_t id = RandomIntegral<uint64_t>();
         uint64_t revision = RandomIntegral<uint64_t>();
 

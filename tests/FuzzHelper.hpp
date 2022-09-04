@@ -41,7 +41,7 @@ struct Node
 //
 
 template<typename T, T Min = std::numeric_limits<T>::min(), T Max = std::numeric_limits<T>::max()>
-T RandomIntegral()
+inline T RandomIntegral()
 {
     static std::random_device dev;
     static std::mt19937_64 engine(dev());
@@ -50,19 +50,19 @@ T RandomIntegral()
 }
 
 template<>
-int8_t RandomIntegral()
+inline int8_t RandomIntegral()
 {
     return static_cast<int8_t>(RandomIntegral<int16_t>());
 }
 
 template<>
-uint8_t RandomIntegral()
+inline uint8_t RandomIntegral()
 {
     return static_cast<int8_t>(RandomIntegral<uint16_t>());
 }
 
 template<typename T>
-uint8_t* RequireAtLocation(uint8_t* storage, T val)
+inline uint8_t* RequireAtLocation(uint8_t* storage, T val)
 {
     static_assert(std::is_integral<T>::value, "Integral required.");
     T* location = reinterpret_cast<T*>(storage);
@@ -110,7 +110,7 @@ static const std::array<std::function<std::unique_ptr<Node>()>, 8> IntegralCreat
 // String node and related random generator functions.
 //
 
-uint8_t* RequireStringAtLocation(uint8_t* storage, const char* str, std::size_t count)
+inline uint8_t* RequireStringAtLocation(uint8_t* storage, const char* str, std::size_t count)
 {
     const char* location = reinterpret_cast<const char*>(storage);
     for (std::size_t i{0}; i < count; ++i)
@@ -141,12 +141,15 @@ struct StringNode : Node
     }
 };
 
+constexpr std::size_t MaxStringSize = 2048;
+
+template<std::size_t Min = std::numeric_limits<std::size_t>::min(), std::size_t Max = MaxStringSize>
 inline std::string RandomString()
 {
     // Should extend the valid alpha set.
     constexpr std::string_view alpha = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz ()[]{}&%#";
 
-    std::size_t count = RandomIntegral<std::size_t, 0, 2048>();
+    std::size_t count = RandomIntegral<std::size_t, Min, Max>();
     std::string str{};
     str.reserve(count);
 
@@ -156,7 +159,16 @@ inline std::string RandomString()
     return str;
 }
 
-std::unique_ptr<StringNode> StringNodeCreator()
+template<std::size_t Min = std::numeric_limits<std::size_t>::min(), std::size_t Max = MaxStringSize>
+inline std::optional<std::string> OptionalRandomString()
+{
+    if (RandomIntegral<uint64_t>() % 2)
+        return RandomString<Min, Max>();
+
+    return std::nullopt;
+}
+
+inline std::unique_ptr<StringNode> StringNodeCreator()
 {
     return std::make_unique<StringNode>(RandomString());
 }
@@ -168,7 +180,7 @@ std::unique_ptr<StringNode> StringNodeCreator()
 //
 
 template<std::size_t MaxTests, std::size_t MaxNodes, std::size_t MinScale, typename Creator>
-void BudgetFuzzer(Creator func)
+inline void BudgetFuzzer(Creator func)
 {
     static_assert(MinScale > 1, "MinScale cannot be under 1");
     const std::size_t tests = RandomIntegral<std::size_t, 0, MaxTests>();
