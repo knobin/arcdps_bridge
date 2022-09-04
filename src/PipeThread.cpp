@@ -89,11 +89,11 @@ static std::string SerialDataToStr(const SerialData& data)
 
 static void PrintMsgDebug(const Message& msg, MessageProtocol protocol, std::size_t threadID)
 {
-    if (protocol == MessageProtocol::Serial)
+    if (protocol == MessageProtocol::Serial && msg.hasSerial())
     {
-        BRIDGE_MSG_DEBUG("[ptid {}] Sending \"{}\" to client.", threadID, SerialDataToStr(data));
+        BRIDGE_MSG_DEBUG("[ptid {}] Sending \"{}\" to client.", threadID, SerialDataToStr(msg.toSerial()));
     }
-    else if (protocol == MessageProtocol::JSON)
+    else if (protocol == MessageProtocol::JSON && msg.hasJSON())
     {
         BRIDGE_MSG_DEBUG("[ptid {}] Sending \"{}\" to client.", threadID, msg.toJSON());
     }
