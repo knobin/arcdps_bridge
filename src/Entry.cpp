@@ -41,7 +41,9 @@ struct djb2_hash
 static ApplicationData AppData{};
 static std::unique_ptr<PipeHandler> Server{nullptr}; // {std::string{AppData.PipeName}, AppData};
 static std::unique_ptr<SquadModifyHandler> SquadHandler{nullptr};
+
 static std::unique_ptr<std::unordered_multimap<std::string, CharacterType, djb2_hash>> CharacterTypeCache{nullptr};
+static std::mutex CharCacheMutex;
 
 static std::string GetDllPath(HMODULE hModule)
 {
@@ -250,19 +252,28 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
                 // Entry got added just in the right time for add to fail.
                 UpdateCombatPlayerInfo(player, src, dst);
             };
-            SquadHandler->addPlayer(player, SquadModifySender, updater, SquadModifyHandler::CombatBit | SquadModifyHandler::ExtrasBit);
+            
+            uint8_t bits = SquadModifyHandler::CombatBit;
+            bits |= (!AppData.Info.extrasLoaded) ? SquadModifyHandler::ExtrasBit : 0;
+            
+            SquadHandler->addPlayer(player, SquadModifySender, updater, bits);
 
             CharacterType ct{};
             ct.profession = dst->prof;
             ct.elite = dst->elite;
             BRIDGE_DEBUG("Added, CharCache, checking src->name \"{}\"", src->name);
-            CharacterTypeCache->emplace(std::string{src->name}, ct);
-#ifdef BRIDGE_BUILD_DEBUG
-            if (CharacterTypeCache->size() > 50)
+
             {
-                BRIDGE_WARN("CharCache size > 50 !");
-            }
+                std::unique_lock<std::mutex> lock(CharCacheMutex);
+            
+                CharacterTypeCache->emplace(std::string{src->name}, ct);
+#ifdef BRIDGE_BUILD_DEBUG
+                if (CharacterTypeCache->size() > 50)
+                {
+                    BRIDGE_WARN("CharCache size > 50 !");
+                }
 #endif
+            }
         }
         else
         {
@@ -284,8 +295,12 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
             // Remove (or decrement counter).
             RemoveFromSquad(accountName, bits);
 
-            BRIDGE_DEBUG("Removed, CharCache, checking src->name \"{}\"", src->name);
-            CharacterTypeCache->erase(std::string{src->name});
+            {
+                std::unique_lock<std::mutex> lock(CharCacheMutex);
+
+                BRIDGE_DEBUG("Removed, CharCache, checking src->name \"{}\"", src->name);
+                CharacterTypeCache->erase(std::string{src->name});
+            }
         }
     }
     else if (src->name)
@@ -293,15 +308,20 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
         // BRIDGE_DEBUG("CharCheck, checking src->name, val = {}", src->name);
         
         const std::string charName{src->name};
-        auto range = CharacterTypeCache->equal_range(charName);
-        const auto count = std::distance(range.first, range.second);
 
-        if (count == 1)
-            UpdateCharCacheIter(range.first, src->prof, src->elite);
-        else
-            for (auto it = range.first; it != range.second; ++it)
-                if (it->first == charName)
-                    UpdateCharCacheIter(range.first, src->prof, src->elite);
+        {
+            std::unique_lock<std::mutex> lock(CharCacheMutex);
+        
+            auto range = CharacterTypeCache->equal_range(charName);
+            const auto count = std::distance(range.first, range.second);
+
+            if (count == 1)
+                UpdateCharCacheIter(range.first, src->prof, src->elite);
+            else
+                for (auto it = range.first; it != range.second; ++it)
+                    if (it->first == charName)
+                        UpdateCharCacheIter(range.first, src->prof, src->elite);
+        }
     }
 
     if (!Server->trackingCategory(MessageCategory::Combat))
