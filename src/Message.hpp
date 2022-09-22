@@ -13,6 +13,7 @@
 
 // C++ Headers
 #include <cstdint>
+#include <cstring>
 #include <memory>
 #include <type_traits>
 #include <sstream>
@@ -212,8 +213,9 @@ template<typename T>
 inline uint8_t* serial_w_integral(uint8_t* storage, T val)
 {
     static_assert(std::is_integral<T>::value, "Integral required.");
-    *reinterpret_cast<T*>(storage) = val;
-    return storage + sizeof(T);
+    constexpr std::size_t count{sizeof(T)};
+    std::memcpy(storage, &val, count);
+    return storage + count;
 }
 
 inline uint8_t* serial_w_string(uint8_t* storage, const char* data, std::size_t count)
@@ -309,11 +311,10 @@ private:
         if (m_serial.count > 1 && m_serial.ptr)
         {
             using category_utype = std::underlying_type_t<MessageCategory>;
-            constexpr std::size_t category_size = sizeof(category_utype);
-            *reinterpret_cast<category_utype*>(&m_serial.ptr[0]) = m_category;
-
             using type_utype = std::underlying_type_t<MessageType>;
-            *reinterpret_cast<type_utype*>(&m_serial.ptr[category_size]) = m_type;
+
+            uint8_t *storage{serial_w_integral(&m_serial.ptr[0], m_category)};
+            serial_w_integral(storage, m_type);
         }
     }
 
