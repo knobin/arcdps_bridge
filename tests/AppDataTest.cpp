@@ -33,8 +33,8 @@ TEST_CASE("BridgeInfo Minimal Size")
     constexpr std::size_t partial_size = sizeof(uint64_t) + (3 * sizeof(uint32_t)) + (3 * sizeof(uint8_t));
     constexpr std::string_view version{BRIDGE_VERSION_STR};
     constexpr std::size_t version_size = version.size() + 1; // Including null terminator.
-    constexpr std::size_t extrasVersion_size = 1; // Only null terminator.
-    constexpr std::size_t arcvers_size = 1; // Only null terminator.
+    constexpr std::size_t extrasVersion_size = 1;            // Only null terminator.
+    constexpr std::size_t arcvers_size = 1;                  // Only null terminator.
 
     constexpr std::size_t expected_size = partial_size + version_size + extrasVersion_size + arcvers_size;
     REQUIRE(serial_size(info) == expected_size);
@@ -49,8 +49,8 @@ TEST_CASE("serial_size(const BridgeInfo& info)")
     constexpr std::size_t partial_size = sizeof(uint64_t) + (3 * sizeof(uint32_t)) + (3 * sizeof(uint8_t));
     constexpr std::string_view version{BRIDGE_VERSION_STR};
     constexpr std::size_t version_size = version.size() + 1; // Including null terminator.
-    constexpr std::size_t extrasVersion_size = 22; // Including null terminator.
-    constexpr std::size_t arcvers_size = 19; // Including null terminator.
+    constexpr std::size_t extrasVersion_size = 22;           // Including null terminator.
+    constexpr std::size_t arcvers_size = 19;                 // Including null terminator.
 
     constexpr std::size_t expected_size = partial_size + version_size + extrasVersion_size + arcvers_size;
     REQUIRE(serial_size(info) == expected_size);
@@ -121,8 +121,7 @@ static std::string BridgeInfoStrJSON(const BridgeInfo& info)
         << "\"majorApiVersion\":" << info.majorApiVersion << ","
         << "\"minorApiVersion\":" << info.minorApiVersion << ","
         << "\"validator\":" << info.validator << ","
-        << "\"version\":" << version
-        << "}";
+        << "\"version\":" << version << "}";
 
     return oss.str();
 }
@@ -144,7 +143,7 @@ TEST_CASE("to_json(nlohmann::json& j, const UserInfo& user)")
 struct BridgeInfoNode : Node
 {
     BridgeInfoNode(const std::string& extraVersion, const std::string& arcVersion, uint64_t validator, uint32_t major,
-                   uint32_t minor, uint32_t infoVersion, bool arcL, bool extrasF, bool extrasL) 
+                   uint32_t minor, uint32_t infoVersion, bool arcL, bool extrasF, bool extrasL)
         : value{}
     {
         value.extrasVersion = extraVersion;
@@ -166,14 +165,8 @@ struct BridgeInfoNode : Node
         to_serial(value, storage, count);
         return storage + count;
     }
-    uint8_t* require(uint8_t* storage) override
-    {
-        return RequireBridgeInfo(value, storage);
-    }
-    std::size_t count() const override
-    {
-        return serial_size(value);
-    }
+    uint8_t* require(uint8_t* storage) override { return RequireBridgeInfo(value, storage); }
+    std::size_t count() const override { return serial_size(value); }
     void json_require() override
     {
         nlohmann::json j = value;
@@ -191,7 +184,7 @@ static std::unique_ptr<BridgeInfoNode> BridgeInfoNodeCreator()
     uint32_t minor = RandomIntegral<uint32_t>();
     uint32_t infoVersion = RandomIntegral<uint32_t>();
 
-    bool aL= static_cast<bool>(RandomIntegral<uint32_t>() & 2);
+    bool aL = static_cast<bool>(RandomIntegral<uint32_t>() & 2);
     bool eF = static_cast<bool>(RandomIntegral<uint32_t>() & 2);
     bool eL = static_cast<bool>(RandomIntegral<uint32_t>() & 2);
 
@@ -201,7 +194,7 @@ static std::unique_ptr<BridgeInfoNode> BridgeInfoNodeCreator()
 
 TEST_CASE("Budget fuzzing (only BridgeInfo)")
 {
-    BudgetFuzzer<16, 512, 2>([]() { 
-        return BridgeInfoNodeCreator(); 
+    BudgetFuzzer<16, 512, 2>([]() {
+        return BridgeInfoNodeCreator();
     });
 }

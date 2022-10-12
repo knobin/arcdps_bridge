@@ -121,8 +121,13 @@ static SendStatus SendToClient(void* handle, const Message& msg, MessageProtocol
     return send;
 }
 
-PipeThread::PipeThread(std::size_t id, void* handle, MessageTracking* mt, const ApplicationData& appdata, const SquadModifyHandler* squadModifyHandler)
-    : m_handle{handle}, m_mt{mt}, m_appData{appdata}, m_id{id}, m_squadModifyHandler{squadModifyHandler}
+PipeThread::PipeThread(std::size_t id, void* handle, MessageTracking* mt, const ApplicationData& appdata,
+                       const SquadModifyHandler* squadModifyHandler)
+    : m_handle{handle},
+      m_mt{mt},
+      m_appData{appdata},
+      m_id{id},
+      m_squadModifyHandler{squadModifyHandler}
 {
     BRIDGE_DEBUG("Created PipeThread [ptid {}]", m_id);
 }
@@ -144,7 +149,7 @@ void PipeThread::start()
     m_threadStarted = true;
     m_run = true;
 
-    m_thread = std::thread([handler = this](){
+    m_thread = std::thread([handler = this]() {
         if (!handler->m_run)
         {
             BRIDGE_ERROR("[ptid {}] Could not start PipeThread, m_run = {}", handler->m_id, handler->m_run);
@@ -225,7 +230,7 @@ void PipeThread::start()
             if (sub_value >= ui8min && sub_value <= ui8max)
                 filter = static_cast<MessageCategoryU>(sub_value);
 
-            BRIDGE_DEBUG("[ptid {}] Recieved filter \"{}\" from client.", threadID, static_cast<int>(filter));    
+            BRIDGE_DEBUG("[ptid {}] Recieved filter \"{}\" from client.", threadID, static_cast<int>(filter));
         }
 
         auto combatValue = static_cast<MessageCategoryU>(MessageCategory::Combat);
@@ -266,7 +271,7 @@ void PipeThread::start()
         // Protocol.
         using MessageProtocolU = std::underlying_type_t<MessageProtocol>;
         MessageProtocolU protocolNum = 0;
-        
+
         if (j.contains("protocol") && j["protocol"].is_string())
         {
             std::string protocol = j["protocol"].get<std::string>();
@@ -296,7 +301,7 @@ void PipeThread::start()
             SendStatus send = WriteToPipe(handle, statusMsg.toJSON());
             if (!send.success)
             {
-                BRIDGE_ERROR("[ptid {}] Error sending data with err: {}!", threadID, send.error);   
+                BRIDGE_ERROR("[ptid {}] Error sending data with err: {}!", threadID, send.error);
             }
         }
 
@@ -304,7 +309,8 @@ void PipeThread::start()
         {
             handler->m_status = Status::Sending;
 
-            handler->m_squadModifyHandler->work([&msg, &appData = handler->m_appData, protocol, &msgCont = handler->m_msgCont]() {
+            handler->m_squadModifyHandler->work(
+                [&msg, &appData = handler->m_appData, protocol, &msgCont = handler->m_msgCont]() {
                 msg = SquadStatusMessage(appData.SelfAccountName, appData.Squad, protocol);
 
                 // Clear queue if any messages.
@@ -317,7 +323,7 @@ void PipeThread::start()
             BRIDGE_PRINT_MSG(msg, protocol, threadID);
             if (!send.success)
             {
-                BRIDGE_ERROR("[ptid {}] Error sending data with err: {}!", threadID, send.error);   
+                BRIDGE_ERROR("[ptid {}] Error sending data with err: {}!", threadID, send.error);
             }
         }
 
@@ -337,7 +343,8 @@ void PipeThread::start()
                 // Block thread until message is added to queue (1s max).
                 while (handler->m_msgCont.queue.empty())
                 {
-                    if (handler->m_msgCont.cv.wait_for(lock, std::chrono::milliseconds(msTimeout)) == std::cv_status::timeout)
+                    if (handler->m_msgCont.cv.wait_for(lock, std::chrono::milliseconds(msTimeout)) ==
+                        std::cv_status::timeout)
                     {
                         BRIDGE_DEBUG("[ptid {}] Checking pipe status...", threadID);
                         DWORD availBytes{};
@@ -439,7 +446,7 @@ void PipeThread::stop()
             // Add empty message in case of blocked waiting.
             if (m_status == Status::WaitingForMessage)
             {
-                BRIDGE_DEBUG("PipeThread [ptid {}] is waiting for message, attempting to send empty message...", m_id);    
+                BRIDGE_DEBUG("PipeThread [ptid {}] is waiting for message, attempting to send empty message...", m_id);
                 m_msgCont.queue.push(Message{});
                 m_msgCont.cv.notify_one();
             }
@@ -455,7 +462,6 @@ void PipeThread::stop()
 
     BRIDGE_DEBUG("PipeThread [ptid {}] Closed!", m_id);
 }
-
 
 void PipeThread::sendBridgeInfo(const Message& msg, uint64_t validator)
 {
@@ -512,7 +518,7 @@ SendStatus WriteToPipe(HANDLE handle, const std::string& msg)
     return WriteToPipe(handle, reinterpret_cast<const uint8_t*>(msg.c_str()), msg.size());
 }
 
-SendStatus WriteToPipe(HANDLE handle, const uint8_t *data, std::size_t count)
+SendStatus WriteToPipe(HANDLE handle, const uint8_t* data, std::size_t count)
 {
     const DWORD length{static_cast<DWORD>(count)};
     SendStatus status{};
@@ -546,6 +552,6 @@ ReadStatus ReadFromPipe(HANDLE handle)
 
     if (!status.success)
         status.error = GetLastError();
-    
+
     return status;
 }

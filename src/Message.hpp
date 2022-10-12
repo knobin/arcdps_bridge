@@ -12,12 +12,12 @@
 #include <nlohmann/json.hpp>
 
 // C++ Headers
-#include <cstdint>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <memory>
-#include <type_traits>
 #include <sstream>
+#include <type_traits>
 
 //
 // MessageCategory.
@@ -26,10 +26,10 @@
 
 enum class MessageCategory : uint8_t
 {
-    Info    = 1,
-    Combat  = 2,
-    Extras  = 4,
-    Squad   = 8,
+    Info = 1,
+    Combat = 2,
+    Extras = 4,
+    Squad = 8,
 };
 
 constexpr std::string_view MessageCategoryToStr(MessageCategory category) noexcept
@@ -57,11 +57,11 @@ constexpr std::string_view MessageCategoryToStr(MessageCategory category) noexce
 enum class MessageType : uint8_t
 {
     // 0 = None or Empty, should never be used.
-    
+
     // Info types.
-    BridgeInfo  = 1,
-    Status      = 2,
-    Closing     = 3,
+    BridgeInfo = 1,
+    Status = 2,
+    Closing = 3,
 
     // ArcDPS combat api types.
     CombatEvent = 4,
@@ -74,7 +74,7 @@ enum class MessageType : uint8_t
 
     // Squad event types.
     SquadStatus = 9,
-    SquadAdd    = 10,
+    SquadAdd = 10,
     SquadUpdate = 11,
     SquadRemove = 12
 };
@@ -97,7 +97,7 @@ constexpr std::string_view MessageTypeToStr(MessageType type) noexcept
             return "ExtrasLanguageChanged";
         case MessageType::ExtrasKeyBindChanged:
             return "ExtrasKeyBindChanged";
-        /* 
+        /*
         case MessageType::ExtrasSquadUpdate:
             return "ExtrasSquadUpdate";
         */
@@ -118,19 +118,22 @@ constexpr std::string_view MessageTypeToStr(MessageType type) noexcept
 // Implementation for matching MessageInfo types to MessageCategory.
 //
 
-template<MessageCategory Category>
+template <MessageCategory Category>
 struct MatchTypeToCategory
 {
-    template<MessageType Type>
-    [[maybe_unused]] static constexpr bool Match() noexcept { return false; }
+    template <MessageType Type>
+    [[maybe_unused]] static constexpr bool Match() noexcept
+    {
+        return false;
+    }
 };
 
-template<MessageType...Types>
+template <MessageType... Types>
 struct [[maybe_unused]] MsgTypeMatcher
 {
     using Matcher = MsgTypeMatcher<Types...>;
 
-    template<MessageType Type>
+    template <MessageType Type>
     static constexpr bool Match() noexcept
     {
         return ((Types == Type) || ...);
@@ -141,32 +144,33 @@ struct [[maybe_unused]] MsgTypeMatcher
 // Specialized Matchers.
 //
 
-template<>
-struct MatchTypeToCategory<MessageCategory::Info> 
+template <>
+struct MatchTypeToCategory<MessageCategory::Info>
     : MsgTypeMatcher<MessageType::BridgeInfo, MessageType::Status, MessageType::Closing>
 {};
 
-template<>
+template <>
 struct MatchTypeToCategory<MessageCategory::Combat> : MsgTypeMatcher<MessageType::CombatEvent>
 {};
 
-template<>
-struct MatchTypeToCategory<MessageCategory::Extras> 
+template <>
+struct MatchTypeToCategory<MessageCategory::Extras>
     : MsgTypeMatcher<MessageType::ExtrasSquadUpdate, MessageType::ExtrasKeyBindChanged,
                      MessageType::ExtrasLanguageChanged /*, MessageType::ExtrasChatMessage */>
 {};
 
-template<>
-struct MatchTypeToCategory<MessageCategory::Squad> 
-    : MsgTypeMatcher<MessageType::SquadStatus, MessageType::SquadAdd, MessageType::SquadUpdate, MessageType::SquadRemove>
+template <>
+struct MatchTypeToCategory<MessageCategory::Squad> : MsgTypeMatcher<MessageType::SquadStatus, MessageType::SquadAdd,
+                                                                    MessageType::SquadUpdate, MessageType::SquadRemove>
 {};
 
 //
 // Matcher.
 //
 
-template<MessageCategory Category, MessageType Type>
-struct MatchCategoryAndType : std::integral_constant<bool, MatchTypeToCategory<Category>::Matcher::template Match<Type>()>
+template <MessageCategory Category, MessageType Type>
+struct MatchCategoryAndType
+    : std::integral_constant<bool, MatchTypeToCategory<Category>::Matcher::template Match<Type>()>
 {};
 
 //
@@ -176,8 +180,8 @@ struct MatchCategoryAndType : std::integral_constant<bool, MatchTypeToCategory<C
 
 enum class MessageProtocol : uint8_t
 {
-    Serial  = 1,
-    JSON    = 2
+    Serial = 1,
+    JSON = 2
 };
 
 constexpr std::string_view MessageProtocolToStr(MessageProtocol protocol) noexcept
@@ -209,7 +213,7 @@ inline SerialData CreateSerialData(std::size_t count)
     return {std::make_shared<uint8_t[]>(byte_count), byte_count};
 }
 
-template<typename T>
+template <typename T>
 inline uint8_t* serial_w_integral(uint8_t* storage, T val)
 {
     static_assert(std::is_integral<T>::value, "Integral required.");
@@ -237,7 +241,7 @@ public:
         : m_category{static_cast<std::underlying_type_t<MessageCategory>>(category)},
           m_type{static_cast<std::underlying_type_t<MessageType>>(type)}
     {
-        // Message does not contain any data. 
+        // Message does not contain any data.
         // Generate headers if needed.
 
         if (serial)
@@ -247,7 +251,8 @@ public:
     }
     Message(MessageCategory category, MessageType type, const SerialData& serial)
         : m_category{static_cast<std::underlying_type_t<MessageCategory>>(category)},
-          m_type{static_cast<std::underlying_type_t<MessageType>>(type)}, m_serial{serial}
+          m_type{static_cast<std::underlying_type_t<MessageType>>(type)},
+          m_serial{serial}
     {
         setSerialHeaders();
     }
@@ -257,7 +262,7 @@ public:
     {
         setJSON(jdata);
     }
-    Message(MessageCategory category, MessageType type, const SerialData& serial, const nlohmann::json& jdata) 
+    Message(MessageCategory category, MessageType type, const SerialData& serial, const nlohmann::json& jdata)
         : m_category{static_cast<std::underlying_type_t<MessageCategory>>(category)},
           m_type{static_cast<std::underlying_type_t<MessageType>>(type)},
           m_serial{serial}
@@ -289,10 +294,8 @@ private:
     void setNoDataJSON()
     {
         // Generate json header for message.
-        m_json = nlohmann::json{
-            {"category", MessageCategoryToStr(category())},
-            {"type", MessageTypeToStr(type())}
-        }.dump();
+        m_json =
+            nlohmann::json{{"category", MessageCategoryToStr(category())}, {"type", MessageTypeToStr(type())}}.dump();
     }
 
     void setJSON(const nlohmann::json& data)
@@ -302,7 +305,7 @@ private:
             {"category", MessageCategoryToStr(category())},
             {"type", MessageTypeToStr(type())},
             {"data",
-        data}}.dump();
+             data}}.dump();
     }
 
     void setSerialHeaders() const
@@ -310,7 +313,7 @@ private:
         // Set first two bytes in serial data.
         if (m_serial.count > 1 && m_serial.ptr)
         {
-            uint8_t *storage{serial_w_integral(&m_serial.ptr[0], m_category)};
+            uint8_t* storage{serial_w_integral(&m_serial.ptr[0], m_category)};
             serial_w_integral(storage, m_type);
         }
     }
@@ -326,47 +329,42 @@ private:
 // Message create functions.
 //
 
-template<MessageCategory Category, MessageType Type, typename... Args>
+template <MessageCategory Category, MessageType Type, typename... Args>
 Message CreateMessage(Args&&... args)
 {
-    static_assert(MatchCategoryAndType<Category, Type>::value, 
-                  "MessageCategory and MessageType does not have a match");
+    static_assert(MatchCategoryAndType<Category, Type>::value, "MessageCategory and MessageType does not have a match");
 
     return Message{Category, Type, std::forward<Args>(args)...};
 }
 
-template<MessageType Type, typename... Args>
+template <MessageType Type, typename... Args>
 Message InfoMessage(Args&&... args)
 {
-    static_assert(MatchCategoryAndType<MessageCategory::Info, Type>::value,
-                  "Type is not an Info message");
+    static_assert(MatchCategoryAndType<MessageCategory::Info, Type>::value, "Type is not an Info message");
 
     return CreateMessage<MessageCategory::Info, Type>(std::forward<Args>(args)...);
 }
 
-template<MessageType Type, typename... Args>
+template <MessageType Type, typename... Args>
 Message CombatMessage(Args&&... args)
 {
-    static_assert(MatchCategoryAndType<MessageCategory::Combat, Type>::value,
-                  "Type is not a Combat message");
+    static_assert(MatchCategoryAndType<MessageCategory::Combat, Type>::value, "Type is not a Combat message");
 
     return CreateMessage<MessageCategory::Combat, Type>(std::forward<Args>(args)...);
 }
 
-template<MessageType Type, typename... Args>
+template <MessageType Type, typename... Args>
 Message ExtrasMessage(Args&&... args)
 {
-    static_assert(MatchCategoryAndType<MessageCategory::Extras, Type>::value,
-                  "Type is not an Extras message");
+    static_assert(MatchCategoryAndType<MessageCategory::Extras, Type>::value, "Type is not an Extras message");
 
     return CreateMessage<MessageCategory::Extras, Type>(std::forward<Args>(args)...);
 }
 
-template<MessageType Type, typename... Args>
+template <MessageType Type, typename... Args>
 Message SquadMessage(Args&&... args)
 {
-    static_assert(MatchCategoryAndType<MessageCategory::Squad, Type>::value,
-                  "Type is not a Squad message");
+    static_assert(MatchCategoryAndType<MessageCategory::Squad, Type>::value, "Type is not a Squad message");
 
     return CreateMessage<MessageCategory::Squad, Type>(std::forward<Args>(args)...);
 }

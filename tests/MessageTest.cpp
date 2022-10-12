@@ -15,9 +15,9 @@
 #include "Message.hpp"
 
 // C++ Headers
-#include <type_traits>
 #include <functional>
 #include <string_view>
+#include <type_traits>
 
 ///////////////////////////////////////////////////////////////////////////////
 //                             MessageCategory                               //
@@ -50,14 +50,14 @@ TEST_CASE("MessageCategoryToStr")
 TEST_CASE("MessageType values")
 {
     using utype = std::underlying_type_t<MessageType>;
-    
+
     SECTION("Info types")
     {
         REQUIRE(static_cast<utype>(MessageType::BridgeInfo) == 1);
         REQUIRE(static_cast<utype>(MessageType::Status) == 2);
         REQUIRE(static_cast<utype>(MessageType::Closing) == 3);
     }
-    
+
     SECTION("ArcDPS combat api types")
     {
         REQUIRE(static_cast<utype>(MessageType::CombatEvent) == 4);
@@ -69,7 +69,7 @@ TEST_CASE("MessageType values")
         REQUIRE(static_cast<utype>(MessageType::ExtrasLanguageChanged) == 6);
         REQUIRE(static_cast<utype>(MessageType::ExtrasKeyBindChanged) == 7);
         // REQUIRE(static_cast<utype>(MessageType::ExtrasChatMessage) == 8);
-    } 
+    }
 
     SECTION("Squad event types")
     {
@@ -77,7 +77,7 @@ TEST_CASE("MessageType values")
         REQUIRE(static_cast<utype>(MessageType::SquadAdd) == 10);
         REQUIRE(static_cast<utype>(MessageType::SquadUpdate) == 11);
         REQUIRE(static_cast<utype>(MessageType::SquadRemove) == 12);
-    }   
+    }
 }
 
 TEST_CASE("MessageType")
@@ -105,7 +105,7 @@ TEST_CASE("MatchCategoryAndType")
     using MC = MessageCategory;
     using MT = MessageType;
 
-    // Should write a template struct or function to handle this. 
+    // Should write a template struct or function to handle this.
 
     SECTION("Info types")
     {
@@ -119,7 +119,7 @@ TEST_CASE("MatchCategoryAndType")
         REQUIRE_FALSE(MatchCategoryAndType<MC::Info, MT::ExtrasLanguageChanged>::value);
         REQUIRE_FALSE(MatchCategoryAndType<MC::Info, MT::ExtrasKeyBindChanged>::value);
         // REQUIRE_FALSE(MatchCategoryAndType<MC::Info, MT::ExtrasChatMessage>::value);
-        
+
         REQUIRE_FALSE(MatchCategoryAndType<MC::Info, MT::SquadStatus>::value);
         REQUIRE_FALSE(MatchCategoryAndType<MC::Info, MT::SquadAdd>::value);
         REQUIRE_FALSE(MatchCategoryAndType<MC::Info, MT::SquadUpdate>::value);
@@ -133,12 +133,12 @@ TEST_CASE("MatchCategoryAndType")
         REQUIRE_FALSE(MatchCategoryAndType<MC::Combat, MT::Closing>::value);
 
         REQUIRE(MatchCategoryAndType<MC::Combat, MT::CombatEvent>::value);
-        
+
         REQUIRE_FALSE(MatchCategoryAndType<MC::Combat, MT::ExtrasSquadUpdate>::value);
         REQUIRE_FALSE(MatchCategoryAndType<MC::Combat, MT::ExtrasLanguageChanged>::value);
         REQUIRE_FALSE(MatchCategoryAndType<MC::Combat, MT::ExtrasKeyBindChanged>::value);
         // REQUIRE_FALSE(MatchCategoryAndType<MC::Combat, MT::ExtrasChatMessage>::value);
-        
+
         REQUIRE_FALSE(MatchCategoryAndType<MC::Combat, MT::SquadStatus>::value);
         REQUIRE_FALSE(MatchCategoryAndType<MC::Combat, MT::SquadAdd>::value);
         REQUIRE_FALSE(MatchCategoryAndType<MC::Combat, MT::SquadUpdate>::value);
@@ -207,7 +207,7 @@ TEST_CASE("MessageProtocolToStr")
 //                               SerialData                                  //
 ///////////////////////////////////////////////////////////////////////////////
 
-template<typename T, std::size_t Count>
+template <typename T, std::size_t Count>
 void RequireSerialIntegralWrite()
 {
     static_assert(std::is_integral<T>::value, "Integral required.");
@@ -271,14 +271,14 @@ TEST_CASE("serial_w_integral")
 
         // Data.
         VariousIntegrals vi{};
-        vi.i64  = 0x6FFFAFFAFFAFFAFF;
+        vi.i64 = 0x6FFFAFFAFFAFFAFF;
         vi.ui64 = 0xFFAFFFBFFF2FFF3F;
-        vi.i32  = 0x7F2FF2F4;
+        vi.i32 = 0x7F2FF2F4;
         vi.ui32 = 0xF4FFFAF2;
-        vi.i16  = 0x7AFA;
+        vi.i16 = 0x7AFA;
         vi.ui16 = 0xEF2F;
-        vi.i8   = 0x7A;
-        vi.ui8  = 0xF2;
+        vi.i8 = 0x7A;
+        vi.ui8 = 0xF2;
 
         // Set.
         location = serial_w_integral(location, vi.i64);
@@ -398,17 +398,16 @@ TEST_CASE("Message Constructors")
         REQUIRE(msg.hasSerial() == true);
         REQUIRE(msg.hasJSON() == true);
         REQUIRE(msg.empty() == false);
-            
+
         SerialData data = msg.toSerial();
         REQUIRE(data.count == 2);
         uint8_t* location = &data.ptr[0];
         location = RequireAtLocation(location, static_cast<U_MC>(MessageCategory::Info));
         RequireAtLocation(location, static_cast<U_MT>(MessageType::BridgeInfo));
 
-        auto j = nlohmann::json{
-            {"category", MessageCategoryToStr(MessageCategory::Info)},
-            {"type", MessageTypeToStr(MessageType::BridgeInfo)}
-        }.dump();
+        auto j = nlohmann::json{{"category", MessageCategoryToStr(MessageCategory::Info)},
+                                {"type", MessageTypeToStr(MessageType::BridgeInfo)}}
+                     .dump();
         REQUIRE(msg.toJSON() == j);
 
         REQUIRE(msg.category() == MessageCategory::Info);
@@ -465,15 +464,16 @@ TEST_CASE("Message Constructors")
         auto j = nlohmann::json{
             {"category", MessageCategoryToStr(MessageCategory::Extras)},
             {"type", MessageTypeToStr(MessageType::ExtrasSquadUpdate)},
-            {"data", data}
-        }.dump();
+            {"data",
+             data}}.dump();
         REQUIRE(msg.toJSON() == j);
 
         REQUIRE(msg.category() == MessageCategory::Extras);
         REQUIRE(msg.type() == MessageType::ExtrasSquadUpdate);
     }
 
-    SECTION("Message(MessageCategory category, MessageType type, const SerialData& serial, const nlohmann::json& jdata)")
+    SECTION(
+        "Message(MessageCategory category, MessageType type, const SerialData& serial, const nlohmann::json& jdata)")
     {
         SerialData sdata{};
         sdata.count = SerialStartPadding + sizeof(uint32_t);
@@ -493,8 +493,8 @@ TEST_CASE("Message Constructors")
         auto j = nlohmann::json{
             {"category", MessageCategoryToStr(MessageCategory::Extras)},
             {"type", MessageTypeToStr(MessageType::ExtrasSquadUpdate)},
-            {"data", jdata}
-        }.dump();
+            {"data",
+             jdata}}.dump();
         REQUIRE(msg.toJSON() == j);
 
         REQUIRE(msg.category() == MessageCategory::Extras);

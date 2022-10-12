@@ -17,9 +17,9 @@
 
 enum class SquadAction : uint8_t
 {
-    Add     = 1,
-    Remove  = 2,
-    Update  = 4
+    Add = 1,
+    Remove = 2,
+    Update = 4
 };
 
 class SquadModifyHandler
@@ -34,26 +34,26 @@ public:
     static constexpr uint8_t ExtrasBit = 2;
 
     // Run callback with the modify lock.
-    template<typename Callback>
+    template <typename Callback>
     void work(Callback cb) const;
 
-    template<typename Sender, typename Updater>
+    template <typename Sender, typename Updater>
     void addPlayer(const PlayerInfo& player, Sender sender, Updater updater, uint8_t bits);
 
-    template<typename Sender, typename Updater>
+    template <typename Sender, typename Updater>
     void updatePlayer(const std::string& accountName, Sender sender, Updater updater);
 
-    template<typename UnaryPredicate, typename Sender, typename Updater>
+    template <typename UnaryPredicate, typename Sender, typename Updater>
     void updatePlayer(UnaryPredicate p, Sender sender, Updater updater);
 
-    template<typename Sender>
+    template <typename Sender>
     void removePlayer(const std::string& accountName, Sender sender, uint8_t bits);
 
 private:
-    template<typename Sender, typename Updater>
+    template <typename Sender, typename Updater>
     void addPlayerToSquad(const PlayerInfo& player, Sender sender, Updater updater);
-    
-    template<typename Sender, typename Updater>
+
+    template <typename Sender, typename Updater>
     void updatePlayerInSquad(const PlayerInfoEntry& existing, Sender sender, Updater updater);
 
     struct PlayerCache
@@ -72,14 +72,14 @@ private:
     mutable std::mutex m_mutex{};
 };
 
-template<typename Callback>
+template <typename Callback>
 void SquadModifyHandler::work(Callback cb) const
 {
     std::unique_lock<std::mutex> lock(m_mutex);
     cb();
 }
 
-template<typename Sender, typename Updater>
+template <typename Sender, typename Updater>
 void SquadModifyHandler::addPlayer(const PlayerInfo& player, Sender sender, Updater updater, uint8_t bits)
 {
     std::unique_lock<std::mutex> lock(m_mutex);
@@ -94,7 +94,7 @@ void SquadModifyHandler::addPlayer(const PlayerInfo& player, Sender sender, Upda
         addPlayerToSquad(player, sender, updater);
 }
 
-template<typename Sender, typename Updater>
+template <typename Sender, typename Updater>
 void SquadModifyHandler::updatePlayer(const std::string& accountName, Sender sender, Updater updater)
 {
     std::unique_lock<std::mutex> lock(m_mutex);
@@ -103,7 +103,7 @@ void SquadModifyHandler::updatePlayer(const std::string& accountName, Sender sen
         updatePlayerInSquad(*existing, sender, updater);
 }
 
-template<typename UnaryPredicate, typename Sender, typename Updater>
+template <typename UnaryPredicate, typename Sender, typename Updater>
 void SquadModifyHandler::updatePlayer(UnaryPredicate p, Sender sender, Updater updater)
 {
     std::unique_lock<std::mutex> lock(m_mutex);
@@ -112,7 +112,7 @@ void SquadModifyHandler::updatePlayer(UnaryPredicate p, Sender sender, Updater u
         updatePlayerInSquad(*existing, sender, updater);
 }
 
-template<typename Sender>
+template <typename Sender>
 void SquadModifyHandler::removePlayer(const std::string& accountName, Sender sender, uint8_t bits)
 {
     std::unique_lock<std::mutex> lock(m_mutex);
@@ -143,7 +143,7 @@ void SquadModifyHandler::removePlayer(const std::string& accountName, Sender sen
                 // Will remove cache of players only added from Extras.
                 // When self is removed, Extras will not send events for the other members in the squad.
                 // Combat adds will be removed from combat events.
-                clearCachedPlayer(); 
+                clearCachedPlayer();
             }
 
             sender(SquadAction::Remove, *entry);
@@ -151,7 +151,7 @@ void SquadModifyHandler::removePlayer(const std::string& accountName, Sender sen
     }
 }
 
-template<typename Sender, typename Updater>
+template <typename Sender, typename Updater>
 void SquadModifyHandler::addPlayerToSquad(const PlayerInfo& player, Sender sender, Updater updater)
 {
     if (m_squad.add(player) == PlayerContainer::Status::Success)
@@ -160,7 +160,7 @@ void SquadModifyHandler::addPlayerToSquad(const PlayerInfo& player, Sender sende
         updatePlayerInSquad(*existing, sender, updater);
 }
 
-template<typename Sender, typename Updater>
+template <typename Sender, typename Updater>
 void SquadModifyHandler::updatePlayerInSquad(const PlayerInfoEntry& existing, Sender sender, Updater updater)
 {
     PlayerContainer::PlayerInfoUpdate update = {existing, PlayerContainer::Status::ValidatorError};
@@ -170,7 +170,7 @@ void SquadModifyHandler::updatePlayerInSquad(const PlayerInfoEntry& existing, Se
         updater(update.entry->player);
         update = m_squad.update(*update.entry);
     }
-    
+
     if (update.entry && update.status == PlayerContainer::Status::Success)
         sender(SquadAction::Update, *update.entry);
 }

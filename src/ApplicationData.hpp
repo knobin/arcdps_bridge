@@ -16,8 +16,8 @@
 
 // C++ Headers
 #include <cstddef>
-#include <optional>
 #include <mutex>
+#include <optional>
 #include <string>
 
 #ifdef BRIDGE_BUILD_DEBUG
@@ -26,6 +26,8 @@
     #define BRIDGE_BUILD_STR "RELEASE"
 #endif
 
+// clang-format off
+
 struct BridgeInfo
 {
     std::string_view version{BRIDGE_VERSION_STR};   // Bridge version.
@@ -33,7 +35,7 @@ struct BridgeInfo
     std::string arcvers{};                           // ArcDPS version.
 
     uint64_t validator{1};  // Runtime version of the BridgeInfo, if any value changes this will be incremented.
-    
+
     uint32_t majorApiVersion{BRIDGE_API_VERSION_MAJOR}; // Incremented when there is a change that breaks backwards compatibility in any way.
     uint32_t minorApiVersion{BRIDGE_API_VERSION_MINOR}; // Incremented when the API is extended in a way that does not break backwards compatibility.
 
@@ -46,6 +48,8 @@ struct BridgeInfo
     mutable std::mutex mutex;
 };
 
+// clang-format on
+
 void to_json(nlohmann::json& j, const BridgeInfo& info);
 std::size_t serial_size(const BridgeInfo& info);
 void to_serial(const BridgeInfo& info, uint8_t* storage, std::size_t);
@@ -55,9 +59,9 @@ void to_serial(const BridgeInfo& info, uint8_t* storage, std::size_t);
 struct Configs
 {
     // General.
-    bool enabled{true};            // Should the extension be enabled.
-    bool arcDPS{true};             // Should ArcDPS be used.
-    bool extras{true};             // Should the Unofficial Extras be used.
+    bool enabled{true}; // Should the extension be enabled.
+    bool arcDPS{true};  // Should ArcDPS be used.
+    bool extras{true};  // Should the Unofficial Extras be used.
 
     // Server.
     std::size_t maxClients{32};             // Max amount of clinets at one time.
@@ -65,8 +69,9 @@ struct Configs
     std::size_t msgQueueSize{64};           // How many messages can be queued before being dropped.
 
     void set(const std::string& header, const std::string& entry, const std::string& value);
+
 private:
-    template<typename T>
+    template <typename T>
     std::optional<T> StringTo(const std::string& str)
     {
         T value{};

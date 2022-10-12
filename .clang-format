@@ -1,15 +1,42 @@
-Language: Cpp
 BasedOnStyle: LLVM
 AccessModifierOffset: -4
-AllowShortFunctionsOnASingleLine: None
+AlignAfterOpenBracket: Align
+AllowAllArgumentsOnNextLine: false
+AllowShortBlocksOnASingleLine: Empty
+AllowShortFunctionsOnASingleLine: InlineOnly
+AllowShortLambdasOnASingleLine: None
 AlwaysBreakTemplateDeclarations: Yes
-BreakBeforeBraces: Allman
+BraceWrapping:
+  AfterCaseLabel:  true
+  AfterClass:      true
+  AfterControlStatement: Always
+  AfterEnum:       true
+  AfterFunction:   true
+  AfterNamespace:  true
+  AfterObjCDeclaration: true
+  AfterStruct:     true
+  AfterUnion:      true
+  AfterExternBlock: true
+  BeforeCatch:     true
+  BeforeElse:      true
+  BeforeLambdaBody: false
+  BeforeWhile:     false
+  IndentBraces:    false
+  SplitEmptyFunction: false
+  SplitEmptyRecord: false
+  SplitEmptyNamespace: false
+BreakBeforeBraces: Custom
 ColumnLimit: 120
+Cpp11BracedListStyle: true
 DerivePointerAlignment: false
 FixNamespaceComments: true
 IndentCaseLabels: true
+IndentPPDirectives: BeforeHash
 IndentWidth: 4
+LambdaBodyIndentation: OuterScope
+Language: Cpp
 NamespaceIndentation: All
-SpaceAfterTemplateKeyword: false
+PackConstructorInitializers: Never
 PointerAlignment: Left
+SpaceAfterTemplateKeyword: true
 UseTab: Never

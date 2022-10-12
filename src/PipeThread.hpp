@@ -53,7 +53,8 @@ public:
 
 public:
     PipeThread() = delete;
-    PipeThread(std::size_t id, void* handle, MessageTracking* mt, const ApplicationData& appdata, const SquadModifyHandler* squadModifyHandler);
+    PipeThread(std::size_t id, void* handle, MessageTracking* mt, const ApplicationData& appdata,
+               const SquadModifyHandler* squadModifyHandler);
     ~PipeThread();
 
     void start();

@@ -9,7 +9,7 @@
 #include "Combat.hpp"
 
 //
-// Combat event (cbtevent). 
+// Combat event (cbtevent).
 //
 
 void to_serial(const cbtevent& ev, uint8_t* storage, std::size_t)
@@ -151,14 +151,8 @@ SerialData combat_to_serial(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
 
 nlohmann::json combat_to_json(cbtevent* ev, ag* src, ag* dst, char* skillname, uint64_t id, uint64_t revision)
 {
-    nlohmann::json json = {
-        {"id", id}, 
-        {"revision", revision}, 
-        {"ev", nullptr}, 
-        {"src", nullptr}, 
-        {"dst", nullptr}, 
-        {"skillname", nullptr},
-    };
+    nlohmann::json json = {{"id", id},       {"revision", revision}, {"ev", nullptr},
+                           {"src", nullptr}, {"dst", nullptr},       {"skillname", nullptr}};
 
     if (ev)
         json["ev"] = *ev;
@@ -167,7 +161,6 @@ nlohmann::json combat_to_json(cbtevent* ev, ag* src, ag* dst, char* skillname, u
     if (dst)
         json["dst"] = *dst;
 
-    
     if (skillname)
     {
         std::string sn{skillname};

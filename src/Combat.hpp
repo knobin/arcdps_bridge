@@ -85,19 +85,18 @@ struct ag
 // Combat event (cbtevent).
 constexpr std::size_t serial_size(const cbtevent& ev) noexcept
 {
-    return sizeof(ev.time) + sizeof(ev.src_agent) + sizeof(ev.dst_agent) +
-        sizeof(ev.value) + sizeof(ev.buff_dmg) + sizeof(ev.overstack_value) +
-        sizeof(ev.skillid) + sizeof(ev.src_instid) + sizeof(ev.dst_instid) +
-        sizeof(ev.src_master_instid) + sizeof(ev.dst_master_instid) + sizeof(ev.iff) +
-        sizeof(ev.buff) + sizeof(ev.result) + sizeof(ev.is_activation) +
-        sizeof(ev.is_buffremove) + sizeof(ev.is_ninety) + sizeof(ev.is_fifty) +
-        sizeof(ev.is_moving) + sizeof(ev.is_statechange) + sizeof(ev.is_flanking) +
-        sizeof(ev.is_shields) + sizeof(ev.is_offcycle);
+    return sizeof(ev.time) + sizeof(ev.src_agent) + sizeof(ev.dst_agent) + sizeof(ev.value) + sizeof(ev.buff_dmg) +
+           sizeof(ev.overstack_value) + sizeof(ev.skillid) + sizeof(ev.src_instid) + sizeof(ev.dst_instid) +
+           sizeof(ev.src_master_instid) + sizeof(ev.dst_master_instid) + sizeof(ev.iff) + sizeof(ev.buff) +
+           sizeof(ev.result) + sizeof(ev.is_activation) + sizeof(ev.is_buffremove) + sizeof(ev.is_ninety) +
+           sizeof(ev.is_fifty) + sizeof(ev.is_moving) + sizeof(ev.is_statechange) + sizeof(ev.is_flanking) +
+           sizeof(ev.is_shields) + sizeof(ev.is_offcycle);
 }
 void to_serial(const cbtevent& ev, uint8_t* storage, std::size_t);
 
 // Agent (ag).
-constexpr std::size_t ag_partial_size = sizeof(ag::id) + sizeof(ag::prof) + sizeof(ag::elite) + sizeof(ag::self) + sizeof(ag::team);
+constexpr std::size_t ag_partial_size =
+    sizeof(ag::id) + sizeof(ag::prof) + sizeof(ag::elite) + sizeof(ag::self) + sizeof(ag::team);
 void to_json(nlohmann::json& j, const cbtevent& evt);
 std::size_t serial_size(const ag& agent);
 void to_serial(const ag& agent, uint8_t* storage, std::size_t count);

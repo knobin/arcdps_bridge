@@ -27,18 +27,16 @@ Configs InitConfigs(const std::string& filepath)
 
 void to_json(nlohmann::json& j, const BridgeInfo& info)
 {
-    j = nlohmann::json{
-        {"version", std::string{info.version}}, 
-        {"extrasVersion", nullptr}, 
-        {"arcVersion", nullptr}, 
-        {"arcLoaded", info.arcLoaded},
-        {"extrasFound", info.extrasFound},
-        {"extrasLoaded", info.extrasLoaded},
-        {"extrasInfoVersion", info.extrasInfoVersion},
-        {"validator", info.validator},          
-        {"majorApiVersion", info.majorApiVersion},
-        {"minorApiVersion", info.minorApiVersion}
-    };
+    j = nlohmann::json{{"version", std::string{info.version}},
+                       {"extrasVersion", nullptr},
+                       {"arcVersion", nullptr},
+                       {"arcLoaded", info.arcLoaded},
+                       {"extrasFound", info.extrasFound},
+                       {"extrasLoaded", info.extrasLoaded},
+                       {"extrasInfoVersion", info.extrasInfoVersion},
+                       {"validator", info.validator},
+                       {"majorApiVersion", info.majorApiVersion},
+                       {"minorApiVersion", info.minorApiVersion}};
 
     if (!info.extrasVersion.empty())
         j["extrasVersion"] = info.extrasVersion;

@@ -29,8 +29,8 @@
 // It's important this value does not change (breaks version compatibility).
 TEST_CASE("UserInfo_partial_size")
 {
-    constexpr std::size_t expected_size = sizeof(int64_t) + sizeof(UserInfo::Role) + sizeof(UserInfo::Subgroup) + 
-                                          sizeof(uint8_t);
+    constexpr std::size_t expected_size =
+        sizeof(int64_t) + sizeof(UserInfo::Role) + sizeof(UserInfo::Subgroup) + sizeof(uint8_t);
 
     REQUIRE(UserInfo_partial_size == expected_size);
 }
@@ -145,7 +145,8 @@ TEST_CASE("to_json(nlohmann::json& j, const UserInfo& user)")
 struct UserInfoNode : Node
 {
     UserInfoNode(std::optional<std::string> user_name, const UserInfo& info)
-        : name{std::move(user_name)}, value{info}
+        : name{std::move(user_name)},
+          value{info}
     {
         if (name)
             value.AccountName = name->c_str();
@@ -160,14 +161,8 @@ struct UserInfoNode : Node
         to_serial(value, storage, count);
         return storage + count;
     }
-    uint8_t* require(uint8_t* storage) override
-    {
-        return RequirePlayerInfo(value, storage);
-    }
-    [[nodiscard]] std::size_t count() const override
-    {
-        return serial_size(value);
-    }
+    uint8_t* require(uint8_t* storage) override { return RequirePlayerInfo(value, storage); }
+    [[nodiscard]] std::size_t count() const override { return serial_size(value); }
     void json_require() override
     {
         nlohmann::json j = value;
@@ -193,8 +188,8 @@ static std::unique_ptr<UserInfoNode> UserInfoNodeCreator()
 
 TEST_CASE("Budget fuzzing (only UserInfo)")
 {
-    BudgetFuzzer<32, 1024, 2>([]() { 
-        return UserInfoNodeCreator(); 
+    BudgetFuzzer<32, 1024, 2>([]() {
+        return UserInfoNodeCreator();
     });
 }
 
@@ -248,8 +243,7 @@ static std::string LanguageStrJSON(Language language)
     std::ostringstream oss{};
 
     oss << "{"
-        << "\"Language\":" << static_cast<std::underlying_type_t<Language>>(language)
-        << "}";
+        << "\"Language\":" << static_cast<std::underlying_type_t<Language>>(language) << "}";
 
     return oss.str();
 }
@@ -303,10 +297,9 @@ static uint8_t* RequireKeyBindChanged(const KeyBinds::KeyBindChanged& keybind, u
 
 TEST_CASE("to_serial(const KeyBinds::KeyBindChanged&, uint8_t*, std::size_t)")
 {
-    KeyBinds::KeyBindChanged keyChanged{
-        KeyBinds::KeyControl::Movement_MoveForward, 3, 
-        {KeyBinds::DeviceType::Keyboard, 4, 1}
-    };
+    KeyBinds::KeyBindChanged keyChanged{KeyBinds::KeyControl::Movement_MoveForward,
+                                        3,
+                                        {KeyBinds::DeviceType::Keyboard, 4, 1}};
 
     constexpr std::size_t keybind_size = serial_size(KeyBinds::KeyBindChanged{});
     uint8_t storage[keybind_size] = {};
@@ -327,21 +320,21 @@ static std::string KeyBindChangedStrJSON(const KeyBinds::KeyBindChanged& keyChan
     oss << "{"
         << "\"KeyControl\":" << static_cast<std::underlying_type_t<KeyBinds::KeyControl>>(keyChanged.KeyControl) << ","
         << "\"KeyIndex\":" << keyChanged.KeyIndex << ","
-        << "\"SingleKey\":" << "{" 
+        << "\"SingleKey\":"
+        << "{"
         << "\"Code\":" << keyChanged.SingleKey.Code << ","
-        << "\"DeviceType\":" << static_cast<std::underlying_type_t<KeyBinds::DeviceType>>(keyChanged.SingleKey.DeviceType) << ","
-        << "\"Modifier\":" << keyChanged.SingleKey.Modifier
-        << "}}";
+        << "\"DeviceType\":"
+        << static_cast<std::underlying_type_t<KeyBinds::DeviceType>>(keyChanged.SingleKey.DeviceType) << ","
+        << "\"Modifier\":" << keyChanged.SingleKey.Modifier << "}}";
 
     return oss.str();
 }
 
 TEST_CASE("to_json(nlohmann::json&, const KeyBinds::KeyBindChanged&)")
 {
-    KeyBinds::KeyBindChanged keyChanged{
-        KeyBinds::KeyControl::Movement_MoveForward, 3, 
-        {KeyBinds::DeviceType::Keyboard, 4, 1}
-    };
+    KeyBinds::KeyBindChanged keyChanged{KeyBinds::KeyControl::Movement_MoveForward,
+                                        3,
+                                        {KeyBinds::DeviceType::Keyboard, 4, 1}};
 
     nlohmann::json j;
     to_json(j, keyChanged);
@@ -426,7 +419,8 @@ static std::string ChatMessageInfoStrJSON(const ChatMessageInfo& chatMsgInfo)
 
     const std::string timestamp = (chatMsgInfo.Timestamp) ? "\"" + std::string{chatMsgInfo.Timestamp} + "\"" : "null";
     const std::string accName = (chatMsgInfo.AccountName) ? "\"" + std::string{chatMsgInfo.AccountName} + "\"" : "null";
-    const std::string charName = (chatMsgInfo.CharacterName) ? "\"" + std::string{chatMsgInfo.CharacterName} + "\"" : "null";
+    const std::string charName =
+        (chatMsgInfo.CharacterName) ? "\"" + std::string{chatMsgInfo.CharacterName} + "\"" : "null";
     const std::string text = (chatMsgInfo.Text) ? "\"" + std::string{chatMsgInfo.Text} + "\"" : "null";
     const uint32_t type = static_cast<uint32_t>(static_cast<std::underlying_type_t<ChannelType>>(chatMsgInfo.Type));
 
@@ -438,8 +432,7 @@ static std::string ChatMessageInfoStrJSON(const ChatMessageInfo& chatMsgInfo)
         << "\"Subgroup\":" << static_cast<uint32_t>(chatMsgInfo.Subgroup) << ","
         << "\"Text\":" << text << ","
         << "\"Timestamp\":" << timestamp << ","
-        << "\"Type\":" << type
-        << "}";
+        << "\"Type\":" << type << "}";
 
     return oss.str();
 }
@@ -464,22 +457,26 @@ TEST_CASE("to_json(nlohmann::json& j, const ChatMessageInfo&)")
 
 struct ChatMessageInfoNode : Node
 {
-    ChatMessageInfoNode(std::optional<std::string> at, std::optional<std::string> acc,
-                        std::optional<std::string> ch, std::optional<std::string> str, ChatMessageInfo& info)
-        : timestamp{std::move(at)}, accountName{std::move(acc)}, charName{std::move(ch)}, text{std::move(str)}, value{info}
+    ChatMessageInfoNode(std::optional<std::string> at, std::optional<std::string> acc, std::optional<std::string> ch,
+                        std::optional<std::string> str, ChatMessageInfo& info)
+        : timestamp{std::move(at)},
+          accountName{std::move(acc)},
+          charName{std::move(ch)},
+          text{std::move(str)},
+          value{info}
     {
         if (timestamp)
         {
             value.Timestamp = timestamp->c_str();
             value.TimestampLength = timestamp->size();
         }
-        
+
         if (accountName)
         {
             value.AccountName = accountName->c_str();
             value.AccountNameLength = accountName->size();
         }
-        
+
         if (charName)
         {
             value.CharacterName = charName->c_str();
@@ -505,14 +502,8 @@ struct ChatMessageInfoNode : Node
         to_serial(value, storage, count);
         return storage + count;
     }
-    uint8_t* require(uint8_t* storage) override
-    {
-        return RequireChatMessageInfo(value, storage);
-    }
-    [[nodiscard]] std::size_t count() const override
-    {
-        return serial_size(value);
-    }
+    uint8_t* require(uint8_t* storage) override { return RequireChatMessageInfo(value, storage); }
+    [[nodiscard]] std::size_t count() const override { return serial_size(value); }
     void json_require() override
     {
         nlohmann::json j = value;
@@ -527,8 +518,13 @@ static ChatMessageInfo RandomChatMessageInfo()
     uint8_t subgroup = RandomIntegral<uint8_t>();
     uint8_t isBroadcast = RandomIntegral<uint8_t>() & 2;
 
-    return {channelId, static_cast<ChannelType>(type), subgroup, isBroadcast, 0, nullptr, 0, nullptr, 0, nullptr, 0, 
-            nullptr, 0};
+    return {channelId, static_cast<ChannelType>(type),
+            subgroup,  isBroadcast,
+            0,         nullptr,
+            0,         nullptr,
+            0,         nullptr,
+            0,         nullptr,
+            0};
 }
 
 static std::unique_ptr<ChatMessageInfoNode> ChatMessageInfoNodeCreator()
@@ -544,6 +540,6 @@ static std::unique_ptr<ChatMessageInfoNode> ChatMessageInfoNodeCreator()
 TEST_CASE("Budget fuzzing (only ChatMessageInfo)")
 {
     BudgetFuzzer<32, 1024, 2>([]() {
-        return ChatMessageInfoNodeCreator(); 
+        return ChatMessageInfoNodeCreator();
     });
 }

@@ -46,7 +46,8 @@ class PipeHandler
 {
 public:
     PipeHandler() = delete;
-    PipeHandler(const std::string& pipeName, const ApplicationData& appdata, const SquadModifyHandler* squadModifyHandler);
+    PipeHandler(const std::string& pipeName, const ApplicationData& appdata,
+                const SquadModifyHandler* squadModifyHandler);
     ~PipeHandler();
 
 public:

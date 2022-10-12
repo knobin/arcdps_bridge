@@ -5,6 +5,8 @@
 //  Created by Robin Gustafsson on 2022-06-21.
 //
 
+// clang-format off
+
 #ifndef BRIDGE_LOG_HPP
 #define BRIDGE_LOG_HPP
 
@@ -31,7 +33,7 @@
 #define BRIDGE_LOG_LEVEL_MSG_DEBUG BRIDGE_LOG_LEVEL_5
 
 // Standard log output (should be defined in CMakeLists.txt).
-#if !defined(BRIDGE_LOG_LEVEL) 
+#if !defined(BRIDGE_LOG_LEVEL)
     #ifdef BRIDGE_BUILD_DEBUG
         #define BRIDGE_LOG_LEVEL BRIDGE_LOG_LEVEL_DEBUG
     #else
@@ -71,7 +73,7 @@
 #else
     #define BRIDGE_LOG_INIT(...)
     #define BRIDGE_LOG_DESTROY(...)
-    
+
 #endif
 
 #if BRIDGE_LOG_LEVEL > 0 // 1 and above.
@@ -105,3 +107,5 @@
 #endif
 
 #endif // BRIDGE_LOG_HPP
+
+// clang-format on

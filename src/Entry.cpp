@@ -12,13 +12,13 @@
 #include "Combat.hpp"
 #include "Extras.hpp"
 #include "Log.hpp"
-#include "SquadModifyHandler.hpp"
 #include "PipeHandler.hpp"
+#include "SquadModifyHandler.hpp"
 
 // C++ Headers
 #include <cstddef>
-#include <limits>
 #include <iterator>
+#include <limits>
 #include <unordered_map>
 
 // Hash function for unordered_multimap.
@@ -101,11 +101,10 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID)
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-template<MessageType Type>
+template <MessageType Type>
 static void SendPlayerMsg(const PlayerInfoEntry& entry)
 {
-    static_assert(Type == MessageType::SquadAdd || Type == MessageType::SquadRemove ||
-                    Type == MessageType::SquadUpdate,
+    static_assert(Type == MessageType::SquadAdd || Type == MessageType::SquadRemove || Type == MessageType::SquadUpdate,
                   "Type is not a Squad message");
 
     if (Server->trackingCategory(MessageCategory::Squad))
@@ -156,9 +155,10 @@ static void UpdateCombatPlayerInfo(PlayerInfo& player, ag* src, ag* dst)
 
 static void UpdateCombatCharInfo(const std::string& name, CharacterType ct)
 {
-    auto p = [&name](const PlayerInfo& player) { return player.characterName == name; };
-    auto updater = [ct](PlayerInfo& player)
-    {
+    auto p = [&name](const PlayerInfo& player) {
+        return player.characterName == name;
+    };
+    auto updater = [ct](PlayerInfo& player) {
         player.profession = ct.profession;
         player.elite = ct.elite;
     };
@@ -244,15 +244,14 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
                 BRIDGE_DEBUG("Self account name (Combat): \"{}\"", AppData.SelfAccountName);
             }
 
-            auto updater = [accountName, src, dst](PlayerInfo& player)
-            {
+            auto updater = [accountName, src, dst](PlayerInfo& player) {
                 // Entry got added just in the right time for add to fail.
                 UpdateCombatPlayerInfo(player, src, dst);
             };
-            
+
             uint8_t bits = SquadModifyHandler::CombatBit;
             bits |= (!AppData.Info.extrasLoaded) ? SquadModifyHandler::ExtrasBit : 0;
-            
+
             SquadHandler->addPlayer(player, SquadModifySender, updater, bits);
 
             CharacterType ct{};
@@ -262,7 +261,7 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
 
             {
                 std::unique_lock<std::mutex> lock(CharCacheMutex);
-            
+
                 CharacterTypeCache->emplace(std::string{src->name}, ct);
 #ifdef BRIDGE_BUILD_DEBUG
                 if (CharacterTypeCache->size() > 50)
@@ -278,10 +277,12 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
             BRIDGE_DEBUG("Removed, checking dst->name \"{}\"", src->name);
             std::string accountName{dst->name};
             uint8_t bits = SquadModifyHandler::CombatBit;
-            
+
             if (AppData.Info.extrasLoaded)
             {
-                auto updater = [](PlayerInfo& player) { player.inInstance = false; };
+                auto updater = [](PlayerInfo& player) {
+                    player.inInstance = false;
+                };
                 SquadHandler->updatePlayer(accountName, SquadModifySender, updater);
             }
             else
@@ -303,12 +304,12 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
     else if (src->name)
     {
         // BRIDGE_DEBUG("CharCheck, checking src->name, val = {}", src->name);
-        
+
         const std::string charName{src->name};
 
         {
             std::unique_lock<std::mutex> lock(CharCacheMutex);
-        
+
             auto range = CharacterTypeCache->equal_range(charName);
             const auto count = std::distance(range.first, range.second);
 
@@ -325,7 +326,7 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
         return 0;
 
     Message combatMsg{GenerateCombatMessage(ev, src, dst, skillname, id, revision)};
-    
+
     if (!combatMsg.empty())
         Server->sendMessage(combatMsg);
 
@@ -358,7 +359,7 @@ static arcdps_exports* mod_init()
         {
             BRIDGE_INFO("ArcDPS is disabled by configs!");
         }
-#endif   
+#endif
     }
     else
     {
@@ -442,10 +443,10 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
             else if (role == UserRole::SquadLeader || role == UserRole::Lieutenant || role == UserRole::Member)
             {
                 // Add.
-                
+
                 PlayerInfo player{};
                 player.accountName = accountName;
-                        
+
                 if (AppData.SelfAccountName == accountName)
                 {
                     player.inInstance = true;
@@ -453,8 +454,10 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
                 }
 
                 ExtrasPlayerInfoUpdater(player, *uinfo);
-                
-                auto updater = [uinfo](PlayerInfo& player) { ExtrasPlayerInfoUpdater(player, *uinfo); };
+
+                auto updater = [uinfo](PlayerInfo& player) {
+                    ExtrasPlayerInfoUpdater(player, *uinfo);
+                };
                 SquadHandler->addPlayer(player, SquadModifySender, updater, SquadModifyHandler::ExtrasBit);
             }
 
@@ -549,8 +552,9 @@ static void chat_message_callback(const ChatMessageInfo* pChatMessage)
     }
 }
 
-template<typename T>
-struct AvoidIllFormed : std::false_type {};
+template <typename T>
+struct AvoidIllFormed : std::false_type
+{};
 
 template <typename T>
 void SetExtrasInfo(T&) noexcept
@@ -560,11 +564,11 @@ void SetExtrasInfo(T&) noexcept
     // If we use the AvoidIllFormed struct instead of false as first argument in static_assert
     // the compiler can not reject it until it has instantiate it to know if AvoidIllFormed::value
     // is true or false, and therefore no error (when there usually is no instantiation).
-    
+
     static_assert(AvoidIllFormed<T>::value, "SetExtrasInfo not implemented for type T");
 }
 
-template<>
+template <>
 inline void SetExtrasInfo<ExtrasSubscriberInfoV1>(ExtrasSubscriberInfoV1& info) noexcept
 {
     info.InfoVersion = 1;
@@ -573,7 +577,7 @@ inline void SetExtrasInfo<ExtrasSubscriberInfoV1>(ExtrasSubscriberInfoV1& info) 
     info.KeyBindChangedCallback = keybind_changed_callback;
 }
 
-template<>
+template <>
 inline void SetExtrasInfo<ExtrasSubscriberInfoV2>(ExtrasSubscriberInfoV2& info) noexcept
 {
     SetExtrasInfo<ExtrasSubscriberInfoV1>(static_cast<ExtrasSubscriberInfoV1&>(info));

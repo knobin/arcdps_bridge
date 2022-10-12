@@ -39,8 +39,8 @@ TEST_CASE("PLAYER_VALIDATOR_START")
 // It's important this value does not change (breaks version compatibility).
 TEST_CASE("PlayerInfo_partial_size")
 {
-    constexpr std::size_t expected_size = sizeof(int64_t) + (2 * sizeof(uint32_t)) + (2 * sizeof(uint8_t)) + 
-                                          (3 * sizeof(uint8_t));
+    constexpr std::size_t expected_size =
+        sizeof(int64_t) + (2 * sizeof(uint32_t)) + (2 * sizeof(uint8_t)) + (3 * sizeof(uint8_t));
 
     REQUIRE(PlayerInfo_partial_size == expected_size);
 }
@@ -98,7 +98,7 @@ TEST_CASE("to_serial(const PlayerInfo& info, uint8_t* storage, std::size_t)")
 
         uint8_t storage[playerinfo_size] = {};
         to_serial(info, storage, playerinfo_size);
-        
+
         auto location = RequirePlayerInfo(info, storage);
         REQUIRE(storage + playerinfo_size == location);
     }
@@ -185,14 +185,8 @@ struct PlayerInfoNode : Node
         to_serial(value, storage, count);
         return storage + count;
     }
-    uint8_t* require(uint8_t* storage) override
-    {
-        return RequirePlayerInfo(value, storage);
-    }
-    [[nodiscard]] std::size_t count() const override
-    {
-        return serial_size(value);
-    }
+    uint8_t* require(uint8_t* storage) override { return RequirePlayerInfo(value, storage); }
+    [[nodiscard]] std::size_t count() const override { return serial_size(value); }
     void json_require() override
     {
         nlohmann::json j = value;
@@ -225,11 +219,10 @@ static std::unique_ptr<PlayerInfoNode> PlayerInfoNodeCreator()
 
 TEST_CASE("Budget fuzzing (only PlayerInfo)")
 {
-    BudgetFuzzer<32, 1024, 2>([]() { 
-        return PlayerInfoNodeCreator(); 
+    BudgetFuzzer<32, 1024, 2>([]() {
+        return PlayerInfoNodeCreator();
     });
 }
-
 
 ///////////////////////////////////////////////////////////////////////////////
 //                              PlayerInfoEntry                              //
@@ -324,14 +317,8 @@ struct PlayerInfoEntryNode : Node
         to_serial(value, storage, count);
         return storage + count;
     }
-    uint8_t* require(uint8_t* storage) override
-    {
-        return RequirePlayerInfoEntry(value, storage);
-    }
-    [[nodiscard]] std::size_t count() const override
-    {
-        return serial_size(value);
-    }
+    uint8_t* require(uint8_t* storage) override { return RequirePlayerInfoEntry(value, storage); }
+    [[nodiscard]] std::size_t count() const override { return serial_size(value); }
     void json_require() override
     {
         nlohmann::json j = value;
@@ -351,11 +338,10 @@ static std::unique_ptr<PlayerInfoEntryNode> PlayerInfoEntryNodeCreator()
 
 TEST_CASE("Budget fuzzing (only PlayerInfoEntryNode)")
 {
-    BudgetFuzzer<32, 1024, 2>([]() { 
-        return PlayerInfoEntryNodeCreator(); 
+    BudgetFuzzer<32, 1024, 2>([]() {
+        return PlayerInfoEntryNodeCreator();
     });
 }
-
 
 ///////////////////////////////////////////////////////////////////////////////
 //                            PlayerContainer                                //
@@ -369,7 +355,8 @@ TEST_CASE("Budget fuzzing (only PlayerInfoEntryNode)")
 // serial (PlayerContainer).
 //
 
-static uint8_t* RequirePlayerContainer(const std::vector<PlayerInfoEntry>& entries, uint8_t* storage, std::size_t padding = 0)
+static uint8_t* RequirePlayerContainer(const std::vector<PlayerInfoEntry>& entries, uint8_t* storage,
+                                       std::size_t padding = 0)
 {
     uint8_t* location = storage + SerialStartPadding + padding; // Squad data includes start padding.
 
@@ -391,7 +378,7 @@ static std::vector<PlayerInfoEntry> BasicPlayerContainer(PlayerContainer& squad)
     char c2[17] = "CharacterName2nd";
     PlayerInfo p2{std::string{a2}, std::string{c2}, 1, 2, 3, 4, 5, false, false, false};
     PlayerInfo p2_updated{std::string{a2}, std::string{c2}, 1, 2, 3, 4, 5, true, false, false};
-    
+
     squad.add(p1);
     squad.add(p2);
 
@@ -404,7 +391,6 @@ static std::vector<PlayerInfoEntry> BasicPlayerContainer(PlayerContainer& squad)
 
     return {PlayerInfoEntry{p1, PLAYER_VALIDATOR_START}, PlayerInfoEntry{p2_updated, 2}};
 }
-
 
 TEST_CASE("toSerial(std::size_t startPadding)")
 {
@@ -465,8 +451,8 @@ static std::vector<PlayerInfoEntry> RandomPlayerContainer(PlayerContainer& squad
     {
         PlayerInfo player = RandomPlayerInfo();
 
-        auto present = std::find_if(entries.begin(), entries.end(), [&player](const auto& entry) { 
-            return entry.player.accountName == player.accountName; 
+        auto present = std::find_if(entries.begin(), entries.end(), [&player](const auto& entry) {
+            return entry.player.accountName == player.accountName;
         });
 
         if (present != entries.end())
@@ -506,7 +492,7 @@ TEST_CASE("Budget fuzzing (PlayerContainer)")
             auto location = RequirePlayerContainer(entries, serial.ptr.get());
             REQUIRE(serial.ptr.get() + serial.count == location);
         }
-        
+
         SECTION("JSON")
         {
             nlohmann::json j = squad.toJSON();

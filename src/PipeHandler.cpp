@@ -9,8 +9,11 @@
 #include "PipeHandler.hpp"
 #include "Log.hpp"
 
-PipeHandler::PipeHandler(const std::string& pipeName, const ApplicationData& appdata, const SquadModifyHandler* squadModifyHandler)
-    : m_pipeName{pipeName}, m_appData{appdata}, m_squadModifyHandler{squadModifyHandler}
+PipeHandler::PipeHandler(const std::string& pipeName, const ApplicationData& appdata,
+                         const SquadModifyHandler* squadModifyHandler)
+    : m_pipeName{pipeName},
+      m_appData{appdata},
+      m_squadModifyHandler{squadModifyHandler}
 {}
 
 PipeHandler::~PipeHandler()
@@ -35,7 +38,7 @@ void PipeHandler::start()
     m_threadStarted = true;
     m_run = true;
 
-    m_pipeMain = std::thread([handler = this](){
+    m_pipeMain = std::thread([handler = this]() {
         if (!handler->m_run)
         {
             BRIDGE_ERROR("Could not start PipeHandler thread, m_run = {}", handler->m_run);
@@ -90,7 +93,8 @@ void PipeHandler::start()
             else
             {
                 // Unused threadID here.
-                BRIDGE_WARN("Unused threadID: {}, resetting threadCounter from {} to {}.", threadID, threadCounter, threadID);
+                BRIDGE_WARN("Unused threadID: {}, resetting threadCounter from {} to {}.", threadID, threadCounter,
+                            threadID);
                 threadCounter = threadID; // Reset counter (post increment on threadCounter above).
                 CloseHandle(handle);
             }
@@ -108,7 +112,9 @@ PipeThread* PipeHandler::dispatchPipeThread(void* handle, std::size_t id)
     if (m_threads.size() < m_appData.Config.maxClients)
     {
         // Maybe add some error handling here in case if vector throws.
-        return m_threads.emplace_back(std::make_unique<PipeThread>(id, handle, &m_msgTracking, m_appData, m_squadModifyHandler)).get();
+        return m_threads
+            .emplace_back(std::make_unique<PipeThread>(id, handle, &m_msgTracking, m_appData, m_squadModifyHandler))
+            .get();
     }
 
     BRIDGE_ERROR("Could not create PipeThread due to max amount of clients are connected.");
@@ -182,7 +188,7 @@ void PipeHandler::sendBridgeInfo(const Message& msg, uint64_t validator)
 {
     if (msg.empty())
         return;
-    
+
     std::unique_lock<std::mutex> lock(m_mutex);
 
     if (m_running)

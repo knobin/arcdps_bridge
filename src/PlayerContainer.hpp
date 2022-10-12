@@ -68,12 +68,12 @@ public:
     std::optional<PlayerInfoEntry> remove(const std::string& accountName);
     [[nodiscard]] std::optional<PlayerInfoEntry> find(const std::string& accountName) const;
 
-    template<typename UnaryPredicate>
+    template <typename UnaryPredicate>
     [[nodiscard]] std::optional<PlayerInfoEntry> find_if(UnaryPredicate p)
     {
         std::unique_lock<std::mutex> lock(m_mutex);
 
-        auto it = std::find_if(m_squad.cbegin(), m_squad.cend(), [&p](const auto& entry) { 
+        auto it = std::find_if(m_squad.cbegin(), m_squad.cend(), [&p](const auto& entry) {
             return entry.first && p(entry.second.player);
         });
 

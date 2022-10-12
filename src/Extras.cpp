@@ -37,13 +37,11 @@ void to_serial(const UserInfo& info, uint8_t* storage, std::size_t count)
 
 void to_json(nlohmann::json& j, const UserInfo& user)
 {
-    j =  nlohmann::json{
-        {"AccountName", nullptr},
-        {"Role", static_cast<std::underlying_type_t<UserRole>>(user.Role)},
-        {"Subgroup", static_cast<uint32_t>(user.Subgroup)}, 
-        {"JoinTime", static_cast<int64_t>(user.JoinTime)},
-        {"ReadyStatus", user.ReadyStatus}
-    };
+    j = nlohmann::json{{"AccountName", nullptr},
+                       {"Role", static_cast<std::underlying_type_t<UserRole>>(user.Role)},
+                       {"Subgroup", static_cast<uint32_t>(user.Subgroup)},
+                       {"JoinTime", static_cast<int64_t>(user.JoinTime)},
+                       {"ReadyStatus", user.ReadyStatus}};
 
     if (user.AccountName)
         j["AccountName"] = user.AccountName;
@@ -60,9 +58,7 @@ void to_serial(Language language, uint8_t* storage, std::size_t)
 
 void to_json(nlohmann::json& j, Language language)
 {
-    j = nlohmann::json{
-        {"Language", static_cast<std::underlying_type_t<Language>>(language)}
-    };
+    j = nlohmann::json{{"Language", static_cast<std::underlying_type_t<Language>>(language)}};
 }
 
 //
@@ -77,7 +73,8 @@ void to_serial(const KeyBinds::KeyBindChanged& pChangedKeyBind, uint8_t* storage
     location = serial_w_integral(location, keyControl);
     location = serial_w_integral(location, pChangedKeyBind.KeyIndex);
 
-    const auto deviceType = static_cast<std::underlying_type_t<KeyBinds::DeviceType>>(pChangedKeyBind.SingleKey.DeviceType);
+    const auto deviceType =
+        static_cast<std::underlying_type_t<KeyBinds::DeviceType>>(pChangedKeyBind.SingleKey.DeviceType);
     location = serial_w_integral(location, deviceType);
     location = serial_w_integral(location, pChangedKeyBind.SingleKey.Code);
     serial_w_integral(location, pChangedKeyBind.SingleKey.Modifier);
@@ -88,11 +85,11 @@ void to_json(nlohmann::json& j, const KeyBinds::KeyBindChanged& pChangedKeyBind)
     j = nlohmann::json{
         {"KeyControl", static_cast<std::underlying_type_t<KeyBinds::KeyControl>>(pChangedKeyBind.KeyControl)},
         {"KeyIndex", pChangedKeyBind.KeyIndex},
-        {"SingleKey", {
-            {"DeviceType", static_cast<std::underlying_type_t<KeyBinds::DeviceType>>(pChangedKeyBind.SingleKey.DeviceType)},
-            {"Code", pChangedKeyBind.SingleKey.Code},
-            {"Modifier", pChangedKeyBind.SingleKey.Modifier}
-        }},
+        {"SingleKey",
+         {{"DeviceType",
+           static_cast<std::underlying_type_t<KeyBinds::DeviceType>>(pChangedKeyBind.SingleKey.DeviceType)},
+          {"Code", pChangedKeyBind.SingleKey.Code},
+          {"Modifier", pChangedKeyBind.SingleKey.Modifier}}},
     };
 }
 
@@ -128,16 +125,14 @@ void to_serial(const ChatMessageInfo& chatMsgInfo, uint8_t* storage, std::size_t
 
 void to_json(nlohmann::json& j, const ChatMessageInfo& chatMsgInfo)
 {
-    j = nlohmann::json{
-        {"ChannelId", chatMsgInfo.ChannelId},
-        {"Type", static_cast<std::underlying_type_t<ChannelType>>(chatMsgInfo.Type)},
-        {"Subgroup", static_cast<uint32_t>(chatMsgInfo.Subgroup)},
-        {"IsBroadcast", static_cast<uint32_t>(chatMsgInfo.IsBroadcast)},
-        {"Timestamp", nullptr},
-        {"AccountName", nullptr},
-        {"CharacterName", nullptr},
-        {"Text", nullptr}
-    };
+    j = nlohmann::json{{"ChannelId", chatMsgInfo.ChannelId},
+                       {"Type", static_cast<std::underlying_type_t<ChannelType>>(chatMsgInfo.Type)},
+                       {"Subgroup", static_cast<uint32_t>(chatMsgInfo.Subgroup)},
+                       {"IsBroadcast", static_cast<uint32_t>(chatMsgInfo.IsBroadcast)},
+                       {"Timestamp", nullptr},
+                       {"AccountName", nullptr},
+                       {"CharacterName", nullptr},
+                       {"Text", nullptr}};
 
     if (chatMsgInfo.Timestamp)
         j["Timestamp"] = chatMsgInfo.Timestamp;
@@ -151,4 +146,3 @@ void to_json(nlohmann::json& j, const ChatMessageInfo& chatMsgInfo)
     if (chatMsgInfo.Text)
         j["Text"] = chatMsgInfo.Text;
 }
-
