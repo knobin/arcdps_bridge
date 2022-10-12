@@ -107,7 +107,6 @@ struct ApplicationData
 };
 
 Configs InitConfigs(const std::string& filepath);
-void CreateConfigFile(const std::string& filepath);
 Configs LoadConfigFile(const std::string& filepath);
 
 #endif // BRIDGE_APPLICATIONDATA_HPP

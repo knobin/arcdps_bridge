@@ -14,13 +14,31 @@
 #include <fstream>
 #include <sstream>
 
+static void PrintConfigs(std::ostream& os, const Configs& config)
+{
+    os << "[general]\n";
+    os << "enabled = " << ((config.enabled) ? "true" : "false") << "\n";
+    os << "arcDPS = " << ((config.arcDPS) ? "true" : "false") << "\n";
+    os << "extras = " << ((config.extras) ? "true" : "false") << "\n";
+
+    os << "\n[server]\n";
+    os << "maxClients = " << config.maxClients << "\n";
+    os << "clientTimeoutTimer = " << config.clientTimeoutTimer << "\n";
+    os << "msgQueueSize = " << config.msgQueueSize << "\n";
+}
+
 Configs InitConfigs(const std::string& filepath)
 {
     if (std::filesystem::exists(filepath))
         return LoadConfigFile(filepath);
 
-    CreateConfigFile(filepath);
-    return Configs{};
+    BRIDGE_INFO("No Config File found at \"{}\", using default values.", filepath);
+    const Configs config{};
+    std::ostringstream oss{};
+    PrintConfigs(oss, config);
+    BRIDGE_DEBUG("Configs values set: \n\n{}", oss.str());
+
+    return config;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -78,37 +96,6 @@ void to_serial(const BridgeInfo& info, uint8_t* storage, std::size_t)
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-
-static void PrintConfigs(std::ostream& os, const Configs& config)
-{
-    os << "[general]\n";
-    os << "enabled = " << ((config.enabled) ? "true" : "false") << "\n";
-    os << "arcDPS = " << ((config.arcDPS) ? "true" : "false") << "\n";
-    os << "extras = " << ((config.extras) ? "true" : "false") << "\n";
-
-    os << "\n[server]\n";
-    os << "maxClients = " << config.maxClients << "\n";
-    os << "clientTimeoutTimer = " << config.clientTimeoutTimer << "\n";
-    os << "msgQueueSize = " << config.msgQueueSize << "\n";
-}
-
-void CreateConfigFile(const std::string& filepath)
-{
-    BRIDGE_INFO("Creating Config File \"{}\".", filepath);
-
-    std::ofstream configFile;
-    configFile.open(filepath);
-
-    Configs config{};
-    PrintConfigs(configFile, config);
-    configFile.close();
-
-#if BRIDGE_LOG_LEVEL >= BRIDGE_LOG_LEVEL_DEBUG
-    std::ostringstream oss{};
-    PrintConfigs(oss, config);
-    BRIDGE_DEBUG("Configs values set: \n\n{}", oss.str());
-#endif
-}
 
 void Configs::set(const std::string& header, const std::string& entry, const std::string& value)
 {
