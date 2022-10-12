@@ -21,7 +21,7 @@
 #include <limits>
 #include <unordered_map>
 
-// Hash function for unordered_multimap.
+// Hash function for unordered_map.
 struct djb2_hash
 {
     std::size_t operator()(const std::string& str) const
@@ -39,7 +39,7 @@ static ApplicationData AppData{};
 static std::unique_ptr<PipeHandler> Server{nullptr}; // {std::string{AppData.PipeName}, AppData};
 static std::unique_ptr<SquadModifyHandler> SquadHandler{nullptr};
 
-static std::unique_ptr<std::unordered_multimap<std::string, CharacterType, djb2_hash>> CharacterTypeCache{nullptr};
+static std::unique_ptr<std::unordered_map<std::string, CharacterType, djb2_hash>> CharacterTypeCache{nullptr};
 static std::mutex CharCacheMutex;
 
 static std::string GetDllPath(HMODULE hModule)
@@ -79,7 +79,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID)
                 SquadHandler = std::make_unique<SquadModifyHandler>(AppData.Squad);
                 Server = std::make_unique<PipeHandler>(std::string{AppData.PipeName}, AppData, SquadHandler.get());
 
-                CharacterTypeCache = std::make_unique<std::unordered_multimap<std::string, CharacterType, djb2_hash>>();
+                CharacterTypeCache = std::make_unique<std::unordered_map<std::string, CharacterType, djb2_hash>>();
                 CharacterTypeCache->reserve(50);
             }
             break;
@@ -262,7 +262,7 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
             {
                 std::unique_lock<std::mutex> lock(CharCacheMutex);
 
-                CharacterTypeCache->emplace(std::string{src->name}, ct);
+                (*CharacterTypeCache)[std::string{src->name}] = ct;
 #ifdef BRIDGE_BUILD_DEBUG
                 if (CharacterTypeCache->size() > 50)
                 {
@@ -310,15 +310,9 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
         {
             std::unique_lock<std::mutex> lock(CharCacheMutex);
 
-            auto range = CharacterTypeCache->equal_range(charName);
-            const auto count = std::distance(range.first, range.second);
-
-            if (count == 1)
-                UpdateCharCacheIter(range.first, src->prof, src->elite);
-            else
-                for (auto it = range.first; it != range.second; ++it)
-                    if (it->first == charName)
-                        UpdateCharCacheIter(range.first, src->prof, src->elite);
+            auto CharEntry = CharacterTypeCache->find(charName);
+            if (CharEntry != CharacterTypeCache->end())
+                UpdateCharCacheIter(CharEntry, src->prof, src->elite);
         }
     }
 
@@ -560,7 +554,7 @@ template <typename T>
 void SetExtrasInfo(T&) noexcept
 {
     // Since this function should not be instantiated on a successful implementation.
-    // The defenition is ill-formed and will be rejected (up to the compiler).
+    // The definition is ill-formed and will be rejected (up to the compiler).
     // If we use the AvoidIllFormed struct instead of false as first argument in static_assert
     // the compiler can not reject it until it has instantiate it to know if AvoidIllFormed::value
     // is true or false, and therefore no error (when there usually is no instantiation).
