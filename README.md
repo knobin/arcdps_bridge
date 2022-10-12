@@ -1,10 +1,10 @@
 # arcdps_bridge
 
-An ArcDPS Extension which sends the events over a named pipe.
+An ArcDPS Extension which sends the events over a named pipe and supports both ArcDPS and ArcDPS Unofficial Extras events.
 
 ## Features
 
-- Clients can recieve full ArcDPS events, and ArcDPS Unofficial Extras events. Or access squad information through a custom "Squad" event.
+- Clients can receive full ArcDPS events, and ArcDPS Unofficial Extras events. Or access squad information through a custom "Squad" event.
 - "Squad" events information: 
     - Players joining or leaving the squad.
     - Instance information, players in or out of the instance.
@@ -18,7 +18,20 @@ An ArcDPS Extension which sends the events over a named pipe.
 ### Limitations
 
 - Character information (character name, profession and elite) will only be updated when player is in the same instance and the player is the source of an ArcDPS combat event (boon applied to player for example).
-- Game crashing when in a squad will cause the internal squad information to be removed, it will be fully rebuilt when all players in the squad have entered or been in the same instance.
+- Game crashing and when the player is in a squad will result in the internal squad information being removed. Starting the game again will begin rebuilding it and will be fully rebuilt when all players in the squad have entered or been in the same instance.
+
+## Why?
+
+This extension was mainly created for being able to track squad members and send that information to an external application with minimal limitations as possible. Therefore, the extension keeps track of the squad members internally so the information is always as up-to-date and complete as possible. There are still some [limitations](#Limitations) but they are very hard to overcome. Over time the extension also gained the ability to send ArcDPS and Unofficial Extras events as well in case the client needed them. And at the time of creation there was no extension that could send both of these only combat events, this has now changed.
+
+### Why should I use this?
+
+You could use this extension if you:
+
+- Have an external application and want to parse ArcDPS or Unofficial Extras events.
+- Need to have complete information about the squad at any time (application launches after gw2 for example).
+
+If you are creating an extension for ArcDPS and want to parse the events you should not use this extension. You should subscribe to ArcDPS and Unofficial Extras yourself. As it makes very little sense to introduce the pipe overhead and serialization.
 
 ## Getting Started
 
