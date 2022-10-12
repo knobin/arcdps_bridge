@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.12.4)
+cmake_minimum_required(VERSION 3.15)
 
 project(arcdps_bridge VERSION 2.0.0 DESCRIPTION "ArcDPS Extension which sends the events over a named pipe.")
 
