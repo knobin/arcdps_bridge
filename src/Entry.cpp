@@ -516,7 +516,7 @@ static void keybind_changed_callback(KeyBinds::KeyBindChanged pChangedKeyBind)
         if (Server->usingProtocol(MessageProtocol::JSON))
             to_json(json, pChangedKeyBind);
 
-        const Message extrasMsg{ExtrasMessage<MessageType::ExtrasLanguageChanged>(serial, json)};
+        const Message extrasMsg{ExtrasMessage<MessageType::ExtrasKeyBindChanged>(serial, json)};
         Server->sendMessage(extrasMsg);
     }
 }
@@ -541,7 +541,7 @@ static void chat_message_callback(const ChatMessageInfo* pChatMessage)
         if (Server->usingProtocol(MessageProtocol::JSON))
             json = *pChatMessage;
 
-        const Message extrasMsg{ExtrasMessage<MessageType::ExtrasLanguageChanged>(serial, json)};
+        const Message extrasMsg{ExtrasMessage<MessageType::ExtrasChatMessage>(serial, json)};
         Server->sendMessage(extrasMsg);
     }
 }

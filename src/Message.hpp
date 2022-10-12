@@ -70,7 +70,7 @@ enum class MessageType : uint8_t
     ExtrasSquadUpdate = 5,
     ExtrasLanguageChanged = 6,
     ExtrasKeyBindChanged = 7,
-    // ExtrasChatMessage = 8,
+    ExtrasChatMessage = 8,
 
     // Squad event types.
     SquadStatus = 9,
@@ -97,10 +97,8 @@ constexpr std::string_view MessageTypeToStr(MessageType type) noexcept
             return "ExtrasLanguageChanged";
         case MessageType::ExtrasKeyBindChanged:
             return "ExtrasKeyBindChanged";
-        /*
-        case MessageType::ExtrasSquadUpdate:
-            return "ExtrasSquadUpdate";
-        */
+        case MessageType::ExtrasChatMessage:
+            return "ExtrasChatMessage";
         case MessageType::SquadStatus:
             return "SquadStatus";
         case MessageType::SquadAdd:
@@ -156,7 +154,7 @@ struct MatchTypeToCategory<MessageCategory::Combat> : MsgTypeMatcher<MessageType
 template <>
 struct MatchTypeToCategory<MessageCategory::Extras>
     : MsgTypeMatcher<MessageType::ExtrasSquadUpdate, MessageType::ExtrasKeyBindChanged,
-                     MessageType::ExtrasLanguageChanged /*, MessageType::ExtrasChatMessage */>
+                     MessageType::ExtrasLanguageChanged, MessageType::ExtrasChatMessage>
 {};
 
 template <>
