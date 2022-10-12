@@ -366,11 +366,6 @@ TEST_CASE("Budget fuzzing: Serial (all types)")
 //                              Message class                                //
 ///////////////////////////////////////////////////////////////////////////////
 
-bool operator==(const SerialData& lhs, const SerialData& rhs)
-{
-    return lhs.count == rhs.count && lhs.ptr == rhs.ptr;
-}
-
 TEST_CASE("Message Constructors")
 {
     using MC = MessageCategory;
@@ -391,7 +386,7 @@ TEST_CASE("Message Constructors")
         REQUIRE(msg.toJSON().empty());
     }
 
-    SECTION("Message(MessageCategory category, MessageType type, bool serial = true, bool json = true)")
+    SECTION("Message(MessageCategory, MessageType, bool, bool)")
     {
         Message msg{MessageCategory::Info, MessageType::BridgeInfo, true, true};
 
@@ -414,7 +409,7 @@ TEST_CASE("Message Constructors")
         REQUIRE(msg.type() == MessageType::BridgeInfo);
     }
 
-    SECTION("Message(MessageCategory category, MessageType type, bool serial = false, bool json = false)")
+    SECTION("Message(MessageCategory, MessageType, bool, bool)")
     {
         Message msg{MessageCategory::Combat, MessageType::CombatEvent, false, false};
 
@@ -429,7 +424,7 @@ TEST_CASE("Message Constructors")
         REQUIRE(msg.type() == MessageType::CombatEvent);
     }
 
-    SECTION("Message(MessageCategory category, MessageType type, const SerialData& serial)")
+    SECTION("Message(MessageCategory, MessageType, const SerialData&)")
     {
         SerialData data{};
         data.count = SerialStartPadding + sizeof(uint32_t);
@@ -449,7 +444,7 @@ TEST_CASE("Message Constructors")
         REQUIRE(msg.type() == MessageType::SquadAdd);
     }
 
-    SECTION("Message(MessageCategory category, MessageType type, const nlohmann::json& jdata)")
+    SECTION("Message(MessageCategory, MessageType, const nlohmann::json&)")
     {
         auto data = nlohmann::json{"test", 128};
 
@@ -473,7 +468,7 @@ TEST_CASE("Message Constructors")
     }
 
     SECTION(
-        "Message(MessageCategory category, MessageType type, const SerialData& serial, const nlohmann::json& jdata)")
+        "Message(MessageCategory, MessageType, const SerialData&, const nlohmann::json&)")
     {
         SerialData sdata{};
         sdata.count = SerialStartPadding + sizeof(uint32_t);

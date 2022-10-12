@@ -27,7 +27,7 @@
 //
 
 // It's important this value does not change (breaks version compatibility).
-TEST_CASE("serial_size(const cbtevent& ev)")
+TEST_CASE("SerialSize(const cbtevent&)")
 {
     // Size for all kinds of cbtevent is the same.
 
@@ -41,7 +41,7 @@ TEST_CASE("serial_size(const cbtevent& ev)")
         (3 * uint64_size) + (2 * int32_size) + (2 * uint32_size) + (4 * uint16_size) + (12 * uint8_size);
 
     constexpr cbtevent ev{};
-    REQUIRE(serial_size(ev) == cbtevent_size);
+    REQUIRE(Combat::SerialSize(ev) == cbtevent_size);
 }
 
 static uint8_t* RequireCombatEvent(const cbtevent& ev, uint8_t* storage)
@@ -110,15 +110,15 @@ static constexpr cbtevent SimpleCombatEvent()
     return ev;
 }
 
-TEST_CASE("to_serial(const cbtevent& ev, uint8_t* storage, std::size_t)")
+TEST_CASE("ToSerial(const cbtevent&, uint8_t*, std::size_t)")
 {
     // Size for all kinds of cbtevent is the same.
 
     cbtevent ev = SimpleCombatEvent();
-    constexpr std::size_t cbtevent_size = serial_size(cbtevent{});
+    constexpr std::size_t cbtevent_size = Combat::SerialSize(cbtevent{});
 
     uint8_t storage[cbtevent_size] = {};
-    to_serial(ev, storage, serial_size(ev));
+    Combat::ToSerial(ev, storage, Combat::SerialSize(ev));
 
     uint8_t* location = RequireCombatEvent(ev, storage);
     REQUIRE(storage + cbtevent_size == location);
@@ -159,11 +159,11 @@ static std::string CombatEventStrJSON(const cbtevent& ev)
     return oss.str();
 }
 
-TEST_CASE("to_json(nlohmann::json& j, const cbtevent& evt)")
+TEST_CASE("ToJSON(const cbtevent&)")
 {
     cbtevent ev = SimpleCombatEvent();
 
-    nlohmann::json j = ev;
+    const nlohmann::json j = Combat::ToJSON(ev);
     REQUIRE(j.dump() == CombatEventStrJSON(ev));
 }
 
@@ -181,15 +181,15 @@ struct CombatEventNode : Node
 
     uint8_t* write(uint8_t* storage) override
     {
-        const std::size_t count = serial_size(value);
-        to_serial(value, storage, count);
+        const std::size_t count = Combat::SerialSize(value);
+        Combat::ToSerial(value, storage, count);
         return storage + count;
     }
     uint8_t* require(uint8_t* storage) override { return RequireCombatEvent(value, storage); }
-    [[nodiscard]] std::size_t count() const override { return serial_size(value); }
+    [[nodiscard]] std::size_t count() const override { return Combat::SerialSize(value); }
     void json_require() override
     {
-        nlohmann::json j = value;
+        const nlohmann::json j = Combat::ToJSON(value);
         REQUIRE(j.dump() == CombatEventStrJSON(value));
     }
 };
@@ -251,7 +251,7 @@ TEST_CASE("Budget fuzzing (only cbtevent)")
 //
 
 // It's important this value does not change (breaks version compatibility).
-TEST_CASE("ag_partial_size")
+TEST_CASE("AgentPartialSize")
 {
     constexpr std::size_t uintptr_size = sizeof(uintptr_t);
     constexpr std::size_t uint32_size = sizeof(uint32_t);
@@ -259,22 +259,22 @@ TEST_CASE("ag_partial_size")
 
     constexpr std::size_t ag_partial_expected = uintptr_size + (3 * uint32_size) + uint16_size;
 
-    REQUIRE(ag_partial_size == ag_partial_expected);
+    REQUIRE(Combat::AgentPartialSize == ag_partial_expected);
 }
 
-TEST_CASE("serial_size(const ag& agent)")
+TEST_CASE("SerialSize(const ag&)")
 {
     char n[10] = "Test Name";
 
     ag agent{n, 1, 2, 3, 4, 5};
-    constexpr std::size_t expected_size = ag_partial_size + 10;
-    REQUIRE(serial_size(agent) == expected_size);
+    constexpr std::size_t expected_size = Combat::AgentPartialSize + 10;
+    REQUIRE(Combat::SerialSize(agent) == expected_size);
 }
 
 static uint8_t* RequireAgent(const ag& agent, uint8_t* storage, std::size_t count)
 {
     uint8_t* location = storage;
-    const std::size_t str_count = count - ag_partial_size - 1;
+    const std::size_t str_count = count - Combat::AgentPartialSize - 1;
 
     location = RequireStringAtLocation(location, agent.name, str_count);
     location = RequireAtLocation(location, agent.id);
@@ -286,17 +286,17 @@ static uint8_t* RequireAgent(const ag& agent, uint8_t* storage, std::size_t coun
     return location;
 }
 
-TEST_CASE("to_serial(const ag& agent, uint8_t* storage, std::size_t)")
+TEST_CASE("ToSerial(const ag&, uint8_t*, std::size_t)")
 {
     SECTION("Valid name")
     {
         char n[10] = "Test Name";
 
         ag agent{n, 1, 2, 3, 4, 5};
-        constexpr std::size_t ag_size = ag_partial_size + 10;
+        constexpr std::size_t ag_size = Combat::AgentPartialSize + 10;
 
         uint8_t storage[ag_size] = {};
-        to_serial(agent, storage, ag_size);
+        Combat::ToSerial(agent, storage, ag_size);
 
         uint8_t* location = RequireAgent(agent, storage, ag_size);
         REQUIRE(storage + ag_size == location);
@@ -305,10 +305,10 @@ TEST_CASE("to_serial(const ag& agent, uint8_t* storage, std::size_t)")
     SECTION("Empty name")
     {
         ag agent{nullptr, 1, 2, 3, 4, 5};
-        constexpr std::size_t ag_size = ag_partial_size + 1; // + 1 for null terminator.
+        constexpr std::size_t ag_size = Combat::AgentPartialSize + 1; // + 1 for null terminator.
 
         uint8_t storage[ag_size] = {};
-        to_serial(agent, storage, ag_size);
+        Combat::ToSerial(agent, storage, ag_size);
 
         uint8_t* location = RequireAgent(agent, storage, ag_size);
         REQUIRE(storage + ag_size == location);
@@ -336,14 +336,14 @@ static std::string AgentStrJSON(const ag& agent)
     return oss.str();
 }
 
-TEST_CASE("to_json(nlohmann::json& j, const ag& agent)")
+TEST_CASE("ToJSON(const ag& agent)")
 {
     SECTION("Valid name")
     {
         char n[10] = "Test Name";
         ag agent{n, 1, 2, 3, 4, 5};
 
-        nlohmann::json j = agent;
+        const nlohmann::json j = Combat::ToJSON(agent);
         REQUIRE(j.dump() == AgentStrJSON(agent));
     }
 
@@ -351,7 +351,7 @@ TEST_CASE("to_json(nlohmann::json& j, const ag& agent)")
     {
         ag agent{nullptr, 1, 2, 3, 4, 5};
 
-        nlohmann::json j = agent;
+        const nlohmann::json j = Combat::ToJSON(agent);
         REQUIRE(j.dump() == AgentStrJSON(agent));
     }
 }
@@ -375,15 +375,15 @@ struct AgentNode : Node
 
     uint8_t* write(uint8_t* storage) override
     {
-        const std::size_t count = serial_size(value);
-        to_serial(value, storage, count);
+        const std::size_t count = Combat::SerialSize(value);
+        Combat::ToSerial(value, storage, count);
         return storage + count;
     }
     uint8_t* require(uint8_t* storage) override { return RequireAgent(value, storage, count()); }
-    [[nodiscard]] std::size_t count() const override { return serial_size(value); }
+    [[nodiscard]] std::size_t count() const override { return Combat::SerialSize(value); }
     void json_require() override
     {
-        nlohmann::json j = value;
+        const nlohmann::json j = Combat::ToJSON(value);
         REQUIRE(j.dump() == AgentStrJSON(value));
     }
 };
@@ -461,10 +461,10 @@ static uint8_t* RequireCombatToSerial(uint8_t* storage, cbtevent* ev, ag* src, a
         location = RequireCombatEvent(*ev, location);
 
     if (src)
-        location = RequireAgent(*src, location, serial_size(*src));
+        location = RequireAgent(*src, location, Combat::SerialSize(*src));
 
     if (dst)
-        location = RequireAgent(*dst, location, serial_size(*dst));
+        location = RequireAgent(*dst, location, Combat::SerialSize(*dst));
 
     if (skillname)
         location = RequireStringAtLocation(location, skillname, std::strlen(skillname));
@@ -480,7 +480,7 @@ static uint8_t* RequireCombatToSerial(uint8_t* storage, cbtevent* ev, ag* src, a
 static void FieldTesterSerial(std::size_t count, cbtevent* ev, ag* src, ag* dst, char* skillname, uint64_t id,
                               uint64_t revision)
 {
-    SerialData serial = combat_to_serial(ev, src, dst, skillname, id, revision);
+    SerialData serial = Combat::CombatToSerial(ev, src, dst, skillname, id, revision);
     uint8_t* storage = &serial.ptr[SerialStartPadding];
     auto location = RequireCombatToSerial(storage, ev, src, dst, skillname, id, revision);
     REQUIRE(storage + count == location);
@@ -490,9 +490,9 @@ template <typename Tester>
 void RequireCombatFields(Tester func, cbtevent& ev, ag& src, ag& dst, std::optional<std::string> skillname, uint64_t id,
                          uint64_t revision)
 {
-    constexpr std::size_t ev_size = serial_size(cbtevent{});
-    const std::size_t src_ag_size = serial_size(src);
-    const std::size_t dst_ag_size = serial_size(dst);
+    constexpr std::size_t ev_size = Combat::SerialSize(cbtevent{});
+    const std::size_t src_ag_size = Combat::SerialSize(src);
+    const std::size_t dst_ag_size = Combat::SerialSize(dst);
 
     std::size_t skillname_size = 0;
     char* skillname_ptr = nullptr;
@@ -529,7 +529,7 @@ void RequireCombatFields(Tester func, cbtevent& ev, ag& src, ag& dst, std::optio
          revision);
 }
 
-TEST_CASE("combat_to_serial()")
+TEST_CASE("CombatToSerial()")
 {
     cbtevent ev = SimpleCombatEvent();
 
@@ -574,11 +574,11 @@ static std::string CombatArgsStrJSON(cbtevent* ev, ag* src, ag* dst, char* skill
 static void FieldTesterJSON(std::size_t, cbtevent* ev, ag* src, ag* dst, char* skillname, uint64_t id,
                             uint64_t revision)
 {
-    auto json = combat_to_json(ev, src, dst, skillname, id, revision);
+    auto json = Combat::CombatToJSON(ev, src, dst, skillname, id, revision);
     REQUIRE(json.dump() == CombatArgsStrJSON(ev, src, dst, skillname, id, revision));
 }
 
-TEST_CASE("combat_to_json()")
+TEST_CASE("CombatToJSON()")
 {
     cbtevent ev = SimpleCombatEvent();
 
@@ -594,6 +594,70 @@ TEST_CASE("combat_to_json()")
     uint64_t revision = 2;
 
     RequireCombatFields(FieldTesterJSON, ev, src, dst, skillname, id, revision);
+}
+
+//
+// Generator (combat args).
+//
+
+static void RequireCombatMessageGenerator(cbtevent* ev, ag* src, ag* dst, char* skillname, uint64_t id,
+                                          uint64_t revision)
+{
+    SerialData serial = Combat::CombatToSerial(ev, src, dst, skillname, id, revision);
+    uint8_t* storage{serial_w_integral(&serial.ptr[0],
+                                       static_cast<std::underlying_type_t<MessageCategory>>(MessageCategory::Combat))};
+    serial_w_integral(storage, static_cast<std::underlying_type_t<MessageType>>(MessageType::CombatEvent));
+
+    const nlohmann::json json = nlohmann::json{{"category", MessageCategoryToStr(MessageCategory::Combat)},
+                                               {"type", MessageTypeToStr(MessageType::CombatEvent)},
+                                               {"data", Combat::CombatToJSON(ev, src, dst, skillname, id, revision)}};
+    using MP = std::underlying_type_t<MessageProtocol>;
+
+    // Only Serial.
+    const Message msgSerial =
+        Combat::CombatMessageGenerator(ev, src, dst, skillname, id, revision, static_cast<MP>(MessageProtocol::Serial));
+    REQUIRE(msgSerial.category() == MessageCategory::Combat);
+    REQUIRE(msgSerial.type() == MessageType::CombatEvent);
+    REQUIRE(msgSerial.hasSerial());
+    REQUIRE_FALSE(msgSerial.hasJSON());
+    REQUIRE(msgSerial.toSerial() == serial);
+
+    // Only JSON.
+    const Message msgJSON =
+        Combat::CombatMessageGenerator(ev, src, dst, skillname, id, revision, static_cast<MP>(MessageProtocol::JSON));
+    REQUIRE(msgSerial.category() == MessageCategory::Combat);
+    REQUIRE(msgSerial.type() == MessageType::CombatEvent);
+    REQUIRE_FALSE(msgJSON.hasSerial());
+    REQUIRE(msgJSON.hasJSON());
+    REQUIRE(msgJSON.toJSON() == json.dump());
+
+    // Both Serial and JSON.
+    const auto both = static_cast<MP>(MessageProtocol::Serial) | static_cast<MP>(MessageProtocol::JSON);
+    const Message msgBoth = Combat::CombatMessageGenerator(ev, src, dst, skillname, id, revision, both);
+    REQUIRE(msgSerial.category() == MessageCategory::Combat);
+    REQUIRE(msgSerial.type() == MessageType::CombatEvent);
+    REQUIRE(msgBoth.hasSerial());
+    REQUIRE(msgBoth.hasJSON());
+    REQUIRE(msgBoth.toSerial() == serial);
+    REQUIRE(msgBoth.toJSON() == json.dump());
+}
+
+TEST_CASE("Combat::CombatMessageGenerator")
+{
+    cbtevent ev = SimpleCombatEvent();
+
+    char src_name[12] = "Source Name";
+    ag src{src_name, 1, 2, 3, 4, 5};
+
+    char dst_name[17] = "Destination Name";
+    ag dst{dst_name, 1, 2, 3, 4, 5};
+
+    std::string skillname = "Skillname";
+
+    uint64_t id = 1;
+    uint64_t revision = 2;
+
+    RequireCombatMessageGenerator(&ev, &src, &dst, &skillname[0], id, revision);
 }
 
 //
@@ -617,5 +681,11 @@ TEST_CASE("Budget fuzzing (combat args)")
 
         RequireCombatFields(FieldTesterSerial, ev, src, dst, skillname, id, revision);
         RequireCombatFields(FieldTesterJSON, ev, src, dst, skillname, id, revision);
+
+        char* str = nullptr;
+        if (skillname)
+            str = &(*skillname)[0];
+
+        RequireCombatMessageGenerator(&ev, &src, &dst, str, id, revision);
     }
 }

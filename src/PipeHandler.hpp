@@ -62,6 +62,7 @@ public:
 
     [[nodiscard]] bool trackingCategory(MessageCategory category) const;
     [[nodiscard]] bool usingProtocol(MessageProtocol protocol) const;
+    [[nodiscard]] std::underlying_type_t<MessageProtocol> usingProtocols() const;
 
 private:
     PipeThread* dispatchPipeThread(void* handle, std::size_t id);

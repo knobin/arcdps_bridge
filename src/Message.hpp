@@ -201,6 +201,22 @@ struct SerialData
     std::size_t count{0};
 };
 
+inline bool operator==(const SerialData& lhs, const SerialData& rhs)
+{
+    if ((lhs.ptr == rhs.ptr) && (lhs.count == rhs.count))
+        return true;
+
+    if ((lhs.count != rhs.count) || !lhs.ptr || !rhs.ptr)
+        return false;
+
+    const auto end = static_cast<std::ptrdiff_t>(lhs.count);
+    for (std::ptrdiff_t i{0}; i < end; ++i)
+        if (lhs.ptr[i] != rhs.ptr[i])
+            return false;
+
+    return true;
+}
+
 // First two bytes are reserved for MessageCategory and MessageType.
 constexpr std::ptrdiff_t SerialStartPadding = 2;
 

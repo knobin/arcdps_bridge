@@ -82,28 +82,36 @@ struct ag
     uint16_t team;  /* sep21+ */
 };
 
-// Combat event (cbtevent).
-constexpr std::size_t serial_size(const cbtevent& ev) noexcept
+namespace Combat
 {
-    return sizeof(ev.time) + sizeof(ev.src_agent) + sizeof(ev.dst_agent) + sizeof(ev.value) + sizeof(ev.buff_dmg) +
-           sizeof(ev.overstack_value) + sizeof(ev.skillid) + sizeof(ev.src_instid) + sizeof(ev.dst_instid) +
-           sizeof(ev.src_master_instid) + sizeof(ev.dst_master_instid) + sizeof(ev.iff) + sizeof(ev.buff) +
-           sizeof(ev.result) + sizeof(ev.is_activation) + sizeof(ev.is_buffremove) + sizeof(ev.is_ninety) +
-           sizeof(ev.is_fifty) + sizeof(ev.is_moving) + sizeof(ev.is_statechange) + sizeof(ev.is_flanking) +
-           sizeof(ev.is_shields) + sizeof(ev.is_offcycle);
-}
-void to_serial(const cbtevent& ev, uint8_t* storage, std::size_t);
+    // Combat event (cbtevent).
+    [[nodiscard]] constexpr std::size_t SerialSize(const cbtevent& ev) noexcept
+    {
+        return sizeof(ev.time) + sizeof(ev.src_agent) + sizeof(ev.dst_agent) + sizeof(ev.value) + sizeof(ev.buff_dmg) +
+               sizeof(ev.overstack_value) + sizeof(ev.skillid) + sizeof(ev.src_instid) + sizeof(ev.dst_instid) +
+               sizeof(ev.src_master_instid) + sizeof(ev.dst_master_instid) + sizeof(ev.iff) + sizeof(ev.buff) +
+               sizeof(ev.result) + sizeof(ev.is_activation) + sizeof(ev.is_buffremove) + sizeof(ev.is_ninety) +
+               sizeof(ev.is_fifty) + sizeof(ev.is_moving) + sizeof(ev.is_statechange) + sizeof(ev.is_flanking) +
+               sizeof(ev.is_shields) + sizeof(ev.is_offcycle);
+    }
+    void ToSerial(const cbtevent& ev, uint8_t* storage, std::size_t);
 
-// Agent (ag).
-constexpr std::size_t ag_partial_size =
-    sizeof(ag::id) + sizeof(ag::prof) + sizeof(ag::elite) + sizeof(ag::self) + sizeof(ag::team);
-void to_json(nlohmann::json& j, const cbtevent& evt);
-std::size_t serial_size(const ag& agent);
-void to_serial(const ag& agent, uint8_t* storage, std::size_t count);
-void to_json(nlohmann::json& j, const ag& agent);
+    // Agent (ag).
+    constexpr std::size_t AgentPartialSize =
+        sizeof(ag::id) + sizeof(ag::prof) + sizeof(ag::elite) + sizeof(ag::self) + sizeof(ag::team);
+    [[nodiscard]] nlohmann::json ToJSON(const cbtevent& evt);
+    [[nodiscard]] std::size_t SerialSize(const ag& agent);
+    void ToSerial(const ag& agent, uint8_t* storage, std::size_t count);
+    [[nodiscard]] nlohmann::json ToJSON(const ag& agent);
 
-// Combat Message generators (from mod_combat callback).
-SerialData combat_to_serial(cbtevent* ev, ag* src, ag* dst, char* skillname, uint64_t id, uint64_t revision);
-nlohmann::json combat_to_json(cbtevent* ev, ag* src, ag* dst, char* skillname, uint64_t id, uint64_t revision);
+    // Combat Message generators (from mod_combat callback).
+    [[nodiscard]] SerialData CombatToSerial(cbtevent* ev, ag* src, ag* dst, char* skillname, uint64_t id,
+                                            uint64_t revision);
+    [[nodiscard]] nlohmann::json CombatToJSON(cbtevent* ev, ag* src, ag* dst, char* skillname, uint64_t id,
+                                              uint64_t revision);
+
+    [[nodiscard]] Message CombatMessageGenerator(cbtevent* ev, ag* src, ag* dst, char* skillname, uint64_t id,
+                                                uint64_t revision, std::underlying_type_t<MessageProtocol> protocols);
+} // namespace Combat
 
 #endif // BRIDGE_COMBAT_HPP

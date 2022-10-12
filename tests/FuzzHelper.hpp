@@ -31,6 +31,7 @@ struct Node
     virtual uint8_t* write(uint8_t* storage) = 0;
     virtual uint8_t* require(uint8_t* storage) = 0;
     virtual void json_require() {}
+    virtual void other() {}
     [[nodiscard]] virtual std::size_t count() const = 0;
 };
 
@@ -40,7 +41,7 @@ struct Node
 // Integral node and related random generator functions.
 //
 
-template<typename T, T Min = std::numeric_limits<T>::min(), T Max = std::numeric_limits<T>::max()>
+template <typename T, T Min = std::numeric_limits<T>::min(), T Max = std::numeric_limits<T>::max()>
 inline T RandomIntegral()
 {
     static std::random_device dev;
@@ -49,19 +50,19 @@ inline T RandomIntegral()
     return distr(engine);
 }
 
-template<>
+template <>
 inline int8_t RandomIntegral()
 {
     return static_cast<int8_t>(RandomIntegral<int16_t>());
 }
 
-template<>
+template <>
 inline uint8_t RandomIntegral()
 {
     return static_cast<int8_t>(RandomIntegral<uint16_t>());
 }
 
-template<typename T>
+template <typename T>
 inline uint8_t* RequireAtLocation(uint8_t* storage, T val)
 {
     static_assert(std::is_integral<T>::value, "Integral required.");
@@ -70,7 +71,7 @@ inline uint8_t* RequireAtLocation(uint8_t* storage, T val)
     return storage + sizeof(T);
 }
 
-template<typename T>
+template <typename T>
 struct IntegralNode : Node
 {
     explicit IntegralNode(T val)
@@ -79,30 +80,37 @@ struct IntegralNode : Node
 
     T value{};
 
-    uint8_t* write(uint8_t* storage) override
-    {
-        return serial_w_integral(storage, value);
-    }
-    uint8_t* require(uint8_t* storage) override
-    {
-        return RequireAtLocation(storage, value);
-    }
-    [[nodiscard]] std::size_t count() const override
-    {
-        return sizeof(T);
-    }
+    uint8_t* write(uint8_t* storage) override { return serial_w_integral(storage, value); }
+    uint8_t* require(uint8_t* storage) override { return RequireAtLocation(storage, value); }
+    [[nodiscard]] std::size_t count() const override { return sizeof(T); }
 };
 
 static const std::array<std::function<std::unique_ptr<Node>()>, 8> IntegralCreators{
-    []() { return std::make_unique<IntegralNode<int64_t>>(RandomIntegral<int64_t>()); },
-    []() { return std::make_unique<IntegralNode<uint64_t>>(RandomIntegral<uint64_t>()); },
-    []() { return std::make_unique<IntegralNode<int32_t>>(RandomIntegral<int32_t>()); },
-    []() { return std::make_unique<IntegralNode<uint32_t>>(RandomIntegral<uint32_t>()); },
-    []() { return std::make_unique<IntegralNode<int16_t>>(RandomIntegral<int16_t>()); },
-    []() { return std::make_unique<IntegralNode<uint16_t>>(RandomIntegral<uint16_t>()); },
-    []() { return std::make_unique<IntegralNode<int8_t>>(static_cast<int8_t>(RandomIntegral<int16_t>())); },
-    []() { return std::make_unique<IntegralNode<uint8_t>>(static_cast<uint8_t>(RandomIntegral<uint16_t>())); },
-};
+    []() {
+    return std::make_unique<IntegralNode<int64_t>>(RandomIntegral<int64_t>());
+    },
+    []() {
+    return std::make_unique<IntegralNode<uint64_t>>(RandomIntegral<uint64_t>());
+},
+    []() {
+    return std::make_unique<IntegralNode<int32_t>>(RandomIntegral<int32_t>());
+    },
+    []() {
+    return std::make_unique<IntegralNode<uint32_t>>(RandomIntegral<uint32_t>());
+    },
+    []() {
+    return std::make_unique<IntegralNode<int16_t>>(RandomIntegral<int16_t>());
+    },
+    []() {
+    return std::make_unique<IntegralNode<uint16_t>>(RandomIntegral<uint16_t>());
+    },
+    []() {
+    return std::make_unique<IntegralNode<int8_t>>(static_cast<int8_t>(RandomIntegral<int16_t>()));
+    },
+    []() {
+    return std::make_unique<IntegralNode<uint8_t>>(static_cast<uint8_t>(RandomIntegral<uint16_t>()));
+    },
+    };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -127,23 +135,17 @@ struct StringNode : Node
 
     std::string value{};
 
-    uint8_t* write(uint8_t* storage) override
-    {
-        return serial_w_string(storage, value.c_str(), value.size());
-    }
+    uint8_t* write(uint8_t* storage) override { return serial_w_string(storage, value.c_str(), value.size()); }
     uint8_t* require(uint8_t* storage) override
     {
         return RequireStringAtLocation(storage, value.c_str(), value.size());
     }
-    [[nodiscard]] std::size_t count() const override
-    {
-        return value.size() + 1;
-    }
+    [[nodiscard]] std::size_t count() const override { return value.size() + 1; }
 };
 
 constexpr std::size_t MaxStringSize = 2048;
 
-template<std::size_t Min = std::numeric_limits<std::size_t>::min(), std::size_t Max = MaxStringSize>
+template <std::size_t Min = std::numeric_limits<std::size_t>::min(), std::size_t Max = MaxStringSize>
 inline std::string RandomString()
 {
     // Should extend the valid alpha set.
@@ -159,7 +161,7 @@ inline std::string RandomString()
     return std::move(str);
 }
 
-template<std::size_t Min = std::numeric_limits<std::size_t>::min(), std::size_t Max = MaxStringSize>
+template <std::size_t Min = std::numeric_limits<std::size_t>::min(), std::size_t Max = MaxStringSize>
 inline std::optional<std::string> OptionalRandomString()
 {
     if (RandomIntegral<uint64_t>() % 2)
@@ -179,7 +181,7 @@ inline std::unique_ptr<StringNode> StringNodeCreator()
 // Main general fuzzing function to run tests with.
 //
 
-template<std::size_t MaxTests, std::size_t MaxNodes, std::size_t MinScale, typename Creator>
+template <std::size_t MaxTests, std::size_t MaxNodes, std::size_t MinScale, typename Creator>
 inline void BudgetFuzzer(Creator func)
 {
     static_assert(MinScale > 1, "MinScale cannot be under 1");
@@ -216,4 +218,52 @@ inline void BudgetFuzzer(Creator func)
         // Validate pointer location (== +1 of last storage position).
         REQUIRE(buffer.get() + count == location);
     }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+//                            Message Helpers                                //
+///////////////////////////////////////////////////////////////////////////////
+
+template <typename Space, MessageCategory MsgCategory, MessageType MsgType>
+static void RequireMessageGenerator(
+    const typename Space::Type& value,
+    const std::function<Message(const typename Space::Type&, std::underlying_type_t<MessageProtocol>)>& generator)
+{
+    const std::size_t count = Space::SerialSize(value);
+    SerialData serial = CreateSerialData(count);
+    Space::ToSerial(value, &serial.ptr[SerialStartPadding], count);
+    uint8_t* storage{
+        serial_w_integral(&serial.ptr[0], static_cast<std::underlying_type_t<MessageCategory>>(MsgCategory))};
+    serial_w_integral(storage, static_cast<std::underlying_type_t<MessageType>>(MsgType));
+
+    const nlohmann::json json = nlohmann::json{{"category", MessageCategoryToStr(MsgCategory)},
+                                               {"type", MessageTypeToStr(MsgType)},
+                                               {"data", Space::ToJSON(value)}};
+    using MP = std::underlying_type_t<MessageProtocol>;
+
+    // Only Serial.
+    const Message msgSerial = generator(value, static_cast<MP>(MessageProtocol::Serial));
+    REQUIRE(msgSerial.category() == MsgCategory);
+    REQUIRE(msgSerial.type() == MsgType);
+    REQUIRE(msgSerial.hasSerial());
+    REQUIRE_FALSE(msgSerial.hasJSON());
+    REQUIRE(msgSerial.toSerial() == serial);
+
+    // Only JSON.
+    const Message msgJSON = generator(value, static_cast<MP>(MessageProtocol::JSON));
+    REQUIRE(msgSerial.category() == MsgCategory);
+    REQUIRE(msgSerial.type() == MsgType);
+    REQUIRE_FALSE(msgJSON.hasSerial());
+    REQUIRE(msgJSON.hasJSON());
+    REQUIRE(msgJSON.toJSON() == json.dump());
+
+    // Both Serial and JSON.
+    const auto both = static_cast<MP>(MessageProtocol::Serial) | static_cast<MP>(MessageProtocol::JSON);
+    const Message msgBoth = generator(value, both);
+    REQUIRE(msgSerial.category() == MsgCategory);
+    REQUIRE(msgSerial.type() == MsgType);
+    REQUIRE(msgBoth.hasSerial());
+    REQUIRE(msgBoth.hasJSON());
+    REQUIRE(msgBoth.toSerial() == serial);
+    REQUIRE(msgBoth.toJSON() == json.dump());
 }

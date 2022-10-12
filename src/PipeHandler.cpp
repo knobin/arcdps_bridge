@@ -224,6 +224,19 @@ bool PipeHandler::usingProtocol(MessageProtocol protocol) const
     return m_msgTracking.usingProtocol(protocol);
 }
 
+std::underlying_type_t<MessageProtocol> PipeHandler::usingProtocols() const
+{
+    using utype = std::underlying_type_t<MessageProtocol>;
+    utype protocols{};
+
+    if (usingProtocol(MessageProtocol::Serial))
+        protocols |= static_cast<utype>(MessageProtocol::Serial);
+    if (usingProtocol(MessageProtocol::JSON))
+        protocols |= static_cast<utype>(MessageProtocol::JSON);
+
+    return protocols;
+}
+
 void MessageTracking::trackCategory(MessageCategory category)
 {
     switch (category)

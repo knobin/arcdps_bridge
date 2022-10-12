@@ -172,26 +172,6 @@ static void RemoveFromSquad(const std::string& accountName, uint8_t bits)
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-static Message GenerateCombatMessage(cbtevent* ev, ag* src, ag* dst, char* skillname, uint64_t id, uint64_t revision)
-{
-    const bool useSerial{Server->usingProtocol(MessageProtocol::Serial)};
-    const bool useJSON{Server->usingProtocol(MessageProtocol::JSON)};
-
-    if (!useSerial && !useJSON)
-        return Message{};
-
-    SerialData serial{};
-    nlohmann::json json{};
-
-    if (useSerial)
-        serial = combat_to_serial(ev, src, dst, skillname, id, revision);
-
-    if (useJSON)
-        json = combat_to_json(ev, src, dst, skillname, id, revision);
-
-    return CombatMessage<MessageType::CombatEvent>(serial, json);
-}
-
 template <typename Iter>
 static void UpdateCharCacheIter(Iter& it, uint32_t profession, uint32_t elite)
 {
@@ -319,8 +299,7 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
     if (!Server->trackingCategory(MessageCategory::Combat))
         return 0;
 
-    Message combatMsg{GenerateCombatMessage(ev, src, dst, skillname, id, revision)};
-
+    Message combatMsg{Combat::CombatMessageGenerator(ev, src, dst, skillname, id, revision, Server->usingProtocols())};
     if (!combatMsg.empty())
         Server->sendMessage(combatMsg);
 
@@ -456,23 +435,7 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
             }
 
             if (Server->trackingCategory(MessageCategory::Extras))
-            {
-                SerialData serial{};
-                nlohmann::json json{};
-
-                if (Server->usingProtocol(MessageProtocol::Serial))
-                {
-                    const std::size_t uinfo_count = serial_size(*uinfo);
-                    serial = CreateSerialData(uinfo_count);
-                    to_serial(*uinfo, &serial.ptr[SerialStartPadding], uinfo_count);
-                }
-
-                if (Server->usingProtocol(MessageProtocol::JSON))
-                    json = *uinfo;
-
-                const Message extrasMsg{ExtrasMessage<MessageType::ExtrasSquadUpdate>(serial, json)};
-                Server->sendMessage(extrasMsg);
-            }
+                Server->sendMessage(Extras::SquadMessageGenerator(*uinfo, Server->usingProtocols()));
         }
     }
 }
@@ -480,45 +443,13 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
 static void language_changed_callback(Language pNewLanguage)
 {
     if (Server->trackingCategory(MessageCategory::Extras))
-    {
-        SerialData serial{};
-        nlohmann::json json{};
-
-        if (Server->usingProtocol(MessageProtocol::Serial))
-        {
-            constexpr std::size_t lang_count = serial_size(Language{});
-            serial = CreateSerialData(lang_count);
-            to_serial(pNewLanguage, &serial.ptr[SerialStartPadding], lang_count);
-        }
-
-        if (Server->usingProtocol(MessageProtocol::JSON))
-            json = pNewLanguage;
-
-        const Message extrasMsg{ExtrasMessage<MessageType::ExtrasLanguageChanged>(serial, json)};
-        Server->sendMessage(extrasMsg);
-    }
+        Server->sendMessage(Extras::LanguageMessageGenerator(pNewLanguage, Server->usingProtocols()));
 }
 
 static void keybind_changed_callback(KeyBinds::KeyBindChanged pChangedKeyBind)
 {
     if (Server->trackingCategory(MessageCategory::Extras))
-    {
-        SerialData serial{};
-        nlohmann::json json{};
-
-        if (Server->usingProtocol(MessageProtocol::Serial))
-        {
-            constexpr std::size_t keybind_count = serial_size(KeyBinds::KeyBindChanged{});
-            serial = CreateSerialData(keybind_count);
-            to_serial(pChangedKeyBind, &serial.ptr[SerialStartPadding], keybind_count);
-        }
-
-        if (Server->usingProtocol(MessageProtocol::JSON))
-            to_json(json, pChangedKeyBind);
-
-        const Message extrasMsg{ExtrasMessage<MessageType::ExtrasKeyBindChanged>(serial, json)};
-        Server->sendMessage(extrasMsg);
-    }
+        Server->sendMessage(Extras::KeyBindMessageGenerator(pChangedKeyBind, Server->usingProtocols()));
 }
 
 static void chat_message_callback(const ChatMessageInfo* pChatMessage)
@@ -527,23 +458,7 @@ static void chat_message_callback(const ChatMessageInfo* pChatMessage)
         return;
 
     if (Server->trackingCategory(MessageCategory::Extras))
-    {
-        SerialData serial{};
-        nlohmann::json json{};
-
-        if (Server->usingProtocol(MessageProtocol::Serial))
-        {
-            const std::size_t chat_msg_count = serial_size(*pChatMessage);
-            serial = CreateSerialData(chat_msg_count);
-            to_serial(*pChatMessage, &serial.ptr[SerialStartPadding], chat_msg_count);
-        }
-
-        if (Server->usingProtocol(MessageProtocol::JSON))
-            json = *pChatMessage;
-
-        const Message extrasMsg{ExtrasMessage<MessageType::ExtrasChatMessage>(serial, json)};
-        Server->sendMessage(extrasMsg);
-    }
+        Server->sendMessage(Extras::ChatMessageGenerator(*pChatMessage, Server->usingProtocols()));
 }
 
 template <typename T>

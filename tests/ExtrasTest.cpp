@@ -19,6 +19,22 @@
 #include <utility>
 
 ///////////////////////////////////////////////////////////////////////////////
+//                                 Helpers                                   //
+///////////////////////////////////////////////////////////////////////////////
+
+template <typename T>
+struct GeneratorSpaceHelper
+{
+    using Type = T;
+    static auto SerialSize(const T& value) { return Extras::SerialSize(value); }
+    static auto ToSerial(const T& value, uint8_t* storage, std::size_t count)
+    {
+        return Extras::ToSerial(value, storage, count);
+    }
+    static auto ToJSON(const T& value) { return Extras::ToJSON(value); }
+};
+
+///////////////////////////////////////////////////////////////////////////////
 //                                 UserInfo                                  //
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -27,38 +43,38 @@
 //
 
 // It's important this value does not change (breaks version compatibility).
-TEST_CASE("UserInfo_partial_size")
+TEST_CASE("UserInfoPartialSize")
 {
     constexpr std::size_t expected_size =
         sizeof(int64_t) + sizeof(UserInfo::Role) + sizeof(UserInfo::Subgroup) + sizeof(uint8_t);
 
-    REQUIRE(UserInfo_partial_size == expected_size);
+    REQUIRE(Extras::UserInfoPartialSize == expected_size);
 }
 
-TEST_CASE("serial_size(const UserInfo& info)")
+TEST_CASE("SerialSize(const UserInfo& info)")
 {
     SECTION("Valid name")
     {
         char n[10] = "Test Name";
         UserInfo info{n, 1, UserRole::Member, 2, false};
 
-        constexpr std::size_t expected_size = UserInfo_partial_size + 10;
-        REQUIRE(serial_size(info) == expected_size);
+        constexpr std::size_t expected_size = Extras::UserInfoPartialSize + 10;
+        REQUIRE(Extras::SerialSize(info) == expected_size);
     }
 
     SECTION("nullptr name")
     {
         UserInfo info{nullptr, 1, UserRole::Member, 2, false};
 
-        constexpr std::size_t expected_size = UserInfo_partial_size + 1; // + 1 for null terminator.
-        REQUIRE(serial_size(info) == expected_size);
+        constexpr std::size_t expected_size = Extras::UserInfoPartialSize + 1; // + 1 for null terminator.
+        REQUIRE(Extras::SerialSize(info) == expected_size);
     }
 }
 
 static uint8_t* RequirePlayerInfo(const UserInfo& info, uint8_t* storage)
 {
     uint8_t* location = storage;
-    const std::size_t str_count = serial_size(info) - UserInfo_partial_size - 1;
+    const std::size_t str_count = Extras::SerialSize(info) - Extras::UserInfoPartialSize - 1;
 
     location = RequireStringAtLocation(location, info.AccountName, str_count);
     location = RequireAtLocation(location, static_cast<int64_t>(info.JoinTime));
@@ -69,17 +85,17 @@ static uint8_t* RequirePlayerInfo(const UserInfo& info, uint8_t* storage)
     return location;
 }
 
-TEST_CASE("to_serial(const UserInfo& info, uint8_t* storage, std::size_t)")
+TEST_CASE("ToSerial(const UserInfo& info, uint8_t* storage, std::size_t)")
 {
     SECTION("Valid name")
     {
         char n[10] = "Test Name"; // Size includes null terminator.
         UserInfo info{n, 1, UserRole::Member, 2, false};
 
-        constexpr std::size_t userinfo_size = UserInfo_partial_size + 10;
+        constexpr std::size_t userinfo_size = Extras::UserInfoPartialSize + 10;
 
         uint8_t storage[userinfo_size] = {};
-        to_serial(info, storage, userinfo_size);
+        Extras::ToSerial(info, storage, userinfo_size);
 
         uint8_t* location = RequirePlayerInfo(info, storage);
         REQUIRE(storage + userinfo_size == location);
@@ -88,10 +104,10 @@ TEST_CASE("to_serial(const UserInfo& info, uint8_t* storage, std::size_t)")
     SECTION("Empty name")
     {
         UserInfo info{nullptr, 1, UserRole::Member, 2, false};
-        constexpr std::size_t userinfo_size = UserInfo_partial_size + 1; // + 1 for null terminator.
+        constexpr std::size_t userinfo_size = Extras::UserInfoPartialSize + 1; // + 1 for null terminator.
 
         uint8_t storage[userinfo_size] = {};
-        to_serial(info, storage, userinfo_size);
+        Extras::ToSerial(info, storage, userinfo_size);
 
         uint8_t* location = RequirePlayerInfo(info, storage);
         REQUIRE(storage + userinfo_size == location);
@@ -118,14 +134,14 @@ static std::string UserInfoStrJSON(const UserInfo& info)
     return oss.str();
 }
 
-TEST_CASE("to_json(nlohmann::json& j, const UserInfo& user)")
+TEST_CASE("ToJSON(nlohmann::json& j, const UserInfo& user)")
 {
     SECTION("Valid name")
     {
         char n[10] = "Test Name"; // Size includes null terminator.
         UserInfo info{n, 1, UserRole::Member, 2, false};
 
-        nlohmann::json j = info;
+        const nlohmann::json j = Extras::ToJSON(info);
         REQUIRE(j.dump() == UserInfoStrJSON(info));
     }
 
@@ -133,9 +149,22 @@ TEST_CASE("to_json(nlohmann::json& j, const UserInfo& user)")
     {
         UserInfo info{nullptr, 1, UserRole::Member, 2, false};
 
-        nlohmann::json j = info;
+        const nlohmann::json j = Extras::ToJSON(info);
         REQUIRE(j.dump() == UserInfoStrJSON(info));
     }
+}
+
+//
+// Generator (UserInfo).
+//
+
+TEST_CASE("Extras::SquadMessageGenerator")
+{
+    char n[10] = "Test Name"; // Size includes null terminator.
+    UserInfo info{n, 1, UserRole::Member, 2, false};
+
+    RequireMessageGenerator<GeneratorSpaceHelper<UserInfo>, MessageCategory::Extras,
+                            MessageType::ExtrasSquadUpdate>(info, Extras::SquadMessageGenerator);
 }
 
 //
@@ -157,16 +186,21 @@ struct UserInfoNode : Node
 
     uint8_t* write(uint8_t* storage) override
     {
-        const std::size_t count = serial_size(value);
-        to_serial(value, storage, count);
+        const std::size_t count = Extras::SerialSize(value);
+        Extras::ToSerial(value, storage, count);
         return storage + count;
     }
     uint8_t* require(uint8_t* storage) override { return RequirePlayerInfo(value, storage); }
-    [[nodiscard]] std::size_t count() const override { return serial_size(value); }
+    [[nodiscard]] std::size_t count() const override { return Extras::SerialSize(value); }
     void json_require() override
     {
-        nlohmann::json j = value;
+        const nlohmann::json j = Extras::ToJSON(value);
         REQUIRE(j.dump() == UserInfoStrJSON(value));
+    }
+    void other() override
+    {
+        RequireMessageGenerator<GeneratorSpaceHelper<UserInfo>, MessageCategory::Extras,
+                                MessageType::ExtrasSquadUpdate>(value, Extras::SquadMessageGenerator);
     }
 };
 
@@ -202,11 +236,11 @@ TEST_CASE("Budget fuzzing (only UserInfo)")
 //
 
 // It's important this value does not change (breaks version compatibility).
-TEST_CASE("serial_size(Language)")
+TEST_CASE("SerialSize(Language)")
 {
     constexpr std::size_t expected_size = sizeof(int32_t);
 
-    REQUIRE(serial_size(Language{}) == expected_size);
+    REQUIRE(Extras::SerialSize(Language{}) == expected_size);
 }
 
 static uint8_t* RequireLanguage(Language language, uint8_t* storage)
@@ -216,16 +250,16 @@ static uint8_t* RequireLanguage(Language language, uint8_t* storage)
 
 static void ValidateLanguageSerialValue(Language language)
 {
-    constexpr std::size_t language_size = serial_size(Language{});
+    constexpr std::size_t language_size = Extras::SerialSize(Language{});
 
     uint8_t storage[language_size] = {};
-    to_serial(language, storage, language_size);
+    Extras::ToSerial(language, storage, language_size);
 
     uint8_t* location = RequireLanguage(language, storage);
     REQUIRE(storage + language_size == location);
 }
 
-TEST_CASE("to_serial(Language language, uint8_t* storage, std::size_t)")
+TEST_CASE("ToSerial(Language language, uint8_t* storage, std::size_t)")
 {
     ValidateLanguageSerialValue(Language::English);
     ValidateLanguageSerialValue(Language::French);
@@ -250,17 +284,27 @@ static std::string LanguageStrJSON(Language language)
 
 static void ValidateLanguageJSON(Language language)
 {
-    nlohmann::json j = language;
+    const nlohmann::json j = Extras::ToJSON(language);
     REQUIRE(j.dump() == LanguageStrJSON(language));
 }
 
-TEST_CASE("to_json(nlohmann::json& j, Language language)")
+TEST_CASE("ToJSON(nlohmann::json& j, Language language)")
 {
     ValidateLanguageJSON(Language::English);
     ValidateLanguageJSON(Language::French);
     ValidateLanguageJSON(Language::German);
     ValidateLanguageJSON(Language::Spanish);
     ValidateLanguageJSON(Language::Chinese);
+}
+
+//
+// Generator (Language).
+//
+
+TEST_CASE("Extras::LanguageMessageGenerator")
+{
+    RequireMessageGenerator<GeneratorSpaceHelper<Language>, MessageCategory::Extras,
+                            MessageType::ExtrasLanguageChanged>(Language::English, Extras::LanguageMessageGenerator);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -272,11 +316,11 @@ TEST_CASE("to_json(nlohmann::json& j, Language language)")
 //
 
 // It's important this value does not change (breaks version compatibility).
-TEST_CASE("serial_size(KeyBinds::KeyBindChanged)")
+TEST_CASE("SerialSize(KeyBinds::KeyBindChanged)")
 {
     constexpr std::size_t expected_size = sizeof(int32_t) + sizeof(uint32_t) + (3 * sizeof(int32_t));
 
-    REQUIRE(serial_size(KeyBinds::KeyBindChanged{}) == expected_size);
+    REQUIRE(Extras::SerialSize(KeyBinds::KeyBindChanged{}) == expected_size);
 }
 
 static uint8_t* RequireKeyBindChanged(const KeyBinds::KeyBindChanged& keybind, uint8_t* storage)
@@ -295,15 +339,15 @@ static uint8_t* RequireKeyBindChanged(const KeyBinds::KeyBindChanged& keybind, u
     return location;
 }
 
-TEST_CASE("to_serial(const KeyBinds::KeyBindChanged&, uint8_t*, std::size_t)")
+TEST_CASE("ToSerial(const KeyBinds::KeyBindChanged&, uint8_t*, std::size_t)")
 {
     KeyBinds::KeyBindChanged keyChanged{KeyBinds::KeyControl::Movement_MoveForward,
                                         3,
                                         {KeyBinds::DeviceType::Keyboard, 4, 1}};
 
-    constexpr std::size_t keybind_size = serial_size(KeyBinds::KeyBindChanged{});
+    constexpr std::size_t keybind_size = Extras::SerialSize(KeyBinds::KeyBindChanged{});
     uint8_t storage[keybind_size] = {};
-    to_serial(keyChanged, storage, keybind_size);
+    Extras::ToSerial(keyChanged, storage, keybind_size);
 
     uint8_t* location = RequireKeyBindChanged(keyChanged, storage);
     REQUIRE(storage + keybind_size == location);
@@ -330,15 +374,28 @@ static std::string KeyBindChangedStrJSON(const KeyBinds::KeyBindChanged& keyChan
     return oss.str();
 }
 
-TEST_CASE("to_json(nlohmann::json&, const KeyBinds::KeyBindChanged&)")
+TEST_CASE("ToJSON(nlohmann::json&, const KeyBinds::KeyBindChanged&)")
 {
     KeyBinds::KeyBindChanged keyChanged{KeyBinds::KeyControl::Movement_MoveForward,
                                         3,
                                         {KeyBinds::DeviceType::Keyboard, 4, 1}};
 
-    nlohmann::json j;
-    to_json(j, keyChanged);
+    const nlohmann::json j = Extras::ToJSON(keyChanged);
     REQUIRE(j.dump() == KeyBindChangedStrJSON(keyChanged));
+}
+
+//
+// Generator (KeyBind).
+//
+
+TEST_CASE("Extras::KeyBindMessageGenerator")
+{
+    KeyBinds::KeyBindChanged keyChanged{KeyBinds::KeyControl::Movement_MoveForward,
+                                        3,
+                                        {KeyBinds::DeviceType::Keyboard, 4, 1}};
+
+    RequireMessageGenerator<GeneratorSpaceHelper<KeyBinds::KeyBindChanged>, MessageCategory::Extras,
+                            MessageType::ExtrasKeyBindChanged>(keyChanged, Extras::KeyBindMessageGenerator);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -354,23 +411,23 @@ TEST_CASE("ChatMessageInfo_partial_size")
 {
     constexpr std::size_t expected_size = sizeof(uint32_t) + (3 * sizeof(uint8_t));
 
-    REQUIRE(ChatMessageInfo_partial_size == expected_size);
+    REQUIRE(Extras::ChatMessageInfoPartialSize == expected_size);
 }
 
 // It's important this value does not change (breaks version compatibility).
-TEST_CASE("serial_size(const ChatMessageInfo&)")
+TEST_CASE("SerialSize(const ChatMessageInfo&)")
 {
     char timestamp[25] = "2022-09-04T00:02:16.606Z";
     char accountName[19] = ":Test account name";
     char characterName[20] = "Test character name";
     char text[16] = "Test text input";
 
-    constexpr std::size_t expected_size = ChatMessageInfo_partial_size + 25 + 19 + 20 + 16;
+    constexpr std::size_t expected_size = Extras::ChatMessageInfoPartialSize + 25 + 19 + 20 + 16;
 
     ChatMessageInfo chatMsgInfo{4,  ChannelType::Invalid, 2,  1,    0, timestamp, 24, accountName,
                                 18, characterName,        19, text, 15};
 
-    REQUIRE(serial_size(chatMsgInfo) == expected_size);
+    REQUIRE(Extras::SerialSize(chatMsgInfo) == expected_size);
 }
 
 static uint8_t* RequireChatMessageInfo(const ChatMessageInfo& chatMsgInfo, uint8_t* storage)
@@ -390,20 +447,20 @@ static uint8_t* RequireChatMessageInfo(const ChatMessageInfo& chatMsgInfo, uint8
     return location;
 }
 
-TEST_CASE("to_serial(const ChatMessageInfo&, uint8_t* storage, std::size_t)")
+TEST_CASE("ToSerial(const ChatMessageInfo&, uint8_t* storage, std::size_t)")
 {
     char timestamp[25] = "2022-09-04T00:02:16.606Z";
     char accountName[19] = ":Test account name";
     char characterName[20] = "Test character name";
     char text[16] = "Test text input";
 
-    constexpr std::size_t chat_msg_info_size = ChatMessageInfo_partial_size + 25 + 19 + 20 + 16;
+    constexpr std::size_t chat_msg_info_size = Extras::ChatMessageInfoPartialSize + 25 + 19 + 20 + 16;
 
     ChatMessageInfo chatMsgInfo{4,  ChannelType::Invalid, 2,  1,    0, timestamp, 24, accountName,
                                 18, characterName,        19, text, 15};
 
     uint8_t storage[chat_msg_info_size] = {};
-    to_serial(chatMsgInfo, storage, chat_msg_info_size);
+    Extras::ToSerial(chatMsgInfo, storage, chat_msg_info_size);
 
     uint8_t* location = RequireChatMessageInfo(chatMsgInfo, storage);
     REQUIRE(storage + chat_msg_info_size == location);
@@ -437,7 +494,7 @@ static std::string ChatMessageInfoStrJSON(const ChatMessageInfo& chatMsgInfo)
     return oss.str();
 }
 
-TEST_CASE("to_json(nlohmann::json& j, const ChatMessageInfo&)")
+TEST_CASE("ToJSON(nlohmann::json& j, const ChatMessageInfo&)")
 {
     char timestamp[25] = "2022-09-04T00:02:16.606Z";
     char accountName[19] = ":Test account name";
@@ -447,8 +504,26 @@ TEST_CASE("to_json(nlohmann::json& j, const ChatMessageInfo&)")
     ChatMessageInfo chatMsgInfo{4,  ChannelType::Invalid, 2,  1,    0, timestamp, 24, accountName,
                                 18, characterName,        19, text, 15};
 
-    nlohmann::json j = chatMsgInfo;
+    const nlohmann::json j = Extras::ToJSON(chatMsgInfo);
     REQUIRE(j.dump() == ChatMessageInfoStrJSON(chatMsgInfo));
+}
+
+//
+// Generator (ChatMessageInfo).
+//
+
+TEST_CASE("Extras::ChatMessageGenerator")
+{
+    char timestamp[25] = "2022-09-04T00:02:16.606Z";
+    char accountName[19] = ":Test account name";
+    char characterName[20] = "Test character name";
+    char text[16] = "Test text input";
+
+    ChatMessageInfo chatMsgInfo{4,  ChannelType::Invalid, 2,  1,    0, timestamp, 24, accountName,
+                                18, characterName,        19, text, 15};
+
+    RequireMessageGenerator<GeneratorSpaceHelper<ChatMessageInfo>, MessageCategory::Extras,
+                            MessageType::ExtrasChatMessage>(chatMsgInfo, Extras::ChatMessageGenerator);
 }
 
 //
@@ -498,16 +573,21 @@ struct ChatMessageInfoNode : Node
 
     uint8_t* write(uint8_t* storage) override
     {
-        const std::size_t count = serial_size(value);
-        to_serial(value, storage, count);
+        const std::size_t count = Extras::SerialSize(value);
+        Extras::ToSerial(value, storage, count);
         return storage + count;
     }
     uint8_t* require(uint8_t* storage) override { return RequireChatMessageInfo(value, storage); }
-    [[nodiscard]] std::size_t count() const override { return serial_size(value); }
+    [[nodiscard]] std::size_t count() const override { return Extras::SerialSize(value); }
     void json_require() override
     {
-        nlohmann::json j = value;
+        const nlohmann::json j = Extras::ToJSON(value);
         REQUIRE(j.dump() == ChatMessageInfoStrJSON(value));
+    }
+    void other() override
+    {
+        RequireMessageGenerator<GeneratorSpaceHelper<ChatMessageInfo>, MessageCategory::Extras,
+                                MessageType::ExtrasChatMessage>(value, Extras::ChatMessageGenerator);
     }
 };
 
