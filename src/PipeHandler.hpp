@@ -24,12 +24,12 @@ public:
     // Tracked event categories.
     void trackCategory(MessageCategory category);
     void untrackCategory(MessageCategory category);
-    bool isTrackingCategory(MessageCategory category) const;
+    [[nodiscard]] bool isTrackingCategory(MessageCategory category) const;
 
     // Using protocols.
     void useProtocol(MessageProtocol protocol);
     void unuseProtocol(MessageProtocol protocol);
-    bool usingProtocol(MessageProtocol protocol) const;
+    [[nodiscard]] bool usingProtocol(MessageProtocol protocol) const;
 
 private:
     // Categories.
@@ -46,20 +46,21 @@ class PipeHandler
 {
 public:
     PipeHandler() = delete;
-    PipeHandler(const std::string pipeName, const ApplicationData& appdata, const SquadModifyHandler* squadModifyHandler);
+    PipeHandler(const std::string& pipeName, const ApplicationData& appdata, const SquadModifyHandler* squadModifyHandler);
     ~PipeHandler();
 
 public:
     void start();
     void stop();
-    bool started() const { return m_threadStarted; }
-    bool waitingForConnection() const { return m_waitingForConnection; }
+
+    [[nodiscard]] bool started() const { return m_threadStarted; }
+    [[nodiscard]] bool waitingForConnection() const { return m_waitingForConnection; }
 
     void sendBridgeInfo(const Message& msg, uint64_t validator);
     void sendMessage(const Message& msg);
 
-    bool trackingCategory(MessageCategory category) const;
-    bool usingProtocol(MessageProtocol protocol) const;
+    [[nodiscard]] bool trackingCategory(MessageCategory category) const;
+    [[nodiscard]] bool usingProtocol(MessageProtocol protocol) const;
 
 private:
     PipeThread* dispatchPipeThread(void* handle, std::size_t id);

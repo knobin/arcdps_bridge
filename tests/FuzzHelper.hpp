@@ -31,7 +31,7 @@ struct Node
     virtual uint8_t* write(uint8_t* storage) = 0;
     virtual uint8_t* require(uint8_t* storage) = 0;
     virtual void json_require() {}
-    virtual std::size_t count() const = 0;
+    [[nodiscard]] virtual std::size_t count() const = 0;
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -73,7 +73,7 @@ inline uint8_t* RequireAtLocation(uint8_t* storage, T val)
 template<typename T>
 struct IntegralNode : Node
 {
-    IntegralNode(T val) 
+    explicit IntegralNode(T val)
         : value{val}
     {}
 
@@ -87,7 +87,7 @@ struct IntegralNode : Node
     {
         return RequireAtLocation(storage, value);
     }
-    std::size_t count() const override
+    [[nodiscard]] std::size_t count() const override
     {
         return sizeof(T);
     }
@@ -121,8 +121,8 @@ inline uint8_t* RequireStringAtLocation(uint8_t* storage, const char* str, std::
 
 struct StringNode : Node
 {
-    StringNode(const std::string& str) 
-        : value{str}
+    explicit StringNode(std::string str)
+        : value{std::move(str)}
     {}
 
     std::string value{};
@@ -135,7 +135,7 @@ struct StringNode : Node
     {
         return RequireStringAtLocation(storage, value.c_str(), value.size());
     }
-    std::size_t count() const override
+    [[nodiscard]] std::size_t count() const override
     {
         return value.size() + 1;
     }
@@ -149,14 +149,14 @@ inline std::string RandomString()
     // Should extend the valid alpha set.
     constexpr std::string_view alpha = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz ()[]{}&%#";
 
-    std::size_t count = RandomIntegral<std::size_t, Min, Max>();
+    const auto count = RandomIntegral<std::size_t, Min, Max>();
     std::string str{};
     str.reserve(count);
 
     for (std::size_t i{0}; i < count; ++i)
         str += alpha[RandomIntegral<std::size_t>() % alpha.size()];
 
-    return str;
+    return std::move(str);
 }
 
 template<std::size_t Min = std::numeric_limits<std::size_t>::min(), std::size_t Max = MaxStringSize>

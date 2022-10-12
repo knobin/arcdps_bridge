@@ -16,6 +16,7 @@
 
 // C++ Headers
 #include <sstream>
+#include <utility>
 
 ///////////////////////////////////////////////////////////////////////////////
 //                                 UserInfo                                  //
@@ -143,8 +144,8 @@ TEST_CASE("to_json(nlohmann::json& j, const UserInfo& user)")
 
 struct UserInfoNode : Node
 {
-    UserInfoNode(const std::optional<std::string>& user_name, const UserInfo& info) 
-        : name{user_name}, value{info}
+    UserInfoNode(std::optional<std::string> user_name, const UserInfo& info)
+        : name{std::move(user_name)}, value{info}
     {
         if (name)
             value.AccountName = name->c_str();
@@ -163,7 +164,7 @@ struct UserInfoNode : Node
     {
         return RequirePlayerInfo(value, storage);
     }
-    std::size_t count() const override
+    [[nodiscard]] std::size_t count() const override
     {
         return serial_size(value);
     }
@@ -463,9 +464,9 @@ TEST_CASE("to_json(nlohmann::json& j, const ChatMessageInfo&)")
 
 struct ChatMessageInfoNode : Node
 {
-    ChatMessageInfoNode(const std::optional<std::string>& at, const std::optional<std::string>& acc,
-                        std::optional<std::string>& ch, std::optional<std::string>& str, ChatMessageInfo& info)
-        : timestamp{at}, accountName{acc}, charName{ch}, text{str}, value{info}
+    ChatMessageInfoNode(std::optional<std::string> at, std::optional<std::string> acc,
+                        std::optional<std::string> ch, std::optional<std::string> str, ChatMessageInfo& info)
+        : timestamp{std::move(at)}, accountName{std::move(acc)}, charName{std::move(ch)}, text{std::move(str)}, value{info}
     {
         if (timestamp)
         {
@@ -508,7 +509,7 @@ struct ChatMessageInfoNode : Node
     {
         return RequireChatMessageInfo(value, storage);
     }
-    std::size_t count() const override
+    [[nodiscard]] std::size_t count() const override
     {
         return serial_size(value);
     }

@@ -66,10 +66,10 @@ public:
     Status add(const PlayerInfo& player);
     PlayerInfoUpdate update(const PlayerInfoEntry& playerEntry);
     std::optional<PlayerInfoEntry> remove(const std::string& accountName);
-    std::optional<PlayerInfoEntry> find(const std::string& accountName) const;
+    [[nodiscard]] std::optional<PlayerInfoEntry> find(const std::string& accountName) const;
 
     template<typename UnaryPredicate>
-    std::optional<PlayerInfoEntry> find_if(UnaryPredicate p)
+    [[nodiscard]] std::optional<PlayerInfoEntry> find_if(UnaryPredicate p)
     {
         std::unique_lock<std::mutex> lock(m_mutex);
 
@@ -85,8 +85,8 @@ public:
 
     void clear();
 
-    nlohmann::json toJSON() const;
-    SerialData toSerial(std::size_t startPadding = 0) const;
+    [[nodiscard]] nlohmann::json toJSON() const;
+    [[nodiscard]] SerialData toSerial(std::size_t startPadding = 0) const;
 
 private:
     std::array<std::pair<bool, PlayerInfoEntry>, 65> m_squad{};

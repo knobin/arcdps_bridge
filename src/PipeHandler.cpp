@@ -9,13 +9,9 @@
 #include "PipeHandler.hpp"
 #include "Log.hpp"
 
-// Windows Headers
-#include <windows.h>
-
-PipeHandler::PipeHandler(const std::string pipeName, const ApplicationData& appdata, const SquadModifyHandler* squadModifyHandler)
+PipeHandler::PipeHandler(const std::string& pipeName, const ApplicationData& appdata, const SquadModifyHandler* squadModifyHandler)
     : m_pipeName{pipeName}, m_appData{appdata}, m_squadModifyHandler{squadModifyHandler}
-{
-}
+{}
 
 PipeHandler::~PipeHandler()
 {

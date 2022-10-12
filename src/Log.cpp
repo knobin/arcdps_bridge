@@ -9,7 +9,7 @@
 #include "Log.hpp"
 
 #if !defined(BRIDGE_LOG_FILESIZE)
-    #define BRIDGE_LOG_FILESIZE 10*1024*1024
+    #define BRIDGE_LOG_FILESIZE (10*1024*1024)
 #endif
 
 std::shared_ptr<spdlog::logger> Logger::s_logger;

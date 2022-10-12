@@ -29,8 +29,8 @@
 struct BridgeInfo
 {
     std::string_view version{BRIDGE_VERSION_STR};   // Bridge version.
-    std::string extrasVersion{""};                  // Unofficial Extras version.
-    std::string arcvers{""};                        // ArcDPS version.
+    std::string extrasVersion{};                         // Unofficial Extras version.
+    std::string arcvers{};                           // ArcDPS version.
 
     uint64_t validator{1};  // Runtime version of the BridgeInfo, if any value changes this will be incremented.
     
@@ -64,7 +64,7 @@ struct Configs
     std::size_t clientTimeoutTimer{120000}; // Check if client disconnected after specified amount of milliseconds.
     std::size_t msgQueueSize{64};           // How many messages can be queued before being dropped.
 
-    void set(const std::string header, const std::string& entry, const std::string& value);
+    void set(const std::string& header, const std::string& entry, const std::string& value);
 private:
     template<typename T>
     std::optional<T> StringTo(const std::string& str)

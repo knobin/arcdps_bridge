@@ -181,7 +181,8 @@ SerialData PlayerContainer::toSerial(std::size_t startPadding) const
     }
 
     data.ptr = std::make_unique<uint8_t[]>(data.count);
-    uint8_t* location = serial_w_integral(&data.ptr[SerialStartPadding + startPadding], static_cast<uint64_t>(entries)); // Set entries count.
+    const auto padding = SerialStartPadding + static_cast<std::ptrdiff_t>(startPadding);
+    uint8_t* location = serial_w_integral(&data.ptr[padding], static_cast<uint64_t>(entries)); // Set entries count.
 
     for (std::size_t i{ 0 }; i < m_squad.size(); ++i)
     {
@@ -233,16 +234,14 @@ void to_serial(const PlayerInfo& player, uint8_t* storage, std::size_t)
 
     location = serial_w_integral(location, static_cast<uint8_t>(player.inInstance));
     location = serial_w_integral(location, static_cast<uint8_t>(player.self));
-    location = serial_w_integral(location, static_cast<uint8_t>(player.readyStatus));
+    serial_w_integral(location, static_cast<uint8_t>(player.readyStatus));
 }
 
 void to_serial(const PlayerInfoEntry& entry, uint8_t* storage, std::size_t count)
 {
     const std::size_t player_size = count - sizeof(entry.validator);
     to_serial(entry.player, storage, player_size);
-
-    uint8_t* location = storage + player_size;
-    location = serial_w_integral(location, entry.validator);
+    serial_w_integral(storage + player_size, entry.validator);
 }
 
 void to_json(nlohmann::json& j, const PlayerInfoEntry& entry)

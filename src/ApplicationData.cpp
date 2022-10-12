@@ -112,16 +112,16 @@ void CreateConfigFile(const std::string& filepath)
 #endif
 }
 
-void Configs::set(const std::string header, const std::string& entry, const std::string& value)
+void Configs::set(const std::string& header, const std::string& entry, const std::string& value)
 {
     if (header == "general")
     {
         if (entry == "enabled")
-            enabled = ((value == "true") ? true : false);
+            enabled = (value == "true");
         else if (entry == "extras")
-            extras = ((value == "true") ? true : false);
+            extras = (value == "true");
         else if (entry == "arcDPS")
-            arcDPS = ((value == "true") ? true : false);
+            arcDPS = (value == "true");
     }
     else if (header == "server")
     {

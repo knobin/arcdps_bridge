@@ -32,7 +32,7 @@ void to_serial(const UserInfo& info, uint8_t* storage, std::size_t count)
     location = serial_w_integral(location, static_cast<int64_t>(info.JoinTime));
     location = serial_w_integral(location, static_cast<std::underlying_type_t<UserRole>>(info.Role));
     location = serial_w_integral(location, info.Subgroup);
-    location = serial_w_integral(location, static_cast<uint8_t>(info.ReadyStatus));
+    serial_w_integral(location, static_cast<uint8_t>(info.ReadyStatus));
 }
 
 void to_json(nlohmann::json& j, const UserInfo& user)
@@ -80,7 +80,7 @@ void to_serial(const KeyBinds::KeyBindChanged& pChangedKeyBind, uint8_t* storage
     const auto deviceType = static_cast<std::underlying_type_t<KeyBinds::DeviceType>>(pChangedKeyBind.SingleKey.DeviceType);
     location = serial_w_integral(location, deviceType);
     location = serial_w_integral(location, pChangedKeyBind.SingleKey.Code);
-    location = serial_w_integral(location, pChangedKeyBind.SingleKey.Modifier);
+    serial_w_integral(location, pChangedKeyBind.SingleKey.Modifier);
 }
 
 void to_json(nlohmann::json& j, const KeyBinds::KeyBindChanged& pChangedKeyBind)
@@ -123,7 +123,7 @@ void to_serial(const ChatMessageInfo& chatMsgInfo, uint8_t* storage, std::size_t
     location = serial_w_string(location, chatMsgInfo.Timestamp, chatMsgInfo.TimestampLength);
     location = serial_w_string(location, chatMsgInfo.AccountName, chatMsgInfo.AccountNameLength);
     location = serial_w_string(location, chatMsgInfo.CharacterName, chatMsgInfo.CharacterNameLength);
-    location = serial_w_string(location, chatMsgInfo.Text, chatMsgInfo.TextLength);
+    serial_w_string(location, chatMsgInfo.Text, chatMsgInfo.TextLength);
 }
 
 void to_json(nlohmann::json& j, const ChatMessageInfo& chatMsgInfo)

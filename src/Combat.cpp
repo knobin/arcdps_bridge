@@ -38,7 +38,7 @@ void to_serial(const cbtevent& ev, uint8_t* storage, std::size_t)
     location = serial_w_integral(location, ev.is_statechange);
     location = serial_w_integral(location, ev.is_flanking);
     location = serial_w_integral(location, ev.is_shields);
-    location = serial_w_integral(location, ev.is_offcycle);
+    serial_w_integral(location, ev.is_offcycle);
 }
 
 inline void to_json(nlohmann::json& j, const cbtevent& evt)
@@ -91,7 +91,7 @@ void to_serial(const ag& agent, uint8_t* storage, std::size_t count)
     location = serial_w_integral(location, agent.prof);
     location = serial_w_integral(location, agent.elite);
     location = serial_w_integral(location, agent.self);
-    location = serial_w_integral(location, agent.team);
+    serial_w_integral(location, agent.team);
 }
 
 void to_json(nlohmann::json& j, const ag& agent)
@@ -128,23 +128,23 @@ SerialData combat_to_serial(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
     bits |= ((ev) ? 1 : 0);
     bits |= ((src) ? 2 : 0);
     bits |= ((dst) ? 4 : 0);
-    location = serial_w_integral(location, bits);
+    serial_w_integral(location, bits);
 
-    std::size_t index = SerialStartPadding + 1;
+    std::ptrdiff_t index = SerialStartPadding + 1;
 
     if (ev)
         to_serial(*ev, &serial.ptr[index], ev_count);
 
     if (src)
-        to_serial(*src, &serial.ptr[index + ev_count], src_count);
+        to_serial(*src, &serial.ptr[index + static_cast<std::ptrdiff_t>(ev_count)], src_count);
 
     if (dst)
-        to_serial(*dst, &serial.ptr[index + ev_count + src_count], dst_count);
+        to_serial(*dst, &serial.ptr[index + static_cast<std::ptrdiff_t>(ev_count + src_count)], dst_count);
 
-    location = &serial.ptr[index + ev_count + src_count + dst_count];
+    location = &serial.ptr[index + static_cast<std::ptrdiff_t>(ev_count + src_count + dst_count)];
     location = serial_w_string(location, skillname, skillname_count - 1);
     location = serial_w_integral(location, id);
-    location = serial_w_integral(location, revision);
+    serial_w_integral(location, revision);
 
     return serial;
 }
@@ -173,7 +173,7 @@ nlohmann::json combat_to_json(cbtevent* ev, ag* src, ag* dst, char* skillname, u
         std::string sn{skillname};
 
         std::size_t pos = 0;
-        while ((pos = sn.find("\"", pos)) != std::string::npos)
+        while ((pos = sn.find('\"', pos)) != std::string::npos)
         {
             sn.replace(pos, 1, "\\\"");
             pos += 2;

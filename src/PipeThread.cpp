@@ -20,7 +20,7 @@
 #include <limits>
 #include <sstream>
 
-static Message StatusMessage(bool success, std::string error = "")
+static Message StatusMessage(bool success, const std::string& error = "")
 {
     nlohmann::json j{{"success", success}};
     if (!success)
@@ -228,19 +228,19 @@ void PipeThread::start()
             BRIDGE_DEBUG("[ptid {}] Recieved filter \"{}\" from client.", threadID, static_cast<int>(filter));    
         }
 
-        MessageCategoryU combatValue = static_cast<MessageCategoryU>(MessageCategory::Combat);
+        auto combatValue = static_cast<MessageCategoryU>(MessageCategory::Combat);
         if ((filter & combatValue) == combatValue)
         {
             handler->m_eventTrack.combat = true;
             handler->m_mt->trackCategory(MessageCategory::Combat);
         }
-        MessageCategoryU extrasValue = static_cast<MessageCategoryU>(MessageCategory::Extras);
+        auto extrasValue = static_cast<MessageCategoryU>(MessageCategory::Extras);
         if ((filter & extrasValue) == extrasValue)
         {
             handler->m_eventTrack.extras = true;
             handler->m_mt->trackCategory(MessageCategory::Extras);
         }
-        MessageCategoryU squadValue = static_cast<MessageCategoryU>(MessageCategory::Squad);
+        auto squadValue = static_cast<MessageCategoryU>(MessageCategory::Squad);
         if ((filter & squadValue) == squadValue)
         {
             handler->m_eventTrack.squad = true;
@@ -341,7 +341,7 @@ void PipeThread::start()
                     {
                         BRIDGE_DEBUG("[ptid {}] Checking pipe status...", threadID);
                         DWORD availBytes{};
-                        if (!PeekNamedPipe(handle, 0, 0, 0, &availBytes, 0))
+                        if (!PeekNamedPipe(handle, nullptr, 0, nullptr, &availBytes, nullptr))
                         {
                             DWORD err = GetLastError();
                             if (err == ERROR_BROKEN_PIPE || err == ERROR_NO_DATA)
@@ -516,7 +516,7 @@ SendStatus WriteToPipe(HANDLE handle, const uint8_t *data, std::size_t count)
 {
     const DWORD length{static_cast<DWORD>(count)};
     SendStatus status{};
-    status.success = WriteFile(handle, data, length, &status.numBytesWritten, NULL);
+    status.success = WriteFile(handle, data, length, &status.numBytesWritten, nullptr);
 
     if (!status.success)
         status.error = GetLastError();
@@ -533,7 +533,7 @@ ReadStatus ReadFromPipe(HANDLE handle)
 
     do
     {
-        status.success = ReadFile(handle, buffer, BUFSIZE * sizeof(TCHAR), &status.numBytesRead, NULL);
+        status.success = ReadFile(handle, buffer, BUFSIZE * sizeof(TCHAR), &status.numBytesRead, nullptr);
         status.error = GetLastError();
         if (!status.success && status.error != ERROR_MORE_DATA)
             break;

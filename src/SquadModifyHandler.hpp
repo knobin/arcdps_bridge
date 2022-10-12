@@ -26,7 +26,7 @@ class SquadModifyHandler
 {
 public:
     SquadModifyHandler() = delete;
-    SquadModifyHandler(PlayerContainer& squad)
+    explicit SquadModifyHandler(PlayerContainer& squad)
         : m_squad{squad}
     {}
 
@@ -58,12 +58,12 @@ private:
 
     struct PlayerCache
     {
-        std::string accountName{""};
+        std::string accountName{};
         uint8_t bits{0};
     };
 
-    int findCachedPlayer(const std::string& accountName);
-    int createCachedPlayer(const std::string& accountName);
+    [[nodiscard]] int findCachedPlayer(const std::string& accountName);
+    [[nodiscard]] int createCachedPlayer(const std::string& accountName);
     void clearCachedPlayer();
 
 private:

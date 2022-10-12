@@ -13,6 +13,7 @@
 
 // C++ Headers
 #include <cstdint>
+#include <cstddef>
 #include <cstring>
 #include <memory>
 #include <type_traits>
@@ -121,15 +122,14 @@ template<MessageCategory Category>
 struct MatchTypeToCategory
 {
     template<MessageType Type>
-    static constexpr bool Match() noexcept
-    {
-        return false;
-    }
+    [[maybe_unused]] static constexpr bool Match() noexcept { return false; }
 };
 
 template<MessageType...Types>
-struct MsgTypeMatcher
+struct [[maybe_unused]] MsgTypeMatcher
 {
+    using Matcher = MsgTypeMatcher<Types...>;
+
     template<MessageType Type>
     static constexpr bool Match() noexcept
     {
@@ -166,7 +166,7 @@ struct MatchTypeToCategory<MessageCategory::Squad>
 //
 
 template<MessageCategory Category, MessageType Type>
-struct MatchCategoryAndType : std::integral_constant<bool, MatchTypeToCategory<Category>::Match<Type>()>
+struct MatchCategoryAndType : std::integral_constant<bool, MatchTypeToCategory<Category>::Matcher::template Match<Type>()>
 {};
 
 //
@@ -200,7 +200,7 @@ struct SerialData
 };
 
 // First two bytes are reserved for MessageCategory and MessageType.
-constexpr std::size_t SerialStartPadding = 2;
+constexpr std::ptrdiff_t SerialStartPadding = 2;
 
 // Creates a SerialData object to hold count bytes + the serial header bytes.
 inline SerialData CreateSerialData(std::size_t count)
@@ -267,16 +267,16 @@ public:
     }
     virtual ~Message() = default;
 
-    const SerialData& toSerial() const { return m_serial; }
-    const std::string& toJSON() const { return m_json; }
+    [[nodiscard]] const SerialData& toSerial() const { return m_serial; }
+    [[nodiscard]] const std::string& toJSON() const { return m_json; }
 
-    bool hasSerial() const noexcept { return static_cast<bool>(m_serial.count); }
-    bool hasJSON() const noexcept { return !m_json.empty(); }
+    [[nodiscard]] bool hasSerial() const noexcept { return static_cast<bool>(m_serial.count); }
+    [[nodiscard]] bool hasJSON() const noexcept { return !m_json.empty(); }
 
-    bool empty() const noexcept { return !m_category || !m_type; }
+    [[nodiscard]] bool empty() const noexcept { return !m_category || !m_type; }
 
-    MessageCategory category() const noexcept { return static_cast<MessageCategory>(m_category); }
-    MessageType type() const noexcept { return static_cast<MessageType>(m_type); }
+    [[nodiscard]] MessageCategory category() const noexcept { return static_cast<MessageCategory>(m_category); }
+    [[nodiscard]] MessageType type() const noexcept { return static_cast<MessageType>(m_type); }
 
 private:
     void setNoDataSerial()
@@ -305,14 +305,11 @@ private:
         data}}.dump();
     }
 
-    void setSerialHeaders()
+    void setSerialHeaders() const
     {
         // Set first two bytes in serial data.
         if (m_serial.count > 1 && m_serial.ptr)
         {
-            using category_utype = std::underlying_type_t<MessageCategory>;
-            using type_utype = std::underlying_type_t<MessageType>;
-
             uint8_t *storage{serial_w_integral(&m_serial.ptr[0], m_category)};
             serial_w_integral(storage, m_type);
         }

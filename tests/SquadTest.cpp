@@ -173,7 +173,7 @@ TEST_CASE("to_json(nlohmann::json& j, const PlayerInfo& info)")
 
 struct PlayerInfoNode : Node
 {
-    PlayerInfoNode(const PlayerInfo& info) 
+    explicit constexpr PlayerInfoNode(const PlayerInfo& info)
         : value{info}
     {}
 
@@ -189,7 +189,7 @@ struct PlayerInfoNode : Node
     {
         return RequirePlayerInfo(value, storage);
     }
-    std::size_t count() const override
+    [[nodiscard]] std::size_t count() const override
     {
         return serial_size(value);
     }
@@ -312,7 +312,7 @@ TEST_CASE("to_json(nlohmann::json& j, const UserInfo& user)")
 
 struct PlayerInfoEntryNode : Node
 {
-    PlayerInfoEntryNode(const PlayerInfoEntry& entry) 
+    explicit constexpr PlayerInfoEntryNode(const PlayerInfoEntry& entry) noexcept
         : value{entry}
     {}
 
@@ -328,7 +328,7 @@ struct PlayerInfoEntryNode : Node
     {
         return RequirePlayerInfoEntry(value, storage);
     }
-    std::size_t count() const override
+    [[nodiscard]] std::size_t count() const override
     {
         return serial_size(value);
     }
@@ -369,7 +369,7 @@ TEST_CASE("Budget fuzzing (only PlayerInfoEntryNode)")
 // serial (PlayerContainer).
 //
 
-static uint8_t* RequirePlayerContainer(const std::vector<PlayerInfoEntry> entries, uint8_t* storage, std::size_t padding = 0)
+static uint8_t* RequirePlayerContainer(const std::vector<PlayerInfoEntry>& entries, uint8_t* storage, std::size_t padding = 0)
 {
     uint8_t* location = storage + SerialStartPadding + padding; // Squad data includes start padding.
 
@@ -456,9 +456,9 @@ TEST_CASE("toJSON()")
 
 static std::vector<PlayerInfoEntry> RandomPlayerContainer(PlayerContainer& squad)
 {
-    std::vector<PlayerInfoEntry> entries{};
-
     const std::size_t player_count = RandomIntegral<std::size_t, 0, 50>();
+    std::vector<PlayerInfoEntry> entries{};
+    entries.reserve(player_count);
 
     // Create players.
     for (std::size_t j{0}; j < player_count; ++j)

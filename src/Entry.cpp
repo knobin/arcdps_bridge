@@ -21,9 +21,6 @@
 #include <iterator>
 #include <unordered_map>
 
-// Windows Headers
-#include <windows.h>
-
 // Hash function for unordered_multimap.
 struct djb2_hash
 {
@@ -556,7 +553,7 @@ template<typename T>
 struct AvoidIllFormed : std::false_type {};
 
 template <typename T>
-void SetExtrasInfo(T&)
+void SetExtrasInfo(T&) noexcept
 {
     // Since this function should not be instantiated on a successful implementation.
     // The defenition is ill-formed and will be rejected (up to the compiler).
@@ -621,7 +618,7 @@ extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(c
 
     if (pExtrasInfo->MaxInfoVersion >= 2)
         InitExtrasInfo<ExtrasSubscriberInfoV2>(loaded, infoVersion, pSubscriberInfo);
-    if (pExtrasInfo->MaxInfoVersion >= 1)
+    else if (pExtrasInfo->MaxInfoVersion >= 1)
         InitExtrasInfo<ExtrasSubscriberInfoV1>(loaded, infoVersion, pSubscriberInfo);
     else
     {

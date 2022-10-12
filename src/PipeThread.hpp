@@ -58,14 +58,15 @@ public:
 
     void start();
     void stop();
-    bool started() const { return m_threadStarted; }
 
-    std::size_t id() const { return m_id; }
+    [[nodiscard]] bool started() const { return m_threadStarted; }
+
+    [[nodiscard]] std::size_t id() const { return m_id; }
 
     void sendBridgeInfo(const Message& msg, uint64_t validator);
     void sendMessage(const Message& msg);
 
-    EventTracking eventTracking() const { return m_eventTrack; }
+    [[nodiscard]] EventTracking eventTracking() const { return m_eventTrack; }
 
 private:
     MessageContainer m_msgCont{};

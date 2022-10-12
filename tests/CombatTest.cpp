@@ -16,6 +16,7 @@
 
 // C++ Headers
 #include <sstream>
+#include <utility>
 
 ///////////////////////////////////////////////////////////////////////////////
 //                                 cbtevent                                  //
@@ -172,7 +173,7 @@ TEST_CASE("to_json(nlohmann::json& j, const cbtevent& evt)")
 
 struct CombatEventNode : Node
 {
-    CombatEventNode(const cbtevent& ev) 
+    explicit CombatEventNode(const cbtevent& ev)
         : value{ev}
     {}
 
@@ -188,7 +189,7 @@ struct CombatEventNode : Node
     {
         return RequireCombatEvent(value, storage);
     }
-    std::size_t count() const override
+    [[nodiscard]] std::size_t count() const override
     {
         return serial_size(value);
     }
@@ -367,8 +368,8 @@ TEST_CASE("to_json(nlohmann::json& j, const ag& agent)")
 
 struct AgentNode : Node
 {
-    AgentNode(const std::optional<std::string>& ag_name, const ag& agent) 
-        : name{ag_name}, value{agent}
+    AgentNode(std::optional<std::string> ag_name, const ag& agent)
+        : name{std::move(ag_name)}, value{agent}
     {
         if (name)
             value.name = &(*name)[0];
@@ -387,7 +388,7 @@ struct AgentNode : Node
     {
         return RequireAgent(value, storage, count());
     }
-    std::size_t count() const override
+    [[nodiscard]] std::size_t count() const override
     {
         return serial_size(value);
     }
