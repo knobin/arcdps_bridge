@@ -358,7 +358,7 @@ TEST_CASE("Budget fuzzing (only PlayerInfoEntryNode)")
 static uint8_t* RequirePlayerContainer(const std::vector<PlayerInfoEntry>& entries, uint8_t* storage,
                                        std::size_t padding = 0)
 {
-    uint8_t* location = storage + SerialStartPadding + padding; // Squad data includes start padding.
+    uint8_t* location = storage + Message::DataOffset() + padding; // Squad data includes start padding.
 
     location = RequireAtLocation(location, static_cast<uint64_t>(entries.size()));
 

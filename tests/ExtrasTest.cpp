@@ -163,8 +163,11 @@ TEST_CASE("Extras::SquadMessageGenerator")
     char n[10] = "Test Name"; // Size includes null terminator.
     UserInfo info{n, 1, UserRole::Member, 2, false};
 
+    const uint64_t id = 10;
+    const uint64_t timestamp = 12;
+
     RequireMessageGenerator<GeneratorSpaceHelper<UserInfo>, MessageCategory::Extras,
-                            MessageType::ExtrasSquadUpdate>(info, Extras::SquadMessageGenerator);
+                            MessageType::ExtrasSquadUpdate>(id, timestamp, info, Extras::SquadMessageGenerator);
 }
 
 //
@@ -199,17 +202,20 @@ struct UserInfoNode : Node
     }
     void other() override
     {
+        const uint64_t id = RandomIntegral<uint64_t>();
+        const uint64_t timestamp = RandomIntegral<uint64_t>();
+
         RequireMessageGenerator<GeneratorSpaceHelper<UserInfo>, MessageCategory::Extras,
-                                MessageType::ExtrasSquadUpdate>(value, Extras::SquadMessageGenerator);
+                                MessageType::ExtrasSquadUpdate>(id, timestamp, value, Extras::SquadMessageGenerator);
     }
 };
 
 static UserInfo RandomUserInfo()
 {
-    int64_t jointime = RandomIntegral<int64_t>();
+    const int64_t jointime = RandomIntegral<int64_t>();
     auto role = RandomIntegral<std::underlying_type_t<UserRole>>() % 6;
-    uint8_t subgroup = RandomIntegral<uint8_t>();
-    uint8_t ready = RandomIntegral<uint8_t>() & 2;
+    const uint8_t subgroup = RandomIntegral<uint8_t>();
+    const uint8_t ready = RandomIntegral<uint8_t>() & 2;
 
     return {nullptr, jointime, static_cast<UserRole>(role), subgroup, static_cast<bool>(ready)};
 }
@@ -303,8 +309,11 @@ TEST_CASE("ToJSON(nlohmann::json& j, Language language)")
 
 TEST_CASE("Extras::LanguageMessageGenerator")
 {
+    const uint64_t id = RandomIntegral<uint64_t>();
+    const uint64_t timestamp = RandomIntegral<uint64_t>();
+
     RequireMessageGenerator<GeneratorSpaceHelper<Language>, MessageCategory::Extras,
-                            MessageType::ExtrasLanguageChanged>(Language::English, Extras::LanguageMessageGenerator);
+                            MessageType::ExtrasLanguageChanged>(id, timestamp, Language::English, Extras::LanguageMessageGenerator);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -394,8 +403,11 @@ TEST_CASE("Extras::KeyBindMessageGenerator")
                                         3,
                                         {KeyBinds::DeviceType::Keyboard, 4, 1}};
 
+    const uint64_t id = RandomIntegral<uint64_t>();
+    const uint64_t timestamp = RandomIntegral<uint64_t>();
+
     RequireMessageGenerator<GeneratorSpaceHelper<KeyBinds::KeyBindChanged>, MessageCategory::Extras,
-                            MessageType::ExtrasKeyBindChanged>(keyChanged, Extras::KeyBindMessageGenerator);
+                            MessageType::ExtrasKeyBindChanged>(id, timestamp, keyChanged, Extras::KeyBindMessageGenerator);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -522,8 +534,11 @@ TEST_CASE("Extras::ChatMessageGenerator")
     ChatMessageInfo chatMsgInfo{4,  ChannelType::Invalid, 2,  1,    0, timestamp, 24, accountName,
                                 18, characterName,        19, text, 15};
 
+    const uint64_t id = RandomIntegral<uint64_t>();
+    const uint64_t epochTimestamp = RandomIntegral<uint64_t>();
+
     RequireMessageGenerator<GeneratorSpaceHelper<ChatMessageInfo>, MessageCategory::Extras,
-                            MessageType::ExtrasChatMessage>(chatMsgInfo, Extras::ChatMessageGenerator);
+                            MessageType::ExtrasChatMessage>(id, epochTimestamp, chatMsgInfo, Extras::ChatMessageGenerator);
 }
 
 //
@@ -586,8 +601,11 @@ struct ChatMessageInfoNode : Node
     }
     void other() override
     {
+        const uint64_t id = RandomIntegral<uint64_t>();
+        const uint64_t timestamp = RandomIntegral<uint64_t>();
+
         RequireMessageGenerator<GeneratorSpaceHelper<ChatMessageInfo>, MessageCategory::Extras,
-                                MessageType::ExtrasChatMessage>(value, Extras::ChatMessageGenerator);
+                                MessageType::ExtrasChatMessage>(id, timestamp, value, Extras::ChatMessageGenerator);
     }
 };
 

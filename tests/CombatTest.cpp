@@ -481,7 +481,7 @@ static void FieldTesterSerial(std::size_t count, cbtevent* ev, ag* src, ag* dst,
                               uint64_t revision)
 {
     SerialData serial = Combat::CombatToSerial(ev, src, dst, skillname, id, revision);
-    uint8_t* storage = &serial.ptr[SerialStartPadding];
+    uint8_t* storage = &serial.ptr[Message::DataOffset()];
     auto location = RequireCombatToSerial(storage, ev, src, dst, skillname, id, revision);
     REQUIRE(storage + count == location);
 }
@@ -600,46 +600,57 @@ TEST_CASE("CombatToJSON()")
 // Generator (combat args).
 //
 
-static void RequireCombatMessageGenerator(cbtevent* ev, ag* src, ag* dst, char* skillname, uint64_t id,
-                                          uint64_t revision)
+static void RequireCombatMessageGenerator(uint64_t msgID, uint64_t msgTimestamp, cbtevent* ev, ag* src, ag* dst,
+                                          char* skillname, uint64_t id, uint64_t revision)
 {
     SerialData serial = Combat::CombatToSerial(ev, src, dst, skillname, id, revision);
     uint8_t* storage{serial_w_integral(&serial.ptr[0],
                                        static_cast<std::underlying_type_t<MessageCategory>>(MessageCategory::Combat))};
-    serial_w_integral(storage, static_cast<std::underlying_type_t<MessageType>>(MessageType::CombatEvent));
+    storage = serial_w_integral(storage, static_cast<std::underlying_type_t<MessageType>>(MessageType::CombatEvent));
+    storage = serial_w_integral(storage, msgID);
+    serial_w_integral(storage, msgTimestamp);
 
     const nlohmann::json json = nlohmann::json{{"category", MessageCategoryToStr(MessageCategory::Combat)},
                                                {"type", MessageTypeToStr(MessageType::CombatEvent)},
+                                               {"id", msgID},
+                                               {"timestamp", msgTimestamp},
                                                {"data", Combat::CombatToJSON(ev, src, dst, skillname, id, revision)}};
     using MP = std::underlying_type_t<MessageProtocol>;
 
     // Only Serial.
-    const Message msgSerial =
-        Combat::CombatMessageGenerator(ev, src, dst, skillname, id, revision, static_cast<MP>(MessageProtocol::Serial));
+    const Message msgSerial = Combat::CombatMessageGenerator(msgID, msgTimestamp, ev, src, dst, skillname, id, revision,
+                                                             static_cast<MP>(MessageProtocol::Serial));
     REQUIRE(msgSerial.category() == MessageCategory::Combat);
     REQUIRE(msgSerial.type() == MessageType::CombatEvent);
     REQUIRE(msgSerial.hasSerial());
     REQUIRE_FALSE(msgSerial.hasJSON());
     REQUIRE(msgSerial.toSerial() == serial);
+    REQUIRE(msgSerial.id() == msgID);
+    REQUIRE(msgSerial.timestamp() == msgTimestamp);
 
     // Only JSON.
-    const Message msgJSON =
-        Combat::CombatMessageGenerator(ev, src, dst, skillname, id, revision, static_cast<MP>(MessageProtocol::JSON));
+    const Message msgJSON = Combat::CombatMessageGenerator(msgID, msgTimestamp, ev, src, dst, skillname, id, revision,
+                                                           static_cast<MP>(MessageProtocol::JSON));
     REQUIRE(msgSerial.category() == MessageCategory::Combat);
     REQUIRE(msgSerial.type() == MessageType::CombatEvent);
     REQUIRE_FALSE(msgJSON.hasSerial());
     REQUIRE(msgJSON.hasJSON());
     REQUIRE(msgJSON.toJSON() == json.dump());
+    REQUIRE(msgJSON.id() == msgID);
+    REQUIRE(msgJSON.timestamp() == msgTimestamp);
 
     // Both Serial and JSON.
     const auto both = static_cast<MP>(MessageProtocol::Serial) | static_cast<MP>(MessageProtocol::JSON);
-    const Message msgBoth = Combat::CombatMessageGenerator(ev, src, dst, skillname, id, revision, both);
+    const Message msgBoth =
+        Combat::CombatMessageGenerator(msgID, msgTimestamp, ev, src, dst, skillname, id, revision, both);
     REQUIRE(msgSerial.category() == MessageCategory::Combat);
     REQUIRE(msgSerial.type() == MessageType::CombatEvent);
     REQUIRE(msgBoth.hasSerial());
     REQUIRE(msgBoth.hasJSON());
     REQUIRE(msgBoth.toSerial() == serial);
     REQUIRE(msgBoth.toJSON() == json.dump());
+    REQUIRE(msgBoth.id() == msgID);
+    REQUIRE(msgBoth.timestamp() == msgTimestamp);
 }
 
 TEST_CASE("Combat::CombatMessageGenerator")
@@ -657,7 +668,10 @@ TEST_CASE("Combat::CombatMessageGenerator")
     uint64_t id = 1;
     uint64_t revision = 2;
 
-    RequireCombatMessageGenerator(&ev, &src, &dst, &skillname[0], id, revision);
+    uint64_t msgID = 3;
+    uint64_t msgTimestamp = 4;
+
+    RequireCombatMessageGenerator(msgID, msgTimestamp, &ev, &src, &dst, &skillname[0], id, revision);
 }
 
 //
@@ -686,6 +700,11 @@ TEST_CASE("Budget fuzzing (combat args)")
         if (skillname)
             str = &(*skillname)[0];
 
-        RequireCombatMessageGenerator(&ev, &src, &dst, str, id, revision);
+        uint64_t msgID = RandomIntegral<uint64_t>();
+        ;
+        uint64_t msgTimestamp = RandomIntegral<uint64_t>();
+        ;
+
+        RequireCombatMessageGenerator(msgID, msgTimestamp, &ev, &src, &dst, str, id, revision);
     }
 }

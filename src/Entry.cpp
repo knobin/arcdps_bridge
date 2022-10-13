@@ -107,6 +107,9 @@ static void SendPlayerMsg(const PlayerInfoEntry& entry)
     static_assert(Type == MessageType::SquadAdd || Type == MessageType::SquadRemove || Type == MessageType::SquadUpdate,
                   "Type is not a Squad message");
 
+    const uint64_t id{AppData.requestID()};
+    const uint64_t timestamp{GetMillisecondsSinceEpoch()};
+
     if (Server->trackingCategory(MessageCategory::Squad))
     {
         SerialData serial{};
@@ -116,7 +119,7 @@ static void SendPlayerMsg(const PlayerInfoEntry& entry)
         {
             const std::size_t playerentry_size = serial_size(entry);
             serial = CreateSerialData(playerentry_size);
-            to_serial(entry, &serial.ptr[SerialStartPadding], playerentry_size);
+            to_serial(entry, &serial.ptr[Message::DataOffset()], playerentry_size);
         }
 
         if (Server->usingProtocol(MessageProtocol::JSON))
@@ -124,7 +127,7 @@ static void SendPlayerMsg(const PlayerInfoEntry& entry)
             json = entry;
         }
 
-        const Message squadMsg{SquadMessage<Type>(serial, json)};
+        const Message squadMsg{SquadMessage<Type>(id, timestamp, serial, json)};
         Server->sendMessage(squadMsg);
     }
 }
@@ -199,6 +202,9 @@ static uintptr_t mod_wnd(HWND, UINT uMsg, WPARAM, LPARAM)
  * all statechanges present, see evtc statechange enum */
 static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uint64_t id, uint64_t revision)
 {
+    const auto msgID{AppData.requestID()};
+    const auto msgTimestamp{GetMillisecondsSinceEpoch()};
+
     // Add character name, profession, and elite to PlayerInfo.
     if (!ev && !src->elite)
     {
@@ -299,7 +305,8 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
     if (!Server->trackingCategory(MessageCategory::Combat))
         return 0;
 
-    Message combatMsg{Combat::CombatMessageGenerator(ev, src, dst, skillname, id, revision, Server->usingProtocols())};
+    Message combatMsg{Combat::CombatMessageGenerator(msgID, msgTimestamp, ev, src, dst, skillname, id, revision,
+                                                     Server->usingProtocols())};
     if (!combatMsg.empty())
         Server->sendMessage(combatMsg);
 
@@ -397,8 +404,12 @@ static void ExtrasPlayerInfoUpdater(PlayerInfo& player, const UserInfo& user)
 // Callback for arcDPS unofficial extras API.
 void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCount)
 {
+    const auto timestamp{GetMillisecondsSinceEpoch()};
+
     for (uint64_t i{0}; i < updatedUsersCount; ++i)
     {
+        const auto id{AppData.requestID()};
+
         const UserInfo* uinfo{&updatedUsers[i]};
         if (uinfo)
         {
@@ -435,7 +446,7 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
             }
 
             if (Server->trackingCategory(MessageCategory::Extras))
-                Server->sendMessage(Extras::SquadMessageGenerator(*uinfo, Server->usingProtocols()));
+                Server->sendMessage(Extras::SquadMessageGenerator(id, timestamp, *uinfo, Server->usingProtocols()));
         }
     }
 }
@@ -443,13 +454,15 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
 static void language_changed_callback(Language pNewLanguage)
 {
     if (Server->trackingCategory(MessageCategory::Extras))
-        Server->sendMessage(Extras::LanguageMessageGenerator(pNewLanguage, Server->usingProtocols()));
+        Server->sendMessage(Extras::LanguageMessageGenerator(AppData.requestID(), GetMillisecondsSinceEpoch(),
+                                                             pNewLanguage, Server->usingProtocols()));
 }
 
 static void keybind_changed_callback(KeyBinds::KeyBindChanged pChangedKeyBind)
 {
     if (Server->trackingCategory(MessageCategory::Extras))
-        Server->sendMessage(Extras::KeyBindMessageGenerator(pChangedKeyBind, Server->usingProtocols()));
+        Server->sendMessage(Extras::KeyBindMessageGenerator(AppData.requestID(), GetMillisecondsSinceEpoch(),
+                                                            pChangedKeyBind, Server->usingProtocols()));
 }
 
 static void chat_message_callback(const ChatMessageInfo* pChatMessage)
@@ -458,7 +471,8 @@ static void chat_message_callback(const ChatMessageInfo* pChatMessage)
         return;
 
     if (Server->trackingCategory(MessageCategory::Extras))
-        Server->sendMessage(Extras::ChatMessageGenerator(*pChatMessage, Server->usingProtocols()));
+        Server->sendMessage(Extras::ChatMessageGenerator(AppData.requestID(), GetMillisecondsSinceEpoch(),
+                                                         *pChatMessage, Server->usingProtocols()));
 }
 
 template <typename T>
@@ -565,14 +579,15 @@ extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(c
         {
             const std::size_t appdata_size = serial_size(AppData.Info);
             serial = CreateSerialData(appdata_size);
-            to_serial(AppData.Info, &serial.ptr[SerialStartPadding], appdata_size);
+            to_serial(AppData.Info, &serial.ptr[Message::DataOffset()], appdata_size);
         }
 
         if (Server->usingProtocol(MessageProtocol::JSON))
             json = AppData.Info;
 
         // Send the new info to connected clients that have already received the old information.
-        const Message bridgeMsg{InfoMessage<MessageType::BridgeInfo>(serial, json)};
+        const Message bridgeMsg{
+            InfoMessage<MessageType::BridgeInfo>(AppData.requestID(), GetMillisecondsSinceEpoch(), serial, json)};
         Server->sendBridgeInfo(bridgeMsg, AppData.Info.validator);
     }
 }

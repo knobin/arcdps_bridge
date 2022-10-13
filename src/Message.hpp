@@ -12,6 +12,7 @@
 #include <nlohmann/json.hpp>
 
 // C++ Headers
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -217,14 +218,11 @@ inline bool operator==(const SerialData& lhs, const SerialData& rhs)
     return true;
 }
 
-// First two bytes are reserved for MessageCategory and MessageType.
-constexpr std::ptrdiff_t SerialStartPadding = 2;
-
-// Creates a SerialData object to hold count bytes + the serial header bytes.
-inline SerialData CreateSerialData(std::size_t count)
+// Get ms since epoch.
+inline uint64_t GetMillisecondsSinceEpoch()
 {
-    const std::size_t byte_count = SerialStartPadding + count;
-    return {std::make_shared<uint8_t[]>(byte_count), byte_count};
+    const auto tp = std::chrono::system_clock::now();
+    return std::chrono::duration_cast<std::chrono::milliseconds>(tp.time_since_epoch()).count();
 }
 
 template <typename T>
@@ -251,8 +249,11 @@ class Message
 {
 public:
     Message() = default;
-    Message(MessageCategory category, MessageType type, bool serial = true, bool json = true)
-        : m_category{static_cast<std::underlying_type_t<MessageCategory>>(category)},
+    Message(MessageCategory category, MessageType type, uint64_t id, uint64_t timestamp, bool serial = true,
+            bool json = true)
+        : m_id{id},
+          m_timestamp{timestamp},
+          m_category{static_cast<std::underlying_type_t<MessageCategory>>(category)},
           m_type{static_cast<std::underlying_type_t<MessageType>>(type)}
     {
         // Message does not contain any data.
@@ -263,21 +264,28 @@ public:
         if (json)
             setNoDataJSON();
     }
-    Message(MessageCategory category, MessageType type, const SerialData& serial)
-        : m_category{static_cast<std::underlying_type_t<MessageCategory>>(category)},
+    Message(MessageCategory category, MessageType type, uint64_t id, uint64_t timestamp, const SerialData& serial)
+        : m_id{id},
+          m_timestamp{timestamp},
+          m_category{static_cast<std::underlying_type_t<MessageCategory>>(category)},
           m_type{static_cast<std::underlying_type_t<MessageType>>(type)},
           m_serial{serial}
     {
         setSerialHeaders();
     }
-    Message(MessageCategory category, MessageType type, const nlohmann::json& jdata)
-        : m_category{static_cast<std::underlying_type_t<MessageCategory>>(category)},
+    Message(MessageCategory category, MessageType type, uint64_t id, uint64_t timestamp, const nlohmann::json& jdata)
+        : m_id{id},
+          m_timestamp{timestamp},
+          m_category{static_cast<std::underlying_type_t<MessageCategory>>(category)},
           m_type{static_cast<std::underlying_type_t<MessageType>>(type)}
     {
         setJSON(jdata);
     }
-    Message(MessageCategory category, MessageType type, const SerialData& serial, const nlohmann::json& jdata)
-        : m_category{static_cast<std::underlying_type_t<MessageCategory>>(category)},
+    Message(MessageCategory category, MessageType type, uint64_t id, uint64_t timestamp, const SerialData& serial,
+            const nlohmann::json& jdata)
+        : m_id{id},
+          m_timestamp{timestamp},
+          m_category{static_cast<std::underlying_type_t<MessageCategory>>(category)},
           m_type{static_cast<std::underlying_type_t<MessageType>>(type)},
           m_serial{serial}
     {
@@ -297,10 +305,19 @@ public:
     [[nodiscard]] MessageCategory category() const noexcept { return static_cast<MessageCategory>(m_category); }
     [[nodiscard]] MessageType type() const noexcept { return static_cast<MessageType>(m_type); }
 
+    [[nodiscard]] uint64_t id() const noexcept { return m_id; }
+    [[nodiscard]] uint64_t timestamp() const noexcept { return m_timestamp; }
+
+    // Number of bytes reserved for message header.
+    [[nodiscard]] static constexpr std::ptrdiff_t DataOffset() noexcept
+    {
+        return sizeof(m_id) + sizeof(m_timestamp) + sizeof(m_category) + sizeof(m_type);
+    }
+
 private:
     void setNoDataSerial()
     {
-        m_serial.count = SerialStartPadding;
+        m_serial.count = static_cast<std::size_t>(DataOffset());
         m_serial.ptr = std::make_shared<uint8_t[]>(m_serial.count);
         setSerialHeaders();
     }
@@ -308,8 +325,11 @@ private:
     void setNoDataJSON()
     {
         // Generate json header for message.
-        m_json =
-            nlohmann::json{{"category", MessageCategoryToStr(category())}, {"type", MessageTypeToStr(type())}}.dump();
+        m_json = nlohmann::json{{"category", MessageCategoryToStr(category())},
+                                {"type", MessageTypeToStr(type())},
+                                {"id", m_id},
+                                {"timestamp", m_timestamp}}
+                     .dump();
     }
 
     void setJSON(const nlohmann::json& data)
@@ -318,6 +338,8 @@ private:
         m_json = nlohmann::json{
             {"category", MessageCategoryToStr(category())},
             {"type", MessageTypeToStr(type())},
+            {"id", m_id},
+            {"timestamp", m_timestamp},
             {"data",
              data}}.dump();
     }
@@ -328,16 +350,27 @@ private:
         if (m_serial.count > 1 && m_serial.ptr)
         {
             uint8_t* storage{serial_w_integral(&m_serial.ptr[0], m_category)};
-            serial_w_integral(storage, m_type);
+            storage = serial_w_integral(storage, m_type);
+            storage = serial_w_integral(storage, m_id);
+            serial_w_integral(storage, m_timestamp);
         }
     }
 
 private:
     SerialData m_serial{};
     std::string m_json{};
+    uint64_t m_id{};
+    uint64_t m_timestamp{};
     std::underlying_type_t<MessageCategory> m_category{0};
     std::underlying_type_t<MessageType> m_type{0};
 };
+
+// Creates a SerialData object to hold count bytes + the serial header bytes.
+inline SerialData CreateSerialData(std::size_t count)
+{
+    const std::size_t byte_count = Message::DataOffset() + count;
+    return {std::make_shared<uint8_t[]>(byte_count), byte_count};
+}
 
 //
 // Message create functions.

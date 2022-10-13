@@ -20,29 +20,34 @@
 #include <limits>
 #include <sstream>
 
-static Message StatusMessage(bool success, const std::string& error = "")
+static Message StatusMessage(uint64_t id, bool success, const std::string& error = "")
 {
+    const uint64_t timestamp{GetMillisecondsSinceEpoch()};
+
     nlohmann::json j{{"success", success}};
     if (!success)
         j["error"] = error;
 
-    return InfoMessage<MessageType::Status>(SerialData{}, j);
+    return InfoMessage<MessageType::Status>(id, timestamp, j);
 }
 
-static Message ClosingMessage()
+static Message ClosingMessage(uint64_t id)
 {
-    return InfoMessage<MessageType::Closing>();
+    return InfoMessage<MessageType::Closing>(id, GetMillisecondsSinceEpoch());
 }
 
-static Message SquadStatusMessage(const std::string& self, const PlayerContainer& squad, MessageProtocol protocol)
+static Message SquadStatusMessage(uint64_t id, const std::string& self, const PlayerContainer& squad,
+                                  MessageProtocol protocol)
 {
+    const uint64_t timestamp{GetMillisecondsSinceEpoch()};
+
     SerialData serial{};
     nlohmann::json json{};
 
     if (protocol == MessageProtocol::Serial)
     {
         serial = squad.toSerial(self.size() + 1); // + 1 for null terminator.
-        serial_w_string(&serial.ptr[SerialStartPadding], self.c_str(), self.size());
+        serial_w_string(&serial.ptr[Message::DataOffset()], self.c_str(), self.size());
     }
     else if (protocol == MessageProtocol::JSON)
     {
@@ -50,7 +55,7 @@ static Message SquadStatusMessage(const std::string& self, const PlayerContainer
         json["self"] = self;
     }
 
-    return SquadMessage<MessageType::SquadStatus>(serial, json);
+    return SquadMessage<MessageType::SquadStatus>(id, timestamp, serial, json);
 }
 
 static std::underlying_type_t<MessageProtocol> IsProtocolStr(const std::string& str)
@@ -167,7 +172,8 @@ void PipeThread::start()
         Message msg{};
         {
             std::unique_lock<std::mutex> infoLock(handler->m_appData.Info.mutex);
-            msg = InfoMessage<MessageType::BridgeInfo>(SerialData{}, handler->m_appData.Info);
+            msg = InfoMessage<MessageType::BridgeInfo>(handler->m_appData.requestID(), GetMillisecondsSinceEpoch(),
+                                                       handler->m_appData.Info);
             {
                 std::unique_lock<std::mutex> handlerLock(handler->m_mutex);
                 handler->m_bridgeValidator = handler->m_appData.Info.validator;
@@ -297,7 +303,7 @@ void PipeThread::start()
 
         // Success!
         {
-            const Message statusMsg{StatusMessage(true)};
+            const Message statusMsg{StatusMessage(handler->m_appData.requestID(), true)};
             SendStatus send = WriteToPipe(handle, statusMsg.toJSON());
             if (!send.success)
             {
@@ -310,8 +316,8 @@ void PipeThread::start()
             handler->m_status = Status::Sending;
 
             handler->m_squadModifyHandler->work(
-                [&msg, &appData = handler->m_appData, protocol, &msgCont = handler->m_msgCont]() {
-                msg = SquadStatusMessage(appData.SelfAccountName, appData.Squad, protocol);
+                [id = handler->m_appData.requestID(), &msg, &appData = handler->m_appData, protocol, &msgCont = handler->m_msgCont]() {
+                msg = SquadStatusMessage(id, appData.SelfAccountName, appData.Squad, protocol);
 
                 // Clear queue if any messages.
                 std::unique_lock<std::mutex> msgLock(msgCont.mutex);
@@ -403,7 +409,7 @@ void PipeThread::start()
             // If client is still connected and the thread is closing, send closing event.
             BRIDGE_DEBUG("[ptid {}] Sending closing event to client.", threadID);
 
-            const Message closingMsg{ClosingMessage()};
+            const Message closingMsg{ClosingMessage(handler->m_appData.requestID())};
             SendToClient(handle, closingMsg, protocol);
             BRIDGE_PRINT_MSG(closingMsg, protocol, threadID);
             // Ignore sending error here.

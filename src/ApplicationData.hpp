@@ -15,6 +15,7 @@
 #include <nlohmann/json.hpp>
 
 // C++ Headers
+#include <atomic>
 #include <cstddef>
 #include <mutex>
 #include <optional>
@@ -104,6 +105,11 @@ struct ApplicationData
     std::string_view ConfigFile{"arcdps_bridge.ini"};
     std::string_view LogFile{"arcdps_bridge.log"};
     std::string_view PipeName{"\\\\.\\pipe\\arcdps-bridge"};
+
+    [[nodiscard]] uint64_t requestID() const noexcept { return counter++; }
+
+private:
+    mutable std::atomic<uint64_t> counter{1};
 };
 
 Configs InitConfigs(const std::string& filepath);

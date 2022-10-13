@@ -51,7 +51,7 @@ namespace Extras
         return j;
     }
 
-    Message SquadMessageGenerator(const UserInfo& info, std::underlying_type_t<MessageProtocol> protocols)
+    Message SquadMessageGenerator(uint64_t id, uint64_t timestamp, const UserInfo& info, std::underlying_type_t<MessageProtocol> protocols)
     {
         const auto protocolSerial = static_cast<std::underlying_type_t<MessageProtocol>>(MessageProtocol::Serial);
         const auto protocolJSON = static_cast<std::underlying_type_t<MessageProtocol>>(MessageProtocol::JSON);
@@ -62,10 +62,10 @@ namespace Extras
         {
             const std::size_t uinfo_count = SerialSize(info);
             serial = CreateSerialData(uinfo_count);
-            ToSerial(info, &serial.ptr[SerialStartPadding], uinfo_count);
+            ToSerial(info, &serial.ptr[Message::DataOffset()], uinfo_count);
 
             if (protocols == protocolSerial)
-                return ExtrasMessage<MessageType::ExtrasSquadUpdate>(serial);
+                return ExtrasMessage<MessageType::ExtrasSquadUpdate>(id, timestamp, serial);
         }
 
         nlohmann::json json{};
@@ -75,10 +75,10 @@ namespace Extras
             json = ToJSON(info);
 
             if (protocols == protocolJSON)
-                return ExtrasMessage<MessageType::ExtrasSquadUpdate>(json);
+                return ExtrasMessage<MessageType::ExtrasSquadUpdate>(id, timestamp, json);
         }
 
-        return ExtrasMessage<MessageType::ExtrasSquadUpdate>(serial, json);
+        return ExtrasMessage<MessageType::ExtrasSquadUpdate>(id, timestamp, serial, json);
     }
 
     //
@@ -95,7 +95,7 @@ namespace Extras
         return nlohmann::json{{"Language", static_cast<std::underlying_type_t<Language>>(language)}};
     }
 
-    Message LanguageMessageGenerator(Language language, std::underlying_type_t<MessageProtocol> protocols)
+    Message LanguageMessageGenerator(uint64_t id, uint64_t timestamp, Language language, std::underlying_type_t<MessageProtocol> protocols)
     {
         const auto protocolSerial = static_cast<std::underlying_type_t<MessageProtocol>>(MessageProtocol::Serial);
         const auto protocolJSON = static_cast<std::underlying_type_t<MessageProtocol>>(MessageProtocol::JSON);
@@ -106,10 +106,10 @@ namespace Extras
         {
             constexpr std::size_t lang_count = SerialSize(Language{});
             serial = CreateSerialData(lang_count);
-            ToSerial(language, &serial.ptr[SerialStartPadding], lang_count);
+            ToSerial(language, &serial.ptr[Message::DataOffset()], lang_count);
 
             if (protocols == protocolSerial)
-                return ExtrasMessage<MessageType::ExtrasLanguageChanged>(serial);
+                return ExtrasMessage<MessageType::ExtrasLanguageChanged>(id, timestamp, serial);
         }
 
         nlohmann::json json{};
@@ -119,10 +119,10 @@ namespace Extras
             json = ToJSON(language);
 
             if (protocols == protocolJSON)
-                return ExtrasMessage<MessageType::ExtrasLanguageChanged>(json);
+                return ExtrasMessage<MessageType::ExtrasLanguageChanged>(id, timestamp, json);
         }
 
-        return ExtrasMessage<MessageType::ExtrasLanguageChanged>(serial, json);
+        return ExtrasMessage<MessageType::ExtrasLanguageChanged>(id, timestamp, serial, json);
     }
 
     //
@@ -159,7 +159,7 @@ namespace Extras
         return j;
     }
 
-    Message KeyBindMessageGenerator(const KeyBinds::KeyBindChanged& pChangedKeyBind,
+    Message KeyBindMessageGenerator(uint64_t id, uint64_t timestamp, const KeyBinds::KeyBindChanged& pChangedKeyBind,
                                     std::underlying_type_t<MessageProtocol> protocols)
     {
         const auto protocolSerial = static_cast<std::underlying_type_t<MessageProtocol>>(MessageProtocol::Serial);
@@ -171,10 +171,10 @@ namespace Extras
         {
             constexpr std::size_t keybind_count = SerialSize(KeyBinds::KeyBindChanged{});
             serial = CreateSerialData(keybind_count);
-            ToSerial(pChangedKeyBind, &serial.ptr[SerialStartPadding], keybind_count);
+            ToSerial(pChangedKeyBind, &serial.ptr[Message::DataOffset()], keybind_count);
 
             if (protocols == protocolSerial)
-                return ExtrasMessage<MessageType::ExtrasKeyBindChanged>(serial);
+                return ExtrasMessage<MessageType::ExtrasKeyBindChanged>(id, timestamp, serial);
         }
 
         nlohmann::json json{};
@@ -183,10 +183,10 @@ namespace Extras
         {
             json = ToJSON(pChangedKeyBind);
             if (protocols == protocolJSON)
-                return ExtrasMessage<MessageType::ExtrasKeyBindChanged>(json);
+                return ExtrasMessage<MessageType::ExtrasKeyBindChanged>(id, timestamp, json);
         }
 
-        return ExtrasMessage<MessageType::ExtrasKeyBindChanged>(serial, json);
+        return ExtrasMessage<MessageType::ExtrasKeyBindChanged>(id, timestamp, serial, json);
     }
 
     //
@@ -245,7 +245,7 @@ namespace Extras
         return j;
     }
 
-    Message ChatMessageGenerator(const ChatMessageInfo& pChatMessage, std::underlying_type_t<MessageProtocol> protocols)
+    Message ChatMessageGenerator(uint64_t id, uint64_t timestamp, const ChatMessageInfo& pChatMessage, std::underlying_type_t<MessageProtocol> protocols)
     {
         const auto protocolSerial = static_cast<std::underlying_type_t<MessageProtocol>>(MessageProtocol::Serial);
         const auto protocolJSON = static_cast<std::underlying_type_t<MessageProtocol>>(MessageProtocol::JSON);
@@ -256,10 +256,10 @@ namespace Extras
         {
             const std::size_t chat_msg_count = SerialSize(pChatMessage);
             serial = CreateSerialData(chat_msg_count);
-            ToSerial(pChatMessage, &serial.ptr[SerialStartPadding], chat_msg_count);
+            ToSerial(pChatMessage, &serial.ptr[Message::DataOffset()], chat_msg_count);
 
             if (protocols == protocolSerial)
-                return ExtrasMessage<MessageType::ExtrasChatMessage>(serial);
+                return ExtrasMessage<MessageType::ExtrasChatMessage>(id, timestamp, serial);
         }
 
         nlohmann::json json{};
@@ -269,9 +269,9 @@ namespace Extras
             json = ToJSON(pChatMessage);
 
             if (protocols == protocolJSON)
-                return ExtrasMessage<MessageType::ExtrasChatMessage>(json);
+                return ExtrasMessage<MessageType::ExtrasChatMessage>(id, timestamp, json);
         }
 
-        return ExtrasMessage<MessageType::ExtrasChatMessage>(serial, json);
+        return ExtrasMessage<MessageType::ExtrasChatMessage>(id, timestamp, serial, json);
     }
 } // namespace Extras

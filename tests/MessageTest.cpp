@@ -366,6 +366,14 @@ TEST_CASE("Budget fuzzing: Serial (all types)")
 //                              Message class                                //
 ///////////////////////////////////////////////////////////////////////////////
 
+TEST_CASE("Message reserved header byte count")
+{
+    // Very important this does not change.
+    // If this does change, its a major API version bump.
+
+    REQUIRE(Message::DataOffset() == 18);
+}
+
 TEST_CASE("Message Constructors")
 {
     using MC = MessageCategory;
@@ -384,34 +392,45 @@ TEST_CASE("Message Constructors")
 
         REQUIRE(msg.toSerial() == SerialData{});
         REQUIRE(msg.toJSON().empty());
+
+        REQUIRE(msg.id() == 0);
+        REQUIRE(msg.timestamp() == 0);
     }
 
-    SECTION("Message(MessageCategory, MessageType, bool, bool)")
+    SECTION("Message(MessageCategory, MessageType, uint64_t, uint64_t, bool, bool)")
     {
-        Message msg{MessageCategory::Info, MessageType::BridgeInfo, true, true};
+        Message msg{MessageCategory::Info, MessageType::BridgeInfo, 1, 2, true, true};
 
         REQUIRE(msg.hasSerial() == true);
         REQUIRE(msg.hasJSON() == true);
         REQUIRE(msg.empty() == false);
 
         SerialData data = msg.toSerial();
-        REQUIRE(data.count == 2);
+        REQUIRE(data.count == static_cast<std::size_t>(Message::DataOffset()));
         uint8_t* location = &data.ptr[0];
         location = RequireAtLocation(location, static_cast<U_MC>(MessageCategory::Info));
         RequireAtLocation(location, static_cast<U_MT>(MessageType::BridgeInfo));
 
-        auto j = nlohmann::json{{"category", MessageCategoryToStr(MessageCategory::Info)},
-                                {"type", MessageTypeToStr(MessageType::BridgeInfo)}}
-                     .dump();
+        auto j =
+            nlohmann::json{
+                {"category", MessageCategoryToStr(MessageCategory::Info)},
+                {"type", MessageTypeToStr(MessageType::BridgeInfo)},
+                {"id", 1},
+                {"timestamp", 2},
+            }
+                .dump();
         REQUIRE(msg.toJSON() == j);
 
         REQUIRE(msg.category() == MessageCategory::Info);
         REQUIRE(msg.type() == MessageType::BridgeInfo);
+
+        REQUIRE(msg.id() == 1);
+        REQUIRE(msg.timestamp() == 2);
     }
 
-    SECTION("Message(MessageCategory, MessageType, bool, bool)")
+    SECTION("Message(MessageCategory, MessageType, uint64_t, uint64_t bool, bool)")
     {
-        Message msg{MessageCategory::Combat, MessageType::CombatEvent, false, false};
+        Message msg{MessageCategory::Combat, MessageType::CombatEvent, 4, 3, false, false};
 
         REQUIRE(msg.hasSerial() == false);
         REQUIRE(msg.hasJSON() == false);
@@ -422,16 +441,19 @@ TEST_CASE("Message Constructors")
 
         REQUIRE(msg.category() == MessageCategory::Combat);
         REQUIRE(msg.type() == MessageType::CombatEvent);
+
+        REQUIRE(msg.id() == 4);
+        REQUIRE(msg.timestamp() == 3);
     }
 
     SECTION("Message(MessageCategory, MessageType, const SerialData&)")
     {
         SerialData data{};
-        data.count = SerialStartPadding + sizeof(uint32_t);
+        data.count = Message::DataOffset() + sizeof(uint32_t);
         data.ptr = std::make_shared<uint8_t[]>(data.count);
-        serial_w_integral(&data.ptr[SerialStartPadding], uint32_t{128});
+        serial_w_integral(&data.ptr[Message::DataOffset()], uint32_t{128});
 
-        Message msg{MessageCategory::Squad, MessageType::SquadAdd, data};
+        Message msg{MessageCategory::Squad, MessageType::SquadAdd, 5, 6, data};
 
         REQUIRE(msg.hasSerial() == true);
         REQUIRE(msg.hasJSON() == false);
@@ -442,13 +464,16 @@ TEST_CASE("Message Constructors")
 
         REQUIRE(msg.category() == MessageCategory::Squad);
         REQUIRE(msg.type() == MessageType::SquadAdd);
+
+        REQUIRE(msg.id() == 5);
+        REQUIRE(msg.timestamp() == 6);
     }
 
     SECTION("Message(MessageCategory, MessageType, const nlohmann::json&)")
     {
         auto data = nlohmann::json{"test", 128};
 
-        Message msg{MessageCategory::Extras, MessageType::ExtrasSquadUpdate, data};
+        Message msg{MessageCategory::Extras, MessageType::ExtrasSquadUpdate, 7, 8, data};
 
         REQUIRE(msg.hasSerial() == false);
         REQUIRE(msg.hasJSON() == true);
@@ -459,25 +484,29 @@ TEST_CASE("Message Constructors")
         auto j = nlohmann::json{
             {"category", MessageCategoryToStr(MessageCategory::Extras)},
             {"type", MessageTypeToStr(MessageType::ExtrasSquadUpdate)},
+            {"id", 7},
+            {"timestamp", 8},
             {"data",
              data}}.dump();
         REQUIRE(msg.toJSON() == j);
 
         REQUIRE(msg.category() == MessageCategory::Extras);
         REQUIRE(msg.type() == MessageType::ExtrasSquadUpdate);
+
+        REQUIRE(msg.id() == 7);
+        REQUIRE(msg.timestamp() == 8);
     }
 
-    SECTION(
-        "Message(MessageCategory, MessageType, const SerialData&, const nlohmann::json&)")
+    SECTION("Message(MessageCategory, MessageType, const SerialData&, const nlohmann::json&)")
     {
         SerialData sdata{};
-        sdata.count = SerialStartPadding + sizeof(uint32_t);
+        sdata.count = Message::DataOffset() + sizeof(uint32_t);
         sdata.ptr = std::make_shared<uint8_t[]>(sdata.count);
-        serial_w_integral(&sdata.ptr[SerialStartPadding], uint32_t{128});
+        serial_w_integral(&sdata.ptr[Message::DataOffset()], uint32_t{128});
 
         auto jdata = nlohmann::json{"test", 128};
 
-        Message msg{MessageCategory::Extras, MessageType::ExtrasSquadUpdate, sdata, jdata};
+        Message msg{MessageCategory::Extras, MessageType::ExtrasSquadUpdate, 9, 10, sdata, jdata};
 
         REQUIRE(msg.hasSerial() == true);
         REQUIRE(msg.hasJSON() == true);
@@ -488,11 +517,16 @@ TEST_CASE("Message Constructors")
         auto j = nlohmann::json{
             {"category", MessageCategoryToStr(MessageCategory::Extras)},
             {"type", MessageTypeToStr(MessageType::ExtrasSquadUpdate)},
+            {"id", 9},
+            {"timestamp", 10},
             {"data",
              jdata}}.dump();
         REQUIRE(msg.toJSON() == j);
 
         REQUIRE(msg.category() == MessageCategory::Extras);
         REQUIRE(msg.type() == MessageType::ExtrasSquadUpdate);
+
+        REQUIRE(msg.id() == 9);
+        REQUIRE(msg.timestamp() == 10);
     }
 }

@@ -110,8 +110,9 @@ namespace Combat
     [[nodiscard]] nlohmann::json CombatToJSON(cbtevent* ev, ag* src, ag* dst, char* skillname, uint64_t id,
                                               uint64_t revision);
 
-    [[nodiscard]] Message CombatMessageGenerator(cbtevent* ev, ag* src, ag* dst, char* skillname, uint64_t id,
-                                                uint64_t revision, std::underlying_type_t<MessageProtocol> protocols);
+    [[nodiscard]] Message CombatMessageGenerator(uint64_t msgID, uint64_t msgTimestamp, cbtevent* ev, ag* src, ag* dst,
+                                                 char* skillname, uint64_t id, uint64_t revision,
+                                                 std::underlying_type_t<MessageProtocol> protocols);
 } // namespace Combat
 
 #endif // BRIDGE_COMBAT_HPP
