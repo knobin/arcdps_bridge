@@ -31,8 +31,13 @@ static Message StatusMessage(uint64_t id, bool success, const std::string& error
     return InfoMessage<MessageType::Status>(id, timestamp, j);
 }
 
-static Message ClosingMessage(uint64_t id)
+static Message ClosingMessage(uint64_t id, MessageProtocol protocol)
 {
+    if (protocol == MessageProtocol::Serial)
+        return InfoMessage<MessageType::Closing>(id, GetMillisecondsSinceEpoch(), true, false);
+    else if (protocol == MessageProtocol::JSON)
+        return InfoMessage<MessageType::Closing>(id, GetMillisecondsSinceEpoch(), false, true);
+
     return InfoMessage<MessageType::Closing>(id, GetMillisecondsSinceEpoch());
 }
 
@@ -48,11 +53,13 @@ static Message SquadStatusMessage(uint64_t id, const std::string& self, const Pl
     {
         serial = squad.toSerial(self.size() + 1); // + 1 for null terminator.
         serial_w_string(&serial.ptr[Message::DataOffset()], self.c_str(), self.size());
+        return SquadMessage<MessageType::SquadStatus>(id, timestamp, serial);
     }
     else if (protocol == MessageProtocol::JSON)
     {
         json = squad.toJSON();
         json["self"] = self;
+        return SquadMessage<MessageType::SquadStatus>(id, timestamp, json);
     }
 
     return SquadMessage<MessageType::SquadStatus>(id, timestamp, serial, json);
@@ -115,11 +122,23 @@ static SendStatus SendToClient(void* handle, const Message& msg, MessageProtocol
 
     if (protocol == MessageProtocol::Serial)
     {
+#if BRIDGE_LOG_LEVEL >= BRIDGE_LOG_LEVEL_ERROR
+        if (!msg.hasSerial())
+        {
+            BRIDGE_ERROR("Sending Message has no serial data, but client/server protocol is set to MessageProtocol::Serial");
+        }
+#endif
         SerialData data{msg.toSerial()};
         send = WriteToPipe(handle, data.ptr.get(), data.count);
     }
     else if (protocol == MessageProtocol::JSON)
     {
+#if BRIDGE_LOG_LEVEL >= BRIDGE_LOG_LEVEL_ERROR
+        if (!msg.hasJSON())
+        {
+            BRIDGE_ERROR("Sending Message has no JSON data, but client/server protocol is set to MessageProtocol::JSON");
+        }
+#endif
         send = WriteToPipe(handle, msg.toJSON());
     }
 
@@ -409,7 +428,7 @@ void PipeThread::start()
             // If client is still connected and the thread is closing, send closing event.
             BRIDGE_DEBUG("[ptid {}] Sending closing event to client.", threadID);
 
-            const Message closingMsg{ClosingMessage(handler->m_appData.requestID())};
+            const Message closingMsg{ClosingMessage(handler->m_appData.requestID(), protocol)};
             SendToClient(handle, closingMsg, protocol);
             BRIDGE_PRINT_MSG(closingMsg, protocol, threadID);
             // Ignore sending error here.
