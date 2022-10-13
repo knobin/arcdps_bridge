@@ -19,13 +19,13 @@
 #include <utility>
 
 //
-// PLAYER_VALIDATOR_START.
+// ValidatorStartValue.
 //
 
 // Might break version compatibility if changed.
-TEST_CASE("PLAYER_VALIDATOR_START")
+TEST_CASE("ValidatorStartValue")
 {
-    REQUIRE(PLAYER_VALIDATOR_START == 1);
+    REQUIRE(Squad::ValidatorStartValue == 1);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -37,36 +37,36 @@ TEST_CASE("PLAYER_VALIDATOR_START")
 //
 
 // It's important this value does not change (breaks version compatibility).
-TEST_CASE("PlayerInfo_partial_size")
+TEST_CASE("PlayerInfoPartialSize")
 {
     constexpr std::size_t expected_size =
         sizeof(int64_t) + (2 * sizeof(uint32_t)) + (2 * sizeof(uint8_t)) + (3 * sizeof(uint8_t));
 
-    REQUIRE(PlayerInfo_partial_size == expected_size);
+    REQUIRE(Squad::PlayerInfoPartialSize == expected_size);
 }
 
-TEST_CASE("serial_size(const PlayerInfo& info)")
+TEST_CASE("SerialSize(const PlayerInfo&)")
 {
     SECTION("Valid name")
     {
         char a[12] = "AccountName";
         char c[14] = "CharacterName";
-        PlayerInfo info{std::string{a}, std::string{c}, 1, 2, 3, 4, 5, false, false, false};
+        Squad::PlayerInfo info{std::string{a}, std::string{c}, 1, 2, 3, 4, 5, false, false, false};
 
-        constexpr std::size_t expected_size = PlayerInfo_partial_size + 12 + 14;
-        REQUIRE(serial_size(info) == expected_size);
+        constexpr std::size_t expected_size = Squad::PlayerInfoPartialSize + 12 + 14;
+        REQUIRE(Squad::SerialSize(info) == expected_size);
     }
 
     SECTION("nullptr name")
     {
-        PlayerInfo info{std::string{}, std::string{}, 1, 2, 3, 4, 5, false, false, false};
+        Squad::PlayerInfo info{std::string{}, std::string{}, 1, 2, 3, 4, 5, false, false, false};
 
-        constexpr std::size_t expected_size = PlayerInfo_partial_size + 2; // + 2 for null terminators.
-        REQUIRE(serial_size(info) == expected_size);
+        constexpr std::size_t expected_size = Squad::PlayerInfoPartialSize + 2; // + 2 for null terminators.
+        REQUIRE(Squad::SerialSize(info) == expected_size);
     }
 }
 
-static uint8_t* RequirePlayerInfo(const PlayerInfo& info, uint8_t* storage)
+static uint8_t* RequirePlayerInfo(const Squad::PlayerInfo& info, uint8_t* storage)
 {
     uint8_t* location = storage;
 
@@ -86,18 +86,18 @@ static uint8_t* RequirePlayerInfo(const PlayerInfo& info, uint8_t* storage)
     return location;
 }
 
-TEST_CASE("to_serial(const PlayerInfo& info, uint8_t* storage, std::size_t)")
+TEST_CASE("ToSerial(const PlayerInfo&, uint8_t*, std::size_t)")
 {
     SECTION("Valid name")
     {
         char a[12] = "AccountName";
         char c[14] = "CharacterName";
 
-        PlayerInfo info{std::string{a}, std::string{c}, 1, 2, 3, 4, 5, false, false, false};
-        constexpr std::size_t playerinfo_size = PlayerInfo_partial_size + 12 + 14;
+        Squad::PlayerInfo info{std::string{a}, std::string{c}, 1, 2, 3, 4, 5, false, false, false};
+        constexpr std::size_t playerinfo_size = Squad::PlayerInfoPartialSize + 12 + 14;
 
         uint8_t storage[playerinfo_size] = {};
-        to_serial(info, storage, playerinfo_size);
+        Squad::ToSerial(info, storage, playerinfo_size);
 
         auto location = RequirePlayerInfo(info, storage);
         REQUIRE(storage + playerinfo_size == location);
@@ -105,11 +105,11 @@ TEST_CASE("to_serial(const PlayerInfo& info, uint8_t* storage, std::size_t)")
 
     SECTION("nullptr name")
     {
-        PlayerInfo info{std::string{}, std::string{}, 1, 2, 3, 4, 5, true, true, true};
-        constexpr std::size_t playerinfo_size = PlayerInfo_partial_size + 1 + 1;
+        Squad::PlayerInfo info{std::string{}, std::string{}, 1, 2, 3, 4, 5, true, true, true};
+        constexpr std::size_t playerinfo_size = Squad::PlayerInfoPartialSize + 1 + 1;
 
         uint8_t storage[playerinfo_size] = {};
-        to_serial(info, storage, playerinfo_size);
+        Squad::ToSerial(info, storage, playerinfo_size);
 
         auto location = RequirePlayerInfo(info, storage);
         REQUIRE(storage + playerinfo_size == location);
@@ -120,7 +120,7 @@ TEST_CASE("to_serial(const PlayerInfo& info, uint8_t* storage, std::size_t)")
 // json (PlayerInfo).
 //
 
-static std::string PlayerInfoStrJSON(const PlayerInfo& info)
+static std::string PlayerInfoStrJSON(const Squad::PlayerInfo& info)
 {
     std::ostringstream oss{};
 
@@ -141,15 +141,15 @@ static std::string PlayerInfoStrJSON(const PlayerInfo& info)
     return oss.str();
 }
 
-TEST_CASE("to_json(nlohmann::json& j, const PlayerInfo& info)")
+TEST_CASE("ToJSON(const PlayerInfo&)")
 {
     SECTION("Valid name")
     {
         char a[12] = "AccountName";
         char c[14] = "CharacterName";
-        PlayerInfo info{std::string{a}, std::string{c}, 1, 2, 3, 4, 5, true, false, true};
+        Squad::PlayerInfo info{std::string{a}, std::string{c}, 1, 2, 3, 4, 5, true, false, true};
 
-        nlohmann::json j = info;
+        nlohmann::json j = Squad::ToJSON(info);
 
         REQUIRE(j.dump() == PlayerInfoStrJSON(info));
     }
@@ -159,9 +159,10 @@ TEST_CASE("to_json(nlohmann::json& j, const PlayerInfo& info)")
         // Account name is assumed to always exist.
 
         char a[12] = "AccountName";
-        PlayerInfo info{std::string{a}, std::string{}, 1, 2, 3, 4, 5, false, true, false};
+        Squad::PlayerInfo info{std::string{a}, std::string{}, 1, 2, 3, 4, 5, false, true, false};
 
-        nlohmann::json j = info;
+        nlohmann::json j = Squad::ToJSON(info);
+        ;
 
         REQUIRE(j.dump() == PlayerInfoStrJSON(info));
     }
@@ -173,28 +174,28 @@ TEST_CASE("to_json(nlohmann::json& j, const PlayerInfo& info)")
 
 struct PlayerInfoNode : Node
 {
-    explicit constexpr PlayerInfoNode(const PlayerInfo& info)
+    explicit constexpr PlayerInfoNode(const Squad::PlayerInfo& info)
         : value{info}
     {}
 
-    PlayerInfo value;
+    Squad::PlayerInfo value;
 
     uint8_t* write(uint8_t* storage) override
     {
-        const std::size_t count = serial_size(value);
-        to_serial(value, storage, count);
+        const std::size_t count = Squad::SerialSize(value);
+        Squad::ToSerial(value, storage, count);
         return storage + count;
     }
     uint8_t* require(uint8_t* storage) override { return RequirePlayerInfo(value, storage); }
-    [[nodiscard]] std::size_t count() const override { return serial_size(value); }
+    [[nodiscard]] std::size_t count() const override { return Squad::SerialSize(value); }
     void json_require() override
     {
-        nlohmann::json j = value;
+        nlohmann::json j = Squad::ToJSON(value);
         REQUIRE(j.dump() == PlayerInfoStrJSON(value));
     }
 };
 
-static PlayerInfo RandomPlayerInfo()
+static Squad::PlayerInfo RandomPlayerInfo()
 {
     std::string a{RandomString()};
     std::string c{RandomString()};
@@ -232,19 +233,19 @@ TEST_CASE("Budget fuzzing (only PlayerInfo)")
 // serial (PlayerInfoEntry).
 //
 
-TEST_CASE("serial_size(const PlayerInfoEntry& entry)")
+TEST_CASE("SerialSize(const PlayerInfoEntry&)")
 {
     char a[12] = "AccountName";
     char c[14] = "CharacterName";
-    PlayerInfo info{std::string{a}, std::string{c}, 1, 2, 3, 4, 5, false, false, false};
-    PlayerInfoEntry entry{info, 1};
+    Squad::PlayerInfo info{std::string{a}, std::string{c}, 1, 2, 3, 4, 5, false, false, false};
+    Squad::PlayerInfoEntry entry{info, 1};
 
-    constexpr std::size_t playerinfo_size = PlayerInfo_partial_size + 12 + 14;
+    constexpr std::size_t playerinfo_size = Squad::PlayerInfoPartialSize + 12 + 14;
     constexpr std::size_t expected_size = playerinfo_size + sizeof(std::size_t);
-    REQUIRE(serial_size(entry) == expected_size);
+    REQUIRE(Squad::SerialSize(entry) == expected_size);
 }
 
-static uint8_t* RequirePlayerInfoEntry(const PlayerInfoEntry& entry, uint8_t* storage)
+static uint8_t* RequirePlayerInfoEntry(const Squad::PlayerInfoEntry& entry, uint8_t* storage)
 {
     uint8_t* location = storage;
 
@@ -254,19 +255,19 @@ static uint8_t* RequirePlayerInfoEntry(const PlayerInfoEntry& entry, uint8_t* st
     return location;
 }
 
-TEST_CASE("to_serial(const PlayerInfoEntry& entry, uint8_t* storage, std::size_t)")
+TEST_CASE("ToSerial(const PlayerInfoEntry&, uint8_t*, std::size_t)")
 {
     char a[12] = "AccountName";
     char c[14] = "CharacterName";
 
-    PlayerInfo info{std::string{a}, std::string{c}, 1, 2, 3, 4, 5, false, false, false};
-    constexpr std::size_t playerinfo_size = PlayerInfo_partial_size + 12 + 14;
+    Squad::PlayerInfo info{std::string{a}, std::string{c}, 1, 2, 3, 4, 5, false, false, false};
+    constexpr std::size_t playerinfo_size = Squad::PlayerInfoPartialSize + 12 + 14;
 
-    PlayerInfoEntry entry{info, 1};
+    Squad::PlayerInfoEntry entry{info, 1};
     constexpr std::size_t playerinfoentry_size = playerinfo_size + sizeof(uint64_t);
 
     uint8_t storage[playerinfoentry_size] = {};
-    to_serial(entry, storage, playerinfoentry_size);
+    Squad::ToSerial(entry, storage, playerinfoentry_size);
 
     auto location = RequirePlayerInfoEntry(entry, storage);
     REQUIRE(storage + playerinfoentry_size == location);
@@ -276,7 +277,7 @@ TEST_CASE("to_serial(const PlayerInfoEntry& entry, uint8_t* storage, std::size_t
 // json (PlayerInfoEntry).
 //
 
-static std::string PlayerInfoEntryStrJSON(const PlayerInfoEntry& entry)
+static std::string PlayerInfoEntryStrJSON(const Squad::PlayerInfoEntry& entry)
 {
     std::ostringstream oss{};
 
@@ -287,16 +288,59 @@ static std::string PlayerInfoEntryStrJSON(const PlayerInfoEntry& entry)
     return oss.str();
 }
 
-TEST_CASE("to_json(nlohmann::json& j, const UserInfo& user)")
+TEST_CASE("ToJSON(const PlayerInfoEntry& entry)")
 {
     char a[12] = "AccountName";
     char c[14] = "CharacterName";
 
-    PlayerInfo info{std::string{a}, std::string{c}, 1, 2, 3, 4, 5, false, false, false};
-    PlayerInfoEntry entry{info, 1};
+    Squad::PlayerInfo info{std::string{a}, std::string{c}, 1, 2, 3, 4, 5, false, false, false};
+    Squad::PlayerInfoEntry entry{info, 1};
 
-    nlohmann::json j = entry;
+    nlohmann::json j = Squad::ToJSON(entry);
     REQUIRE(j.dump() == PlayerInfoEntryStrJSON(entry));
+}
+
+//
+// Generator (PlayerEntry).
+//
+
+struct GeneratorHelper
+{
+    using Type = Squad::PlayerInfoEntry;
+    static auto SerialSize(const Type& value) { return Squad::SerialSize(value); }
+    static auto ToSerial(const Type& value, uint8_t* storage, std::size_t count)
+    {
+        return Squad::ToSerial(value, storage, count);
+    }
+    static auto ToJSON(const Type& value) { return Squad::ToJSON(value); }
+};
+
+template <MessageType Type>
+static void RequirePlayerInfoEntryGeneratorHelper(uint64_t id, uint64_t timestamp, const Squad::PlayerInfoEntry& entry)
+{
+    RequireMessageGenerator<GeneratorHelper, MessageCategory::Squad, Type>(id, timestamp, entry,
+                                                                           Squad::PlayerEntryMessageGenerator<Type>);
+}
+
+static void RequirePlayerInfoEntryGenerator(uint64_t id, uint64_t timestamp, const Squad::PlayerInfoEntry& entry)
+{
+    RequirePlayerInfoEntryGeneratorHelper<MessageType::SquadAdd>(id, timestamp, entry);
+    RequirePlayerInfoEntryGeneratorHelper<MessageType::SquadRemove>(id, timestamp, entry);
+    RequirePlayerInfoEntryGeneratorHelper<MessageType::SquadUpdate>(id, timestamp, entry);
+}
+
+TEST_CASE("PlayerEntryMessageGenerator")
+{
+    char a[12] = "AccountName";
+    char c[14] = "CharacterName";
+
+    Squad::PlayerInfo info{std::string{a}, std::string{c}, 1, 2, 3, 4, 5, false, false, false};
+    Squad::PlayerInfoEntry entry{info, 1};
+
+    const uint64_t id = RandomIntegral<uint64_t>();
+    const uint64_t timestamp = RandomIntegral<uint64_t>();
+
+    RequirePlayerInfoEntryGenerator(id, timestamp, entry);
 }
 
 //
@@ -305,30 +349,37 @@ TEST_CASE("to_json(nlohmann::json& j, const UserInfo& user)")
 
 struct PlayerInfoEntryNode : Node
 {
-    explicit constexpr PlayerInfoEntryNode(const PlayerInfoEntry& entry) noexcept
+    explicit constexpr PlayerInfoEntryNode(const Squad::PlayerInfoEntry& entry) noexcept
         : value{entry}
     {}
 
-    PlayerInfoEntry value;
+    Squad::PlayerInfoEntry value;
 
     uint8_t* write(uint8_t* storage) override
     {
-        const std::size_t count = serial_size(value);
-        to_serial(value, storage, count);
+        const std::size_t count = Squad::SerialSize(value);
+        Squad::ToSerial(value, storage, count);
         return storage + count;
     }
     uint8_t* require(uint8_t* storage) override { return RequirePlayerInfoEntry(value, storage); }
-    [[nodiscard]] std::size_t count() const override { return serial_size(value); }
+    [[nodiscard]] std::size_t count() const override { return Squad::SerialSize(value); }
     void json_require() override
     {
-        nlohmann::json j = value;
+        nlohmann::json j = Squad::ToJSON(value);
         REQUIRE(j.dump() == PlayerInfoEntryStrJSON(value));
+    }
+    void other() override
+    {
+        const uint64_t id = RandomIntegral<uint64_t>();
+        const uint64_t timestamp = RandomIntegral<uint64_t>();
+
+        RequirePlayerInfoEntryGenerator(id, timestamp, value);
     }
 };
 
-static PlayerInfoEntry RandomPlayerInfoEntry()
+static Squad::PlayerInfoEntry RandomPlayerInfoEntry()
 {
-    return {RandomPlayerInfo(), RandomIntegral<decltype(PlayerInfoEntry::validator)>()};
+    return {RandomPlayerInfo(), RandomIntegral<decltype(Squad::PlayerInfoEntry::validator)>()};
 }
 
 static std::unique_ptr<PlayerInfoEntryNode> PlayerInfoEntryNodeCreator()
@@ -355,7 +406,7 @@ TEST_CASE("Budget fuzzing (only PlayerInfoEntryNode)")
 // serial (PlayerContainer).
 //
 
-static uint8_t* RequirePlayerContainer(const std::vector<PlayerInfoEntry>& entries, uint8_t* storage,
+static uint8_t* RequirePlayerContainer(const std::vector<Squad::PlayerInfoEntry>& entries, uint8_t* storage,
                                        std::size_t padding = 0)
 {
     uint8_t* location = storage + Message::DataOffset() + padding; // Squad data includes start padding.
@@ -368,16 +419,16 @@ static uint8_t* RequirePlayerContainer(const std::vector<PlayerInfoEntry>& entri
     return location;
 }
 
-static std::vector<PlayerInfoEntry> BasicPlayerContainer(PlayerContainer& squad)
+static std::vector<Squad::PlayerInfoEntry> BasicPlayerContainer(Squad::PlayerContainer& squad)
 {
     char a1[12] = "AccountName";
     char c1[14] = "CharacterName";
-    PlayerInfo p1{std::string{a1}, std::string{c1}, 1, 2, 3, 4, 5, false, false, false};
+    Squad::PlayerInfo p1{std::string{a1}, std::string{c1}, 1, 2, 3, 4, 5, false, false, false};
 
     char a2[15] = "AccountName2nd";
     char c2[17] = "CharacterName2nd";
-    PlayerInfo p2{std::string{a2}, std::string{c2}, 1, 2, 3, 4, 5, false, false, false};
-    PlayerInfo p2_updated{std::string{a2}, std::string{c2}, 1, 2, 3, 4, 5, true, false, false};
+    Squad::PlayerInfo p2{std::string{a2}, std::string{c2}, 1, 2, 3, 4, 5, false, false, false};
+    Squad::PlayerInfo p2_updated{std::string{a2}, std::string{c2}, 1, 2, 3, 4, 5, true, false, false};
 
     squad.add(p1);
     squad.add(p2);
@@ -389,13 +440,13 @@ static std::vector<PlayerInfoEntry> BasicPlayerContainer(PlayerContainer& squad)
         squad.update(*entry);
     }
 
-    return {PlayerInfoEntry{p1, PLAYER_VALIDATOR_START}, PlayerInfoEntry{p2_updated, 2}};
+    return {Squad::PlayerInfoEntry{p1, Squad::ValidatorStartValue}, Squad::PlayerInfoEntry{p2_updated, 2}};
 }
 
-TEST_CASE("toSerial(std::size_t startPadding)")
+TEST_CASE("PlayerContainer::toSerial(std::size_t)")
 {
     // Get squad data.
-    PlayerContainer squad{};
+    Squad::PlayerContainer squad{};
     auto entries = BasicPlayerContainer(squad);
 
     // No padding.
@@ -413,7 +464,7 @@ TEST_CASE("toSerial(std::size_t startPadding)")
 // json (PlayerContainer).
 //
 
-static std::string PlayerContainerStrJSON(const std::vector<PlayerInfoEntry>& entries)
+static std::string PlayerContainerStrJSON(const std::vector<Squad::PlayerInfoEntry>& entries)
 {
     std::ostringstream oss{};
 
@@ -425,10 +476,10 @@ static std::string PlayerContainerStrJSON(const std::vector<PlayerInfoEntry>& en
     return oss.str();
 }
 
-TEST_CASE("toJSON()")
+TEST_CASE("PlayerContainer::toJSON()")
 {
     // Get squad data.
-    PlayerContainer squad{};
+    Squad::PlayerContainer squad{};
     auto entries = BasicPlayerContainer(squad);
 
     nlohmann::json j = squad.toJSON();
@@ -440,16 +491,16 @@ TEST_CASE("toJSON()")
 // Budget fuzzing (PlayerContainer).
 //
 
-static std::vector<PlayerInfoEntry> RandomPlayerContainer(PlayerContainer& squad)
+static std::vector<Squad::PlayerInfoEntry> RandomPlayerContainer(Squad::PlayerContainer& squad)
 {
     const std::size_t player_count = RandomIntegral<std::size_t, 0, 50>();
-    std::vector<PlayerInfoEntry> entries{};
+    std::vector<Squad::PlayerInfoEntry> entries{};
     entries.reserve(player_count);
 
     // Create players.
     for (std::size_t j{0}; j < player_count; ++j)
     {
-        PlayerInfo player = RandomPlayerInfo();
+        Squad::PlayerInfo player = RandomPlayerInfo();
 
         auto present = std::find_if(entries.begin(), entries.end(), [&player](const auto& entry) {
             return entry.player.accountName == player.accountName;
@@ -470,7 +521,7 @@ static std::vector<PlayerInfoEntry> RandomPlayerContainer(PlayerContainer& squad
         {
             // New Account Name.
             squad.add(player);
-            entries.emplace_back(player, PLAYER_VALIDATOR_START);
+            entries.emplace_back(player, Squad::ValidatorStartValue);
         }
     }
 
@@ -483,7 +534,7 @@ TEST_CASE("Budget fuzzing (PlayerContainer)")
     for (std::size_t i{0}; i < tests; ++i)
     {
         // Random squad data.
-        PlayerContainer squad{};
+        Squad::PlayerContainer squad{};
         auto entries = RandomPlayerContainer(squad);
 
         SECTION("Serial")

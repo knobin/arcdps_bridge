@@ -51,9 +51,11 @@ struct BridgeInfo
 
 // clang-format on
 
-void to_json(nlohmann::json& j, const BridgeInfo& info);
-std::size_t serial_size(const BridgeInfo& info);
-void to_serial(const BridgeInfo& info, uint8_t* storage, std::size_t);
+[[nodiscard]] nlohmann::json ToJSON(const BridgeInfo& info);
+[[nodiscard]] std::size_t SerialSize(const BridgeInfo& info);
+void ToSerial(const BridgeInfo& info, uint8_t* storage, std::size_t);
+[[nodiscard]] Message BridgeInfoMessageGenerator(uint64_t id, uint64_t timestamp, const BridgeInfo& info,
+                                                  std::underlying_type_t<MessageProtocol> protocols);
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -96,7 +98,7 @@ struct CharacterType
 
 struct ApplicationData
 {
-    PlayerContainer Squad{};
+    Squad::PlayerContainer Squad{};
     std::string SelfAccountName{};
 
     Configs Config{};

@@ -48,10 +48,10 @@ TEST_CASE("BridgeInfo Minimal Size")
     constexpr std::size_t arcvers_size = 1;                  // Only null terminator.
 
     constexpr std::size_t expected_size = partial_size + version_size + extrasVersion_size + arcvers_size;
-    REQUIRE(serial_size(info) == expected_size);
+    REQUIRE(SerialSize(info) == expected_size);
 }
 
-TEST_CASE("serial_size(const BridgeInfo& info)")
+TEST_CASE("SerialSize(const BridgeInfo&)")
 {
     BridgeInfo info{};
     info.extrasVersion = "extras version string";
@@ -64,7 +64,7 @@ TEST_CASE("serial_size(const BridgeInfo& info)")
     constexpr std::size_t arcvers_size = 19;                 // Including null terminator.
 
     constexpr std::size_t expected_size = partial_size + version_size + extrasVersion_size + arcvers_size;
-    REQUIRE(serial_size(info) == expected_size);
+    REQUIRE(SerialSize(info) == expected_size);
 }
 
 static uint8_t* RequireBridgeInfo(const BridgeInfo& info, uint8_t* storage)
@@ -89,7 +89,7 @@ static uint8_t* RequireBridgeInfo(const BridgeInfo& info, uint8_t* storage)
     return location;
 }
 
-TEST_CASE("to_serial(const BridgeInfo& info, uint8_t* storage, std::size_t)")
+TEST_CASE("ToSerial(const BridgeInfo&, uint8_t*, std::size_t)")
 {
     BridgeInfo info{};
     info.extrasVersion = "extras version string";
@@ -104,7 +104,7 @@ TEST_CASE("to_serial(const BridgeInfo& info, uint8_t* storage, std::size_t)")
     constexpr std::size_t bridgeinfo_size = partial_size + version_size + extrasVersion_size + arcvers_size;
 
     uint8_t storage[bridgeinfo_size] = {};
-    to_serial(info, storage, bridgeinfo_size);
+    ToSerial(info, storage, bridgeinfo_size);
 
     uint8_t* location = RequireBridgeInfo(info, storage);
     REQUIRE(storage + bridgeinfo_size == location);
@@ -137,14 +137,42 @@ static std::string BridgeInfoStrJSON(const BridgeInfo& info)
     return oss.str();
 }
 
-TEST_CASE("to_json(nlohmann::json& j, const UserInfo& user)")
+TEST_CASE("ToJSON(const UserInfo& user)")
 {
     BridgeInfo info{};
     info.extrasVersion = "extras version string";
     info.arcvers = "arc version string";
 
-    nlohmann::json j = info;
+    nlohmann::json j = ToJSON(info);
     REQUIRE(j.dump() == BridgeInfoStrJSON(info));
+}
+
+//
+// Generator (PlayerEntry).
+//
+
+struct GeneratorHelper
+{
+    using Type = BridgeInfo;
+    static auto SerialSize(const Type& value) { return ::SerialSize(value); }
+    static auto ToSerial(const Type& value, uint8_t* storage, std::size_t count)
+    {
+        return ::ToSerial(value, storage, count);
+    }
+    static auto ToJSON(const Type& value) { return ::ToJSON(value); }
+};
+
+TEST_CASE("BridgeInfoMessageGenerator")
+{
+    BridgeInfo info{};
+    info.extrasVersion = "extras version string";
+    info.arcvers = "arc version string";
+
+    const uint64_t id = RandomIntegral<uint64_t>();
+    const uint64_t timestamp = RandomIntegral<uint64_t>();
+
+    RequireMessageGenerator<GeneratorHelper, MessageCategory::Info, MessageType::BridgeInfo>(
+        id, timestamp, info, BridgeInfoMessageGenerator);
 }
 
 //
@@ -172,34 +200,33 @@ struct BridgeInfoNode : Node
 
     uint8_t* write(uint8_t* storage) override
     {
-        const std::size_t count = serial_size(value);
-        to_serial(value, storage, count);
+        const std::size_t count = SerialSize(value);
+        ToSerial(value, storage, count);
         return storage + count;
     }
     uint8_t* require(uint8_t* storage) override { return RequireBridgeInfo(value, storage); }
-    std::size_t count() const override { return serial_size(value); }
+    std::size_t count() const override { return SerialSize(value); }
     void json_require() override
     {
-        nlohmann::json j = value;
+        nlohmann::json j = ToJSON(value);
         REQUIRE(j.dump() == BridgeInfoStrJSON(value));
     }
 };
 
 static std::unique_ptr<BridgeInfoNode> BridgeInfoNodeCreator()
 {
-    std::string eV = RandomString();
-    std::string aV = RandomString();
+    const std::string eV = RandomString();
+    const std::string aV = RandomString();
 
-    uint64_t va = RandomIntegral<uint64_t>();
-    uint32_t major = RandomIntegral<uint32_t>();
-    uint32_t minor = RandomIntegral<uint32_t>();
-    uint32_t infoVersion = RandomIntegral<uint32_t>();
+    const uint64_t va = RandomIntegral<uint64_t>();
+    const uint32_t major = RandomIntegral<uint32_t>();
+    const uint32_t minor = RandomIntegral<uint32_t>();
+    const uint32_t infoVersion = RandomIntegral<uint32_t>();
 
-    bool aL = static_cast<bool>(RandomIntegral<uint32_t>() & 2);
-    bool eF = static_cast<bool>(RandomIntegral<uint32_t>() & 2);
-    bool eL = static_cast<bool>(RandomIntegral<uint32_t>() & 2);
+    const bool aL = static_cast<bool>(RandomIntegral<uint32_t>() & 2);
+    const bool eF = static_cast<bool>(RandomIntegral<uint32_t>() & 2);
+    const bool eL = static_cast<bool>(RandomIntegral<uint32_t>() & 2);
 
-    std::string user_name = RandomString();
     return std::make_unique<BridgeInfoNode>(eV, aV, va, major, minor, infoVersion, aL, eF, eL);
 }
 

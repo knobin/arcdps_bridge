@@ -61,7 +61,8 @@ namespace Extras
     }
     void ToSerial(const KeyBinds::KeyBindChanged& pChangedKeyBind, uint8_t* storage, std::size_t count);
     [[nodiscard]] nlohmann::json ToJSON(const KeyBinds::KeyBindChanged& pChangedKeyBind);
-    [[nodiscard]] Message KeyBindMessageGenerator(uint64_t id, uint64_t timestamp, const KeyBinds::KeyBindChanged& pChangedKeyBind,
+    [[nodiscard]] Message KeyBindMessageGenerator(uint64_t id, uint64_t timestamp,
+                                                  const KeyBinds::KeyBindChanged& pChangedKeyBind,
                                                   std::underlying_type_t<MessageProtocol> protocols);
 
     //

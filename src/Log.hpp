@@ -76,31 +76,31 @@
 
 #endif
 
-#if BRIDGE_LOG_LEVEL > 0 // 1 and above.
+#if BRIDGE_LOG_LEVEL >= BRIDGE_LOG_LEVEL_ERROR
     #define BRIDGE_ERROR(...) Logger::getLogger()->error(__VA_ARGS__)
 #else
     #define BRIDGE_ERROR(...)
 #endif
 
-#if BRIDGE_LOG_LEVEL > 1 // 2 and above.
+#if BRIDGE_LOG_LEVEL >= BRIDGE_LOG_LEVEL_WARNING
     #define BRIDGE_WARN(...) Logger::getLogger()->warn(__VA_ARGS__)
 #else
     #define BRIDGE_WARN(...)
 #endif
 
-#if BRIDGE_LOG_LEVEL > 2 // 3 and above.
+#if BRIDGE_LOG_LEVEL >= BRIDGE_LOG_LEVEL_INFO
     #define BRIDGE_INFO(...) Logger::getLogger()->info(__VA_ARGS__)
 #else
     #define BRIDGE_INFO(...)
 #endif
 
-#if BRIDGE_LOG_LEVEL > 3 // 4 and above.
+#if BRIDGE_LOG_LEVEL >= BRIDGE_LOG_LEVEL_DEBUG
     #define BRIDGE_DEBUG(...) Logger::getLogger()->debug(__VA_ARGS__)
 #else
     #define BRIDGE_DEBUG(...)
 #endif
 
-#if BRIDGE_LOG_LEVEL > 4 // 5 and above.
+#if BRIDGE_LOG_LEVEL >= BRIDGE_LOG_LEVEL_MSG_DEBUG
     #define BRIDGE_MSG_DEBUG(...) Logger::getLogger()->debug(__VA_ARGS__)
 #else
     #define BRIDGE_MSG_DEBUG(...)

@@ -41,7 +41,7 @@ static Message ClosingMessage(uint64_t id, MessageProtocol protocol)
     return InfoMessage<MessageType::Closing>(id, GetMillisecondsSinceEpoch());
 }
 
-static Message SquadStatusMessage(uint64_t id, const std::string& self, const PlayerContainer& squad,
+static Message SquadStatusMessage(uint64_t id, const std::string& self, const Squad::PlayerContainer& squad,
                                   MessageProtocol protocol)
 {
     const uint64_t timestamp{GetMillisecondsSinceEpoch()};
@@ -125,7 +125,8 @@ static SendStatus SendToClient(void* handle, const Message& msg, MessageProtocol
 #if BRIDGE_LOG_LEVEL >= BRIDGE_LOG_LEVEL_ERROR
         if (!msg.hasSerial())
         {
-            BRIDGE_ERROR("Sending Message has no serial data, but client/server protocol is set to MessageProtocol::Serial");
+            BRIDGE_ERROR(
+                "Sending Message has no serial data, but client/server protocol is set to MessageProtocol::Serial");
         }
 #endif
         SerialData data{msg.toSerial()};
@@ -136,7 +137,8 @@ static SendStatus SendToClient(void* handle, const Message& msg, MessageProtocol
 #if BRIDGE_LOG_LEVEL >= BRIDGE_LOG_LEVEL_ERROR
         if (!msg.hasJSON())
         {
-            BRIDGE_ERROR("Sending Message has no JSON data, but client/server protocol is set to MessageProtocol::JSON");
+            BRIDGE_ERROR(
+                "Sending Message has no JSON data, but client/server protocol is set to MessageProtocol::JSON");
         }
 #endif
         send = WriteToPipe(handle, msg.toJSON());
@@ -191,8 +193,9 @@ void PipeThread::start()
         Message msg{};
         {
             std::unique_lock<std::mutex> infoLock(handler->m_appData.Info.mutex);
-            msg = InfoMessage<MessageType::BridgeInfo>(handler->m_appData.requestID(), GetMillisecondsSinceEpoch(),
-                                                       handler->m_appData.Info);
+            msg = BridgeInfoMessageGenerator(
+                handler->m_appData.requestID(), GetMillisecondsSinceEpoch(), handler->m_appData.Info,
+                static_cast<std::underlying_type_t<MessageProtocol>>(MessageProtocol::JSON));
             {
                 std::unique_lock<std::mutex> handlerLock(handler->m_mutex);
                 handler->m_bridgeValidator = handler->m_appData.Info.validator;
@@ -335,7 +338,8 @@ void PipeThread::start()
             handler->m_status = Status::Sending;
 
             handler->m_squadModifyHandler->work(
-                [id = handler->m_appData.requestID(), &msg, &appData = handler->m_appData, protocol, &msgCont = handler->m_msgCont]() {
+                [id = handler->m_appData.requestID(), &msg, &appData = handler->m_appData, protocol,
+                 &msgCont = handler->m_msgCont]() {
                 msg = SquadStatusMessage(id, appData.SelfAccountName, appData.Squad, protocol);
 
                 // Clear queue if any messages.

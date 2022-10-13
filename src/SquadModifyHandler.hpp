@@ -26,7 +26,7 @@ class SquadModifyHandler
 {
 public:
     SquadModifyHandler() = delete;
-    explicit SquadModifyHandler(PlayerContainer& squad)
+    explicit SquadModifyHandler(Squad::PlayerContainer& squad)
         : m_squad{squad}
     {}
 
@@ -38,7 +38,7 @@ public:
     void work(Callback cb) const;
 
     template <typename Sender, typename Updater>
-    void addPlayer(const PlayerInfo& player, Sender sender, Updater updater, uint8_t bits);
+    void addPlayer(const Squad::PlayerInfo& player, Sender sender, Updater updater, uint8_t bits);
 
     template <typename Sender, typename Updater>
     void updatePlayer(const std::string& accountName, Sender sender, Updater updater);
@@ -51,10 +51,10 @@ public:
 
 private:
     template <typename Sender, typename Updater>
-    void addPlayerToSquad(const PlayerInfo& player, Sender sender, Updater updater);
+    void addPlayerToSquad(const Squad::PlayerInfo& player, Sender sender, Updater updater);
 
     template <typename Sender, typename Updater>
-    void updatePlayerInSquad(const PlayerInfoEntry& existing, Sender sender, Updater updater);
+    void updatePlayerInSquad(const Squad::PlayerInfoEntry& existing, Sender sender, Updater updater);
 
     struct PlayerCache
     {
@@ -67,7 +67,7 @@ private:
     void clearCachedPlayer();
 
 private:
-    PlayerContainer& m_squad;
+    Squad::PlayerContainer& m_squad;
     std::array<PlayerCache, 100> m_addCache{};
     mutable std::mutex m_mutex{};
 };
@@ -80,7 +80,7 @@ void SquadModifyHandler::work(Callback cb) const
 }
 
 template <typename Sender, typename Updater>
-void SquadModifyHandler::addPlayer(const PlayerInfo& player, Sender sender, Updater updater, uint8_t bits)
+void SquadModifyHandler::addPlayer(const Squad::PlayerInfo& player, Sender sender, Updater updater, uint8_t bits)
 {
     std::unique_lock<std::mutex> lock(m_mutex);
 
@@ -152,26 +152,26 @@ void SquadModifyHandler::removePlayer(const std::string& accountName, Sender sen
 }
 
 template <typename Sender, typename Updater>
-void SquadModifyHandler::addPlayerToSquad(const PlayerInfo& player, Sender sender, Updater updater)
+void SquadModifyHandler::addPlayerToSquad(const Squad::PlayerInfo& player, Sender sender, Updater updater)
 {
-    if (m_squad.add(player) == PlayerContainer::Status::Success)
-        sender(SquadAction::Add, PlayerInfoEntry{player, PLAYER_VALIDATOR_START});
+    if (m_squad.add(player) == Squad::PlayerContainer::Status::Success)
+        sender(SquadAction::Add, Squad::PlayerInfoEntry{player, Squad::ValidatorStartValue});
     else if (auto existing = m_squad.find(player.accountName))
         updatePlayerInSquad(*existing, sender, updater);
 }
 
 template <typename Sender, typename Updater>
-void SquadModifyHandler::updatePlayerInSquad(const PlayerInfoEntry& existing, Sender sender, Updater updater)
+void SquadModifyHandler::updatePlayerInSquad(const Squad::PlayerInfoEntry& existing, Sender sender, Updater updater)
 {
-    PlayerContainer::PlayerInfoUpdate update = {existing, PlayerContainer::Status::ValidatorError};
+    Squad::PlayerContainer::PlayerInfoUpdate update = {existing, Squad::PlayerContainer::Status::ValidatorError};
 
-    while (update.entry && update.status == PlayerContainer::Status::ValidatorError)
+    while (update.entry && update.status == Squad::PlayerContainer::Status::ValidatorError)
     {
         updater(update.entry->player);
         update = m_squad.update(*update.entry);
     }
 
-    if (update.entry && update.status == PlayerContainer::Status::Success)
+    if (update.entry && update.status == Squad::PlayerContainer::Status::Success)
         sender(SquadAction::Update, *update.entry);
 }
 

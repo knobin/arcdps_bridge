@@ -102,7 +102,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID)
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <MessageType Type>
-static void SendPlayerMsg(const PlayerInfoEntry& entry)
+static void SendPlayerMsg(const Squad::PlayerInfoEntry& entry)
 {
     static_assert(Type == MessageType::SquadAdd || Type == MessageType::SquadRemove || Type == MessageType::SquadUpdate,
                   "Type is not a Squad message");
@@ -111,28 +111,10 @@ static void SendPlayerMsg(const PlayerInfoEntry& entry)
     const uint64_t timestamp{GetMillisecondsSinceEpoch()};
 
     if (Server->trackingCategory(MessageCategory::Squad))
-    {
-        SerialData serial{};
-        nlohmann::json json{};
-
-        if (Server->usingProtocol(MessageProtocol::Serial))
-        {
-            const std::size_t playerentry_size = serial_size(entry);
-            serial = CreateSerialData(playerentry_size);
-            to_serial(entry, &serial.ptr[Message::DataOffset()], playerentry_size);
-        }
-
-        if (Server->usingProtocol(MessageProtocol::JSON))
-        {
-            json = entry;
-        }
-
-        const Message squadMsg{SquadMessage<Type>(id, timestamp, serial, json)};
-        Server->sendMessage(squadMsg);
-    }
+        Server->sendMessage(Squad::PlayerEntryMessageGenerator<Type>(id, timestamp, entry, Server->usingProtocols()));
 }
 
-static void SquadModifySender(SquadAction action, const PlayerInfoEntry& entry)
+static void SquadModifySender(SquadAction action, const Squad::PlayerInfoEntry& entry)
 {
     switch (action)
     {
@@ -148,7 +130,7 @@ static void SquadModifySender(SquadAction action, const PlayerInfoEntry& entry)
     }
 }
 
-static void UpdateCombatPlayerInfo(PlayerInfo& player, ag* src, ag* dst)
+static void UpdateCombatPlayerInfo(Squad::PlayerInfo& player, ag* src, ag* dst)
 {
     player.characterName = std::string{src->name};
     player.profession = dst->prof;
@@ -158,10 +140,10 @@ static void UpdateCombatPlayerInfo(PlayerInfo& player, ag* src, ag* dst)
 
 static void UpdateCombatCharInfo(const std::string& name, CharacterType ct)
 {
-    auto p = [&name](const PlayerInfo& player) {
+    auto p = [&name](const Squad::PlayerInfo& player) {
         return player.characterName == name;
     };
-    auto updater = [ct](PlayerInfo& player) {
+    auto updater = [ct](Squad::PlayerInfo& player) {
         player.profession = ct.profession;
         player.elite = ct.elite;
     };
@@ -214,7 +196,7 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
             BRIDGE_DEBUG("Added, checking dst->name \"{}\"", src->name);
             std::string accountName{dst->name};
 
-            PlayerInfo player{};
+            Squad::PlayerInfo player{};
             player.accountName = accountName;
             player.characterName = std::string{src->name};
             player.profession = dst->prof;
@@ -230,7 +212,7 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
                 BRIDGE_DEBUG("Self account name (Combat): \"{}\"", AppData.SelfAccountName);
             }
 
-            auto updater = [accountName, src, dst](PlayerInfo& player) {
+            auto updater = [accountName, src, dst](Squad::PlayerInfo& player) {
                 // Entry got added just in the right time for add to fail.
                 UpdateCombatPlayerInfo(player, src, dst);
             };
@@ -266,7 +248,7 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
 
             if (AppData.Info.extrasLoaded)
             {
-                auto updater = [](PlayerInfo& player) {
+                auto updater = [](Squad::PlayerInfo& player) {
                     player.inInstance = false;
                 };
                 SquadHandler->updatePlayer(accountName, SquadModifySender, updater);
@@ -393,7 +375,7 @@ extern "C" __declspec(dllexport) void* get_release_addr()
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-static void ExtrasPlayerInfoUpdater(PlayerInfo& player, const UserInfo& user)
+static void ExtrasPlayerInfoUpdater(Squad::PlayerInfo& player, const UserInfo& user)
 {
     player.role = static_cast<uint8_t>(user.Role);
     player.subgroup = user.Subgroup + 1; // Starts at 0.
@@ -428,7 +410,7 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
             {
                 // Add.
 
-                PlayerInfo player{};
+                Squad::PlayerInfo player{};
                 player.accountName = accountName;
 
                 if (AppData.SelfAccountName == accountName)
@@ -439,7 +421,7 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
 
                 ExtrasPlayerInfoUpdater(player, *uinfo);
 
-                auto updater = [uinfo](PlayerInfo& player) {
+                auto updater = [uinfo](Squad::PlayerInfo& player) {
                     ExtrasPlayerInfoUpdater(player, *uinfo);
                 };
                 SquadHandler->addPlayer(player, SquadModifySender, updater, SquadModifyHandler::ExtrasBit);
@@ -572,22 +554,8 @@ extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(c
         ++AppData.Info.validator;
         BRIDGE_DEBUG("Updated BridgeInfo");
 
-        SerialData serial{};
-        nlohmann::json json{};
-
-        if (Server->usingProtocol(MessageProtocol::Serial))
-        {
-            const std::size_t appdata_size = serial_size(AppData.Info);
-            serial = CreateSerialData(appdata_size);
-            to_serial(AppData.Info, &serial.ptr[Message::DataOffset()], appdata_size);
-        }
-
-        if (Server->usingProtocol(MessageProtocol::JSON))
-            json = AppData.Info;
-
-        // Send the new info to connected clients that have already received the old information.
-        const Message bridgeMsg{
-            InfoMessage<MessageType::BridgeInfo>(AppData.requestID(), GetMillisecondsSinceEpoch(), serial, json)};
-        Server->sendBridgeInfo(bridgeMsg, AppData.Info.validator);
+        const auto msg{BridgeInfoMessageGenerator(AppData.requestID(), GetMillisecondsSinceEpoch(), AppData.Info,
+                                                  Server->usingProtocols())};
+        Server->sendBridgeInfo(msg, AppData.Info.validator);
     }
 }

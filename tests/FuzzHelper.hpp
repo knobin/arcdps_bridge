@@ -225,9 +225,9 @@ inline void BudgetFuzzer(Creator func)
 ///////////////////////////////////////////////////////////////////////////////
 
 template <typename Space, MessageCategory MsgCategory, MessageType MsgType>
-static void RequireMessageGenerator(
-    uint64_t id, uint64_t timestamp, const typename Space::Type& value,
-    const std::function<Message(uint64_t, uint64_t, const typename Space::Type&, std::underlying_type_t<MessageProtocol>)>& generator)
+static void RequireMessageGenerator(uint64_t id, uint64_t timestamp, const typename Space::Type& value,
+                                    const std::function<Message(uint64_t, uint64_t, const typename Space::Type&,
+                                                                std::underlying_type_t<MessageProtocol>)>& generator)
 {
     const std::size_t count = Space::SerialSize(value);
     SerialData serial = CreateSerialData(count);

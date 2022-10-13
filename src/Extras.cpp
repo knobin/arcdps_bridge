@@ -51,7 +51,8 @@ namespace Extras
         return j;
     }
 
-    Message SquadMessageGenerator(uint64_t id, uint64_t timestamp, const UserInfo& info, std::underlying_type_t<MessageProtocol> protocols)
+    Message SquadMessageGenerator(uint64_t id, uint64_t timestamp, const UserInfo& info,
+                                  std::underlying_type_t<MessageProtocol> protocols)
     {
         const auto protocolSerial = static_cast<std::underlying_type_t<MessageProtocol>>(MessageProtocol::Serial);
         const auto protocolJSON = static_cast<std::underlying_type_t<MessageProtocol>>(MessageProtocol::JSON);
@@ -95,7 +96,8 @@ namespace Extras
         return nlohmann::json{{"Language", static_cast<std::underlying_type_t<Language>>(language)}};
     }
 
-    Message LanguageMessageGenerator(uint64_t id, uint64_t timestamp, Language language, std::underlying_type_t<MessageProtocol> protocols)
+    Message LanguageMessageGenerator(uint64_t id, uint64_t timestamp, Language language,
+                                     std::underlying_type_t<MessageProtocol> protocols)
     {
         const auto protocolSerial = static_cast<std::underlying_type_t<MessageProtocol>>(MessageProtocol::Serial);
         const auto protocolJSON = static_cast<std::underlying_type_t<MessageProtocol>>(MessageProtocol::JSON);
@@ -245,7 +247,8 @@ namespace Extras
         return j;
     }
 
-    Message ChatMessageGenerator(uint64_t id, uint64_t timestamp, const ChatMessageInfo& pChatMessage, std::underlying_type_t<MessageProtocol> protocols)
+    Message ChatMessageGenerator(uint64_t id, uint64_t timestamp, const ChatMessageInfo& pChatMessage,
+                                 std::underlying_type_t<MessageProtocol> protocols)
     {
         const auto protocolSerial = static_cast<std::underlying_type_t<MessageProtocol>>(MessageProtocol::Serial);
         const auto protocolJSON = static_cast<std::underlying_type_t<MessageProtocol>>(MessageProtocol::JSON);

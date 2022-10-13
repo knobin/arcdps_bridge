@@ -43,34 +43,36 @@ Configs InitConfigs(const std::string& filepath)
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-void to_json(nlohmann::json& j, const BridgeInfo& info)
+nlohmann::json ToJSON(const BridgeInfo& info)
 {
-    j = nlohmann::json{{"version", std::string{info.version}},
-                       {"extrasVersion", nullptr},
-                       {"arcVersion", nullptr},
-                       {"arcLoaded", info.arcLoaded},
-                       {"extrasFound", info.extrasFound},
-                       {"extrasLoaded", info.extrasLoaded},
-                       {"extrasInfoVersion", info.extrasInfoVersion},
-                       {"validator", info.validator},
-                       {"majorApiVersion", info.majorApiVersion},
-                       {"minorApiVersion", info.minorApiVersion}};
+    nlohmann::json j{{"version", std::string{info.version}},
+                     {"extrasVersion", nullptr},
+                     {"arcVersion", nullptr},
+                     {"arcLoaded", info.arcLoaded},
+                     {"extrasFound", info.extrasFound},
+                     {"extrasLoaded", info.extrasLoaded},
+                     {"extrasInfoVersion", info.extrasInfoVersion},
+                     {"validator", info.validator},
+                     {"majorApiVersion", info.majorApiVersion},
+                     {"minorApiVersion", info.minorApiVersion}};
 
     if (!info.extrasVersion.empty())
         j["extrasVersion"] = info.extrasVersion;
 
     if (!info.arcvers.empty())
         j["arcVersion"] = info.arcvers;
+
+    return j;
 }
 
-std::size_t serial_size(const BridgeInfo& info)
+std::size_t SerialSize(const BridgeInfo& info)
 {
     return info.version.size() + info.extrasVersion.size() + info.arcvers.size() + 3 + (3 * sizeof(uint8_t)) +
            sizeof(info.validator) + sizeof(info.extrasInfoVersion) + sizeof(info.majorApiVersion) +
            sizeof(info.minorApiVersion);
 }
 
-void to_serial(const BridgeInfo& info, uint8_t* storage, std::size_t)
+void ToSerial(const BridgeInfo& info, uint8_t* storage, std::size_t)
 {
     uint8_t* location = storage;
 
@@ -93,6 +95,37 @@ void to_serial(const BridgeInfo& info, uint8_t* storage, std::size_t)
     location[0] = static_cast<uint8_t>(info.arcLoaded);
     location[1] = static_cast<uint8_t>(info.extrasFound);
     location[2] = static_cast<uint8_t>(info.extrasLoaded);
+}
+
+Message BridgeInfoMessageGenerator(uint64_t id, uint64_t timestamp, const BridgeInfo& info,
+                                   std::underlying_type_t<MessageProtocol> protocols)
+{
+    const auto protocolSerial = static_cast<std::underlying_type_t<MessageProtocol>>(MessageProtocol::Serial);
+    const auto protocolJSON = static_cast<std::underlying_type_t<MessageProtocol>>(MessageProtocol::JSON);
+
+    SerialData serial{};
+
+    if (protocols & protocolSerial)
+    {
+        const std::size_t infoSize = SerialSize(info);
+        serial = CreateSerialData(infoSize);
+        ToSerial(info, &serial.ptr[Message::DataOffset()], infoSize);
+
+        if (protocols == protocolSerial)
+            return InfoMessage<MessageType::BridgeInfo>(id, timestamp, serial);
+    }
+
+    nlohmann::json json{};
+
+    if (protocols & protocolJSON)
+    {
+        json = ToJSON(info);
+
+        if (protocols == protocolJSON)
+            return InfoMessage<MessageType::BridgeInfo>(id, timestamp, json);
+    }
+
+    return InfoMessage<MessageType::BridgeInfo>(id, timestamp, serial, json);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
