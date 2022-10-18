@@ -347,7 +347,7 @@ private:
     void setSerialHeaders() const
     {
         // Set first two bytes in serial data.
-        if (m_serial.count > 1 && m_serial.ptr)
+        if (m_serial.count >= DataOffset() && m_serial.ptr)
         {
             uint8_t* storage{serial_w_integral(&m_serial.ptr[0], m_category)};
             storage = serial_w_integral(storage, m_type);
