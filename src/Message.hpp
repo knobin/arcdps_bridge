@@ -347,7 +347,8 @@ private:
     void setSerialHeaders() const
     {
         // Set first two bytes in serial data.
-        if (m_serial.count >= DataOffset() && m_serial.ptr)
+        // Narrow cast is safe here. 0 <= DataOffset() <= max of std::size_t.
+        if (m_serial.count >= static_cast<std::size_t>(DataOffset()) && m_serial.ptr)
         {
             uint8_t* storage{serial_w_integral(&m_serial.ptr[0], m_category)};
             storage = serial_w_integral(storage, m_type);

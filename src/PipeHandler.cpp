@@ -130,7 +130,7 @@ void PipeHandler::cleanup()
     // Remove threads that are not running.
     for (auto it = m_threads.begin(); it != m_threads.end();)
     {
-        if (!(*it)->started())
+        if (!(*it)->running())
         {
             BRIDGE_DEBUG("Removing closed PipeThread [ptid {}].", (*it)->id());
             (*it)->stop();

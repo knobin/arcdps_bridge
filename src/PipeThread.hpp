@@ -61,6 +61,7 @@ public:
     void stop();
 
     [[nodiscard]] bool started() const { return m_threadStarted; }
+    [[nodiscard]] bool running() const { return m_running; }
 
     [[nodiscard]] std::size_t id() const { return m_id; }
 
