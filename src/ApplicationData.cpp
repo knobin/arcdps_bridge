@@ -45,16 +45,13 @@ Configs InitConfigs(const std::string& filepath)
 
 nlohmann::json ToJSON(const BridgeInfo& info)
 {
-    nlohmann::json j{{"version", std::string{info.version}},
-                     {"extrasVersion", nullptr},
+    nlohmann::json j{{"extrasVersion", nullptr},
                      {"arcVersion", nullptr},
                      {"arcLoaded", info.arcLoaded},
                      {"extrasFound", info.extrasFound},
                      {"extrasLoaded", info.extrasLoaded},
                      {"extrasInfoVersion", info.extrasInfoVersion},
-                     {"validator", info.validator},
-                     {"majorApiVersion", info.majorApiVersion},
-                     {"minorApiVersion", info.minorApiVersion}};
+                     {"validator", info.validator}};
 
     if (!info.extrasVersion.empty())
         j["extrasVersion"] = info.extrasVersion;
@@ -67,24 +64,18 @@ nlohmann::json ToJSON(const BridgeInfo& info)
 
 std::size_t SerialSize(const BridgeInfo& info)
 {
-    return info.version.size() + info.extrasVersion.size() + info.arcvers.size() + 3 + (3 * sizeof(uint8_t)) +
-           sizeof(info.validator) + sizeof(info.extrasInfoVersion) + sizeof(info.majorApiVersion) +
-           sizeof(info.minorApiVersion);
+    return info.extrasVersion.size() + info.arcvers.size() + 2 + (3 * sizeof(uint8_t)) +
+           sizeof(info.validator) + sizeof(info.extrasInfoVersion);
 }
 
 void ToSerial(const BridgeInfo& info, uint8_t* storage, std::size_t)
 {
     uint8_t* location = storage;
 
-    // API version is written first!
-    location = serial_w_integral(location, info.majorApiVersion);
-    location = serial_w_integral(location, info.minorApiVersion);
-
     // Runtime version of BridgeInfo.
     location = serial_w_integral(location, info.validator);
 
     // Version strings.
-    location = serial_w_string(location, info.version.data(), info.version.size());
     location = serial_w_string(location, info.extrasVersion.data(), info.extrasVersion.size());
     location = serial_w_string(location, info.arcvers.data(), info.arcvers.size());
 

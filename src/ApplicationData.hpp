@@ -29,16 +29,19 @@
 
 // clang-format off
 
-struct BridgeInfo
+struct BridgeVersionInfo
 {
     std::string_view version{BRIDGE_VERSION_STR};   // Bridge version.
+    uint32_t majorApiVersion{BRIDGE_API_VERSION_MAJOR}; // Incremented when there is a change that breaks backwards compatibility in any way.
+    uint32_t minorApiVersion{BRIDGE_API_VERSION_MINOR}; // Incremented when the API is extended in a way that does not break backwards compatibility.
+} static constexpr BridgeVersion;
+
+struct BridgeInfo
+{
     std::string extrasVersion{};                         // Unofficial Extras version.
     std::string arcvers{};                           // ArcDPS version.
 
     uint64_t validator{1};  // Runtime version of the BridgeInfo, if any value changes this will be incremented.
-
-    uint32_t majorApiVersion{BRIDGE_API_VERSION_MAJOR}; // Incremented when there is a change that breaks backwards compatibility in any way.
-    uint32_t minorApiVersion{BRIDGE_API_VERSION_MINOR}; // Incremented when the API is extended in a way that does not break backwards compatibility.
 
     uint32_t extrasInfoVersion{0};  // Extras InfoVersion the bridge is using. 0 if unknown or extras is not initialized.
 

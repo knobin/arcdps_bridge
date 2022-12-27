@@ -57,7 +57,7 @@ public:
                const SquadModifyHandler* squadModifyHandler);
     ~PipeThread();
 
-    void start();
+    void start(uint64_t bridgeValidator);
     void stop();
 
     [[nodiscard]] bool started() const { return m_threadStarted; }

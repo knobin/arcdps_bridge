@@ -60,30 +60,33 @@ enum class MessageType : uint8_t
     // 0 = None or Empty, should never be used.
 
     // Info types.
-    BridgeInfo = 1,
-    Status = 2,
-    Closing = 3,
+    ConnectionStatus = 1,
+    BridgeInfo = 2,
+    Status = 3,
+    Closing = 4,
 
     // ArcDPS combat api types.
-    CombatEvent = 4,
+    CombatEvent = 5,
 
     // Extras event types.
-    ExtrasSquadUpdate = 5,
-    ExtrasLanguageChanged = 6,
-    ExtrasKeyBindChanged = 7,
-    ExtrasChatMessage = 8,
+    ExtrasSquadUpdate = 6,
+    ExtrasLanguageChanged = 7,
+    ExtrasKeyBindChanged = 8,
+    ExtrasChatMessage = 9,
 
     // Squad event types.
-    SquadStatus = 9,
-    SquadAdd = 10,
-    SquadUpdate = 11,
-    SquadRemove = 12
+    SquadStatus = 10,
+    SquadAdd = 11,
+    SquadUpdate = 12,
+    SquadRemove = 13
 };
 
 constexpr std::string_view MessageTypeToStr(MessageType type) noexcept
 {
     switch (type)
     {
+        case MessageType::ConnectionStatus:
+            return "ConnectionStatus";
         case MessageType::BridgeInfo:
             return "BridgeInfo";
         case MessageType::Status:
@@ -145,7 +148,7 @@ struct [[maybe_unused]] MsgTypeMatcher
 
 template <>
 struct MatchTypeToCategory<MessageCategory::Info>
-    : MsgTypeMatcher<MessageType::BridgeInfo, MessageType::Status, MessageType::Closing>
+    : MsgTypeMatcher<MessageType::ConnectionStatus, MessageType::BridgeInfo, MessageType::Status, MessageType::Closing>
 {};
 
 template <>

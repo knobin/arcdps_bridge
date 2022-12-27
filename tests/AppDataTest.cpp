@@ -41,13 +41,11 @@ TEST_CASE("BridgeInfo Minimal Size")
 {
     BridgeInfo info{};
 
-    constexpr std::size_t partial_size = sizeof(uint64_t) + (3 * sizeof(uint32_t)) + (3 * sizeof(uint8_t));
-    constexpr std::string_view version{BRIDGE_VERSION_STR};
-    constexpr std::size_t version_size = version.size() + 1; // Including null terminator.
+    constexpr std::size_t partial_size = sizeof(uint64_t) + sizeof(uint32_t) + (3 * sizeof(uint8_t));
     constexpr std::size_t extrasVersion_size = 1;            // Only null terminator.
-    constexpr std::size_t arcvers_size = 1;                  // Only null terminator.
+    constexpr std::size_t arcVersion_size = 1;                  // Only null terminator.
 
-    constexpr std::size_t expected_size = partial_size + version_size + extrasVersion_size + arcvers_size;
+    constexpr std::size_t expected_size = partial_size + extrasVersion_size + arcVersion_size;
     REQUIRE(SerialSize(info) == expected_size);
 }
 
@@ -57,13 +55,11 @@ TEST_CASE("SerialSize(const BridgeInfo&)")
     info.extrasVersion = "extras version string";
     info.arcvers = "arc version string";
 
-    constexpr std::size_t partial_size = sizeof(uint64_t) + (3 * sizeof(uint32_t)) + (3 * sizeof(uint8_t));
-    constexpr std::string_view version{BRIDGE_VERSION_STR};
-    constexpr std::size_t version_size = version.size() + 1; // Including null terminator.
-    constexpr std::size_t extrasVersion_size = 22;           // Including null terminator.
-    constexpr std::size_t arcvers_size = 19;                 // Including null terminator.
+    constexpr std::size_t partial_size = sizeof(uint64_t) + sizeof(uint32_t) + (3 * sizeof(uint8_t));
+    constexpr std::size_t extrasVersion_size = 22;  // Including null terminator.
+    constexpr std::size_t arcVersion_size = 19;     // Including null terminator.
 
-    constexpr std::size_t expected_size = partial_size + version_size + extrasVersion_size + arcvers_size;
+    constexpr std::size_t expected_size = partial_size + extrasVersion_size + arcVersion_size;
     REQUIRE(SerialSize(info) == expected_size);
 }
 
@@ -71,12 +67,8 @@ static uint8_t* RequireBridgeInfo(const BridgeInfo& info, uint8_t* storage)
 {
     uint8_t* location = storage;
 
-    location = RequireAtLocation(location, info.majorApiVersion);
-    location = RequireAtLocation(location, info.minorApiVersion);
-
     location = RequireAtLocation(location, info.validator);
 
-    location = RequireStringAtLocation(location, info.version.data(), info.version.size());
     location = RequireStringAtLocation(location, info.extrasVersion.data(), info.extrasVersion.size());
     location = RequireStringAtLocation(location, info.arcvers.data(), info.arcvers.size());
 
@@ -95,19 +87,17 @@ TEST_CASE("ToSerial(const BridgeInfo&, uint8_t*, std::size_t)")
     info.extrasVersion = "extras version string";
     info.arcvers = "arc version string";
 
-    constexpr std::size_t partial_size = sizeof(uint64_t) + (3 * sizeof(uint32_t)) + (3 * sizeof(uint8_t));
-    constexpr std::string_view version{BRIDGE_VERSION_STR};
-    constexpr std::size_t version_size = version.size() + 1; // Including null terminator.
-    constexpr std::size_t extrasVersion_size = 22;           // Including null terminator.
-    constexpr std::size_t arcvers_size = 19;                 // Including null terminator.
+    constexpr std::size_t partial_size = sizeof(uint64_t) + sizeof(uint32_t) + (3 * sizeof(uint8_t));
+    constexpr std::size_t extrasVersion_size = 22;  // Including null terminator.
+    constexpr std::size_t arcVersion_size = 19;     // Including null terminator.
 
-    constexpr std::size_t bridgeinfo_size = partial_size + version_size + extrasVersion_size + arcvers_size;
+    constexpr std::size_t bridgeInfo_size = partial_size + extrasVersion_size + arcVersion_size;
 
-    uint8_t storage[bridgeinfo_size] = {};
-    ToSerial(info, storage, bridgeinfo_size);
+    uint8_t storage[bridgeInfo_size] = {};
+    ToSerial(info, storage, bridgeInfo_size);
 
     uint8_t* location = RequireBridgeInfo(info, storage);
-    REQUIRE(storage + bridgeinfo_size == location);
+    REQUIRE(storage + bridgeInfo_size == location);
 }
 
 //
@@ -120,7 +110,6 @@ static std::string BridgeInfoStrJSON(const BridgeInfo& info)
 
     const std::string eV = (!info.extrasVersion.empty()) ? "\"" + info.extrasVersion + "\"" : "null";
     const std::string aV = (!info.arcvers.empty()) ? "\"" + info.arcvers + "\"" : "null";
-    const std::string version = "\"" + std::string{info.version} + "\"";
 
     oss << "{"
         << "\"arcLoaded\":" << ((info.arcLoaded) ? "true" : "false") << ","
@@ -129,10 +118,7 @@ static std::string BridgeInfoStrJSON(const BridgeInfo& info)
         << "\"extrasInfoVersion\":" << info.extrasInfoVersion << ","
         << "\"extrasLoaded\":" << ((info.extrasLoaded) ? "true" : "false") << ","
         << "\"extrasVersion\":" << eV << ","
-        << "\"majorApiVersion\":" << info.majorApiVersion << ","
-        << "\"minorApiVersion\":" << info.minorApiVersion << ","
-        << "\"validator\":" << info.validator << ","
-        << "\"version\":" << version << "}";
+        << "\"validator\":" << info.validator << "}";
 
     return oss.str();
 }
@@ -168,8 +154,8 @@ TEST_CASE("BridgeInfoMessageGenerator")
     info.extrasVersion = "extras version string";
     info.arcvers = "arc version string";
 
-    const uint64_t id = RandomIntegral<uint64_t>();
-    const uint64_t timestamp = RandomIntegral<uint64_t>();
+    const auto id = RandomIntegral<uint64_t>();
+    const auto timestamp = RandomIntegral<uint64_t>();
 
     RequireMessageGenerator<GeneratorHelper, MessageCategory::Info, MessageType::BridgeInfo>(
         id, timestamp, info, BridgeInfoMessageGenerator);
@@ -181,15 +167,12 @@ TEST_CASE("BridgeInfoMessageGenerator")
 
 struct BridgeInfoNode : Node
 {
-    BridgeInfoNode(const std::string& extraVersion, const std::string& arcVersion, uint64_t validator, uint32_t major,
-                   uint32_t minor, uint32_t infoVersion, bool arcL, bool extrasF, bool extrasL)
+    BridgeInfoNode(const std::string& extraVersion, const std::string& arcVersion, uint64_t validator, uint32_t infoVersion, bool arcL, bool extrasF, bool extrasL)
         : value{}
     {
         value.extrasVersion = extraVersion;
         value.arcvers = arcVersion;
         value.validator = validator;
-        value.majorApiVersion = major;
-        value.minorApiVersion = minor;
         value.extrasInfoVersion = infoVersion;
         value.arcLoaded = arcL;
         value.extrasFound = extrasF;
@@ -218,16 +201,14 @@ static std::unique_ptr<BridgeInfoNode> BridgeInfoNodeCreator()
     const std::string eV = RandomString();
     const std::string aV = RandomString();
 
-    const uint64_t va = RandomIntegral<uint64_t>();
-    const uint32_t major = RandomIntegral<uint32_t>();
-    const uint32_t minor = RandomIntegral<uint32_t>();
-    const uint32_t infoVersion = RandomIntegral<uint32_t>();
+    const auto va = RandomIntegral<uint64_t>();
+    const auto infoVersion = RandomIntegral<uint32_t>();
 
     const bool aL = static_cast<bool>(RandomIntegral<uint32_t>() & 2);
     const bool eF = static_cast<bool>(RandomIntegral<uint32_t>() & 2);
     const bool eL = static_cast<bool>(RandomIntegral<uint32_t>() & 2);
 
-    return std::make_unique<BridgeInfoNode>(eV, aV, va, major, minor, infoVersion, aL, eF, eL);
+    return std::make_unique<BridgeInfoNode>(eV, aV, va, infoVersion, aL, eF, eL);
 }
 
 TEST_CASE("Budget fuzzing (only BridgeInfo)")

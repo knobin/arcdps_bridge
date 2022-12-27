@@ -53,35 +53,37 @@ TEST_CASE("MessageType values")
 
     SECTION("Info types")
     {
-        REQUIRE(static_cast<utype>(MessageType::BridgeInfo) == 1);
-        REQUIRE(static_cast<utype>(MessageType::Status) == 2);
-        REQUIRE(static_cast<utype>(MessageType::Closing) == 3);
+        REQUIRE(static_cast<utype>(MessageType::ConnectionStatus) == 1);
+        REQUIRE(static_cast<utype>(MessageType::BridgeInfo) == 2);
+        REQUIRE(static_cast<utype>(MessageType::Status) == 3);
+        REQUIRE(static_cast<utype>(MessageType::Closing) == 4);
     }
 
     SECTION("ArcDPS combat api types")
     {
-        REQUIRE(static_cast<utype>(MessageType::CombatEvent) == 4);
+        REQUIRE(static_cast<utype>(MessageType::CombatEvent) == 5);
     }
 
     SECTION("Extras event types")
     {
-        REQUIRE(static_cast<utype>(MessageType::ExtrasSquadUpdate) == 5);
-        REQUIRE(static_cast<utype>(MessageType::ExtrasLanguageChanged) == 6);
-        REQUIRE(static_cast<utype>(MessageType::ExtrasKeyBindChanged) == 7);
-        REQUIRE(static_cast<utype>(MessageType::ExtrasChatMessage) == 8);
+        REQUIRE(static_cast<utype>(MessageType::ExtrasSquadUpdate) == 6);
+        REQUIRE(static_cast<utype>(MessageType::ExtrasLanguageChanged) == 7);
+        REQUIRE(static_cast<utype>(MessageType::ExtrasKeyBindChanged) == 8);
+        REQUIRE(static_cast<utype>(MessageType::ExtrasChatMessage) == 9);
     }
 
     SECTION("Squad event types")
     {
-        REQUIRE(static_cast<utype>(MessageType::SquadStatus) == 9);
-        REQUIRE(static_cast<utype>(MessageType::SquadAdd) == 10);
-        REQUIRE(static_cast<utype>(MessageType::SquadUpdate) == 11);
-        REQUIRE(static_cast<utype>(MessageType::SquadRemove) == 12);
+        REQUIRE(static_cast<utype>(MessageType::SquadStatus) == 10);
+        REQUIRE(static_cast<utype>(MessageType::SquadAdd) == 11);
+        REQUIRE(static_cast<utype>(MessageType::SquadUpdate) == 12);
+        REQUIRE(static_cast<utype>(MessageType::SquadRemove) == 13);
     }
 }
 
 TEST_CASE("MessageType")
 {
+    REQUIRE(MessageTypeToStr(MessageType::ConnectionStatus) == "ConnectionStatus");
     REQUIRE(MessageTypeToStr(MessageType::BridgeInfo) == "BridgeInfo");
     REQUIRE(MessageTypeToStr(MessageType::Status) == "Status");
     REQUIRE(MessageTypeToStr(MessageType::Closing) == "Closing");
@@ -109,6 +111,7 @@ TEST_CASE("MatchCategoryAndType")
 
     SECTION("Info types")
     {
+        REQUIRE(MatchCategoryAndType<MC::Info, MT::ConnectionStatus>::value);
         REQUIRE(MatchCategoryAndType<MC::Info, MT::BridgeInfo>::value);
         REQUIRE(MatchCategoryAndType<MC::Info, MT::Status>::value);
         REQUIRE(MatchCategoryAndType<MC::Info, MT::Closing>::value);
@@ -128,6 +131,7 @@ TEST_CASE("MatchCategoryAndType")
 
     SECTION("ArcDPS combat api types")
     {
+        REQUIRE_FALSE(MatchCategoryAndType<MC::Combat, MT::ConnectionStatus>::value);
         REQUIRE_FALSE(MatchCategoryAndType<MC::Combat, MT::BridgeInfo>::value);
         REQUIRE_FALSE(MatchCategoryAndType<MC::Combat, MT::Status>::value);
         REQUIRE_FALSE(MatchCategoryAndType<MC::Combat, MT::Closing>::value);
@@ -147,6 +151,7 @@ TEST_CASE("MatchCategoryAndType")
 
     SECTION("Extras event types")
     {
+        REQUIRE_FALSE(MatchCategoryAndType<MC::Combat, MT::ConnectionStatus>::value);
         REQUIRE_FALSE(MatchCategoryAndType<MC::Extras, MT::BridgeInfo>::value);
         REQUIRE_FALSE(MatchCategoryAndType<MC::Extras, MT::Status>::value);
         REQUIRE_FALSE(MatchCategoryAndType<MC::Extras, MT::Closing>::value);
@@ -166,6 +171,7 @@ TEST_CASE("MatchCategoryAndType")
 
     SECTION("Squad event types")
     {
+        REQUIRE_FALSE(MatchCategoryAndType<MC::Combat, MT::ConnectionStatus>::value);
         REQUIRE_FALSE(MatchCategoryAndType<MC::Squad, MT::BridgeInfo>::value);
         REQUIRE_FALSE(MatchCategoryAndType<MC::Squad, MT::Status>::value);
         REQUIRE_FALSE(MatchCategoryAndType<MC::Squad, MT::Closing>::value);

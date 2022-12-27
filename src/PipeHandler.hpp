@@ -82,4 +82,6 @@ private:
     bool m_threadStarted{false};
 };
 
+Message ConnectionStatusMessage(uint64_t id, const nlohmann::json& info, bool success, const std::string& error = "");
+
 #endif // BRIDGE_PIPEHANDLER_HPP

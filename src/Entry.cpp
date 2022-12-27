@@ -62,7 +62,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID)
         {
             std::string dllPath = GetDllPath(hModule);
             BRIDGE_LOG_INIT(dllPath + std::string{AppData.LogFile});
-            BRIDGE_INFO("Starting Bridge service [{}] [{}].", AppData.Info.version, BRIDGE_BUILD_STR);
+            BRIDGE_INFO("Starting Bridge service [{}] [{}].", BridgeVersion.version, BRIDGE_BUILD_STR);
             if (dllPath.empty())
             {
                 BRIDGE_ERROR("GetModuleFileName failed with error \"{}\"", GetLastError());
@@ -305,7 +305,7 @@ static arcdps_exports* mod_init()
     arc_exports.imguivers = 18000; // IMGUI_VERSION_NUM;
     arc_exports.size = sizeof(arcdps_exports);
     arc_exports.out_name = "Unofficial Bridge";
-    arc_exports.out_build = AppData.Info.version.data();
+    arc_exports.out_build = BridgeVersion.version.data();
     arc_exports.wnd_nofilter = mod_wnd;
 
     if (AppData.Config.enabled)

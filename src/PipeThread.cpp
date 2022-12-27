@@ -163,7 +163,7 @@ PipeThread::~PipeThread()
     BRIDGE_DEBUG("~PipeThread [ptid {}], running: {}", m_id, m_running);
 }
 
-void PipeThread::start()
+void PipeThread::start(uint64_t bridgeValidator)
 {
     std::unique_lock<std::mutex> lock(m_mutex);
 
@@ -174,6 +174,7 @@ void PipeThread::start()
     // Enable thread function to run.
     m_threadStarted = true;
     m_run = true;
+    m_bridgeValidator = bridgeValidator;
 
     m_thread = std::thread([handler = this]() {
         if (!handler->m_run)
@@ -188,30 +189,6 @@ void PipeThread::start()
         void* handle = handler->m_handle;
         handler->m_running = true;
         BRIDGE_INFO("[ptid {}] Started PipeThread.", threadID);
-
-        BRIDGE_DEBUG("[ptid {}] Client connected, sending bridge information...", threadID);
-        Message msg{};
-        {
-            std::unique_lock<std::mutex> infoLock(handler->m_appData.Info.mutex);
-            msg = BridgeInfoMessageGenerator(
-                handler->m_appData.requestID(), GetMillisecondsSinceEpoch(), handler->m_appData.Info,
-                static_cast<std::underlying_type_t<MessageProtocol>>(MessageProtocol::JSON));
-            {
-                std::unique_lock<std::mutex> handlerLock(handler->m_mutex);
-                handler->m_bridgeValidator = handler->m_appData.Info.validator;
-            }
-        }
-        handler->m_status = Status::Sending;
-        BRIDGE_MSG_DEBUG("[ptid {}] Sending \"{}\" to client.", threadID, msg.toJSON());
-        SendStatus sendStatus = WriteToPipe(handle, msg.toJSON());
-        if (!sendStatus.success)
-        {
-            CloseHandle(handle);
-            handler->m_handle = nullptr;
-            handler->m_running = false;
-            BRIDGE_ERROR("[ptid {}] Failed to send bridge information, Ending PipeThread.", threadID);
-            return;
-        }
 
         BRIDGE_DEBUG("[ptid {}] Waiting for client to subscribe...", threadID);
         handler->m_status = Status::Reading;
@@ -233,7 +210,7 @@ void PipeThread::start()
         // Check if data is valid json.
         if (!nlohmann::json::accept(readStatus.data))
         {
-            const Message statusMsg{StatusMessage(false, "invalid JSON")};
+            const Message statusMsg{StatusMessage(handler->m_appData.requestID(), false, "invalid JSON")};
             WriteToPipe(handle, statusMsg.toJSON());
             BRIDGE_ERROR("[ptid {}] Recieved invalid JSON, Ending PipeThread.", threadID);
             CloseHandle(handle);
@@ -287,7 +264,7 @@ void PipeThread::start()
         // Subscription error (if any).
         if (!(handler->m_eventTrack.combat || handler->m_eventTrack.extras || handler->m_eventTrack.squad))
         {
-            const Message statusMsg{StatusMessage(false, "no subscription")};
+            const Message statusMsg{StatusMessage(handler->m_appData.requestID(), false, "no subscription")};
             WriteToPipe(handle, statusMsg.toJSON());
             BRIDGE_ERROR("[ptid {}] No subscription, Ending PipeThread.", threadID);
             CloseHandle(handle);
@@ -310,7 +287,7 @@ void PipeThread::start()
         // Protocol error (if any).
         if (protocolNum == 0)
         {
-            const Message statusMsg{StatusMessage(false, "no such protocol")};
+            const Message statusMsg{StatusMessage(handler->m_appData.requestID(), false, "no such protocol")};
             WriteToPipe(handle, statusMsg.toJSON());
             BRIDGE_ERROR("[ptid {}] No such protocol, Ending PipeThread.", threadID);
             CloseHandle(handle);
@@ -332,6 +309,8 @@ void PipeThread::start()
                 BRIDGE_ERROR("[ptid {}] Error sending data with err: {}!", threadID, send.error);
             }
         }
+
+        Message msg{};
 
         if (handler->m_eventTrack.squad)
         {
@@ -409,7 +388,7 @@ void PipeThread::start()
 
             // Send retrieved message.
             handler->m_status = Status::Sending;
-            sendStatus = SendToClient(handle, msg, protocol);
+            SendStatus sendStatus = SendToClient(handle, msg, protocol);
             BRIDGE_PRINT_MSG(msg, protocol, threadID);
 
             if (!sendStatus.success)
