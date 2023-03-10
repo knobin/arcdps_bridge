@@ -57,8 +57,19 @@ public:
     [[nodiscard]] bool started() const { return m_threadStarted; }
     [[nodiscard]] bool waitingForConnection() const { return m_waitingForConnection; }
 
-    void sendBridgeInfo(const Message& msg, uint64_t validator);
-    void sendMessage(const Message& msg);
+    void sendBridgeInfo(const std::shared_ptr<Message>& msg, uint64_t validator);
+    void sendMessage(const std::shared_ptr<Message>& msg);
+
+    template <typename... Args>
+    void sendMessages(Args&&... args)
+    {
+        std::unique_lock<std::mutex> lock(m_mutex);
+
+        if (m_running)
+        {
+            (forwardMessageToThreads(args), ...);
+        }
+    }
 
     [[nodiscard]] bool trackingCategory(MessageCategory category) const;
     [[nodiscard]] bool usingProtocol(MessageProtocol protocol) const;
@@ -67,6 +78,13 @@ public:
 private:
     PipeThread* dispatchPipeThread(void* handle, std::size_t id);
     void cleanup();
+
+    void forwardMessageToThreads(const std::shared_ptr<Message>& msg)
+    {
+        for (std::unique_ptr<PipeThread>& pt : m_threads)
+            if (pt->started() && pt->protocol() == msg->protocol())
+                pt->sendMessage(msg);
+    }
 
 private:
     std::vector<std::unique_ptr<PipeThread>> m_threads{};
@@ -82,6 +100,7 @@ private:
     bool m_threadStarted{false};
 };
 
-Message ConnectionStatusMessage(uint64_t id, const nlohmann::json& info, bool success, const std::string& error = "");
+std::shared_ptr<Message> ConnectionStatusMessage(uint64_t id, const nlohmann::json& info, bool success,
+                                                 const std::string& error = "");
 
 #endif // BRIDGE_PIPEHANDLER_HPP

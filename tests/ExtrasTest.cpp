@@ -155,22 +155,6 @@ TEST_CASE("ToJSON(nlohmann::json& j, const UserInfo& user)")
 }
 
 //
-// Generator (UserInfo).
-//
-
-TEST_CASE("Extras::SquadMessageGenerator")
-{
-    char n[10] = "Test Name"; // Size includes null terminator.
-    UserInfo info{n, 1, UserRole::Member, 2, false};
-
-    const uint64_t id = 10;
-    const uint64_t timestamp = 12;
-
-    RequireMessageGenerator<GeneratorSpaceHelper<UserInfo>, MessageCategory::Extras, MessageType::ExtrasSquadUpdate>(
-        id, timestamp, info, Extras::SquadMessageGenerator);
-}
-
-//
 // Budget fuzzing (UserInfo).
 //
 
@@ -199,14 +183,6 @@ struct UserInfoNode : Node
     {
         const nlohmann::json j = Extras::ToJSON(value);
         REQUIRE(j.dump() == UserInfoStrJSON(value));
-    }
-    void other() override
-    {
-        const uint64_t id = RandomIntegral<uint64_t>();
-        const uint64_t timestamp = RandomIntegral<uint64_t>();
-
-        RequireMessageGenerator<GeneratorSpaceHelper<UserInfo>, MessageCategory::Extras,
-                                MessageType::ExtrasSquadUpdate>(id, timestamp, value, Extras::SquadMessageGenerator);
     }
 };
 
@@ -303,20 +279,6 @@ TEST_CASE("ToJSON(nlohmann::json& j, Language language)")
     ValidateLanguageJSON(Language::Chinese);
 }
 
-//
-// Generator (Language).
-//
-
-TEST_CASE("Extras::LanguageMessageGenerator")
-{
-    const uint64_t id = RandomIntegral<uint64_t>();
-    const uint64_t timestamp = RandomIntegral<uint64_t>();
-
-    RequireMessageGenerator<GeneratorSpaceHelper<Language>, MessageCategory::Extras,
-                            MessageType::ExtrasLanguageChanged>(id, timestamp, Language::English,
-                                                                Extras::LanguageMessageGenerator);
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 //                                 KeyBind                                   //
 ///////////////////////////////////////////////////////////////////////////////
@@ -392,24 +354,6 @@ TEST_CASE("ToJSON(nlohmann::json&, const KeyBinds::KeyBindChanged&)")
 
     const nlohmann::json j = Extras::ToJSON(keyChanged);
     REQUIRE(j.dump() == KeyBindChangedStrJSON(keyChanged));
-}
-
-//
-// Generator (KeyBind).
-//
-
-TEST_CASE("Extras::KeyBindMessageGenerator")
-{
-    KeyBinds::KeyBindChanged keyChanged{KeyBinds::KeyControl::Movement_MoveForward,
-                                        3,
-                                        {KeyBinds::DeviceType::Keyboard, 4, 1}};
-
-    const uint64_t id = RandomIntegral<uint64_t>();
-    const uint64_t timestamp = RandomIntegral<uint64_t>();
-
-    RequireMessageGenerator<GeneratorSpaceHelper<KeyBinds::KeyBindChanged>, MessageCategory::Extras,
-                            MessageType::ExtrasKeyBindChanged>(id, timestamp, keyChanged,
-                                                               Extras::KeyBindMessageGenerator);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -523,28 +467,6 @@ TEST_CASE("ToJSON(nlohmann::json& j, const ChatMessageInfo&)")
 }
 
 //
-// Generator (ChatMessageInfo).
-//
-
-TEST_CASE("Extras::ChatMessageGenerator")
-{
-    char timestamp[25] = "2022-09-04T00:02:16.606Z";
-    char accountName[19] = ":Test account name";
-    char characterName[20] = "Test character name";
-    char text[16] = "Test text input";
-
-    ChatMessageInfo chatMsgInfo{4,  ChannelType::Invalid, 2,  1,    0, timestamp, 24, accountName,
-                                18, characterName,        19, text, 15};
-
-    const uint64_t id = RandomIntegral<uint64_t>();
-    const uint64_t epochTimestamp = RandomIntegral<uint64_t>();
-
-    RequireMessageGenerator<GeneratorSpaceHelper<ChatMessageInfo>, MessageCategory::Extras,
-                            MessageType::ExtrasChatMessage>(id, epochTimestamp, chatMsgInfo,
-                                                            Extras::ChatMessageGenerator);
-}
-
-//
 // Budget fuzzing (ChatMessageInfo).
 //
 
@@ -601,15 +523,6 @@ struct ChatMessageInfoNode : Node
     {
         const nlohmann::json j = Extras::ToJSON(value);
         REQUIRE(j.dump() == ChatMessageInfoStrJSON(value));
-    }
-    void other() override
-    {
-        const uint64_t id = RandomIntegral<uint64_t>();
-        const uint64_t epochTimestamp = RandomIntegral<uint64_t>();
-
-        RequireMessageGenerator<GeneratorSpaceHelper<ChatMessageInfo>, MessageCategory::Extras,
-                                MessageType::ExtrasChatMessage>(id, epochTimestamp, value,
-                                                                Extras::ChatMessageGenerator);
     }
 };
 

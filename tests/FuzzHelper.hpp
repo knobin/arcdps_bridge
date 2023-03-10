@@ -31,7 +31,6 @@ struct Node
     virtual uint8_t* write(uint8_t* storage) = 0;
     virtual uint8_t* require(uint8_t* storage) = 0;
     virtual void json_require() {}
-    virtual void other() {}
     [[nodiscard]] virtual std::size_t count() const = 0;
 };
 
@@ -218,62 +217,4 @@ inline void BudgetFuzzer(Creator func)
         // Validate pointer location (== +1 of last storage position).
         REQUIRE(buffer.get() + count == location);
     }
-}
-
-///////////////////////////////////////////////////////////////////////////////
-//                            Message Helpers                                //
-///////////////////////////////////////////////////////////////////////////////
-
-template <typename Space, MessageCategory MsgCategory, MessageType MsgType>
-static void RequireMessageGenerator(uint64_t id, uint64_t timestamp, const typename Space::Type& value,
-                                    const std::function<Message(uint64_t, uint64_t, const typename Space::Type&,
-                                                                std::underlying_type_t<MessageProtocol>)>& generator)
-{
-    const std::size_t count = Space::SerialSize(value);
-    SerialData serial = CreateSerialData(count);
-    Space::ToSerial(value, &serial.ptr[Message::DataOffset()], count);
-    uint8_t* storage{
-        serial_w_integral(&serial.ptr[0], static_cast<std::underlying_type_t<MessageCategory>>(MsgCategory))};
-    storage = serial_w_integral(storage, static_cast<std::underlying_type_t<MessageType>>(MsgType));
-    storage = serial_w_integral(storage, id);
-    serial_w_integral(storage, timestamp);
-
-    const nlohmann::json json = nlohmann::json{{"category", MessageCategoryToStr(MsgCategory)},
-                                               {"type", MessageTypeToStr(MsgType)},
-                                               {"id", id},
-                                               {"timestamp", timestamp},
-                                               {"data", Space::ToJSON(value)}};
-    using MP = std::underlying_type_t<MessageProtocol>;
-
-    // Only Serial.
-    const Message msgSerial = generator(id, timestamp, value, static_cast<MP>(MessageProtocol::Serial));
-    REQUIRE(msgSerial.category() == MsgCategory);
-    REQUIRE(msgSerial.type() == MsgType);
-    REQUIRE(msgSerial.hasSerial());
-    REQUIRE_FALSE(msgSerial.hasJSON());
-    REQUIRE(msgSerial.toSerial() == serial);
-    REQUIRE(msgSerial.id() == id);
-    REQUIRE(msgSerial.timestamp() == timestamp);
-
-    // Only JSON.
-    const Message msgJSON = generator(id, timestamp, value, static_cast<MP>(MessageProtocol::JSON));
-    REQUIRE(msgSerial.category() == MsgCategory);
-    REQUIRE(msgSerial.type() == MsgType);
-    REQUIRE_FALSE(msgJSON.hasSerial());
-    REQUIRE(msgJSON.hasJSON());
-    REQUIRE(msgJSON.toJSON() == json.dump());
-    REQUIRE(msgJSON.id() == id);
-    REQUIRE(msgJSON.timestamp() == timestamp);
-
-    // Both Serial and JSON.
-    const auto both = static_cast<MP>(MessageProtocol::Serial) | static_cast<MP>(MessageProtocol::JSON);
-    const Message msgBoth = generator(id, timestamp, value, both);
-    REQUIRE(msgSerial.category() == MsgCategory);
-    REQUIRE(msgSerial.type() == MsgType);
-    REQUIRE(msgBoth.hasSerial());
-    REQUIRE(msgBoth.hasJSON());
-    REQUIRE(msgBoth.toSerial() == serial);
-    REQUIRE(msgBoth.toJSON() == json.dump());
-    REQUIRE(msgBoth.id() == id);
-    REQUIRE(msgBoth.timestamp() == timestamp);
 }

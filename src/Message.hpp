@@ -19,6 +19,7 @@
 #include <memory>
 #include <sstream>
 #include <type_traits>
+#include <utility>
 
 //
 // MessageCategory.
@@ -199,6 +200,13 @@ constexpr std::string_view MessageProtocolToStr(MessageProtocol protocol) noexce
     return "";
 }
 
+template <MessageProtocol Protocol>
+constexpr bool IsProtocolBitSet(std::underlying_type_t<MessageProtocol> bits) noexcept
+{
+    const auto protocolBit = static_cast<std::underlying_type_t<MessageProtocol>>(Protocol);
+    return bits & protocolBit;
+}
+
 struct SerialData
 {
     std::shared_ptr<uint8_t[]> ptr{nullptr};
@@ -252,59 +260,19 @@ class Message
 {
 public:
     Message() = default;
-    Message(MessageCategory category, MessageType type, uint64_t id, uint64_t timestamp, bool serial = true,
-            bool json = true)
+    Message(MessageProtocol protocol, MessageCategory category, MessageType type, uint64_t id, uint64_t timestamp)
         : m_id{id},
           m_timestamp{timestamp},
+          m_protocol{static_cast<std::underlying_type_t<MessageProtocol>>(protocol)},
           m_category{static_cast<std::underlying_type_t<MessageCategory>>(category)},
           m_type{static_cast<std::underlying_type_t<MessageType>>(type)}
-    {
-        // Message does not contain any data.
-        // Generate headers if needed.
-
-        if (serial)
-            setNoDataSerial();
-        if (json)
-            setNoDataJSON();
-    }
-    Message(MessageCategory category, MessageType type, uint64_t id, uint64_t timestamp, const SerialData& serial)
-        : m_id{id},
-          m_timestamp{timestamp},
-          m_category{static_cast<std::underlying_type_t<MessageCategory>>(category)},
-          m_type{static_cast<std::underlying_type_t<MessageType>>(type)},
-          m_serial{serial}
-    {
-        setSerialHeaders();
-    }
-    Message(MessageCategory category, MessageType type, uint64_t id, uint64_t timestamp, const nlohmann::json& jdata)
-        : m_id{id},
-          m_timestamp{timestamp},
-          m_category{static_cast<std::underlying_type_t<MessageCategory>>(category)},
-          m_type{static_cast<std::underlying_type_t<MessageType>>(type)}
-    {
-        setJSON(jdata);
-    }
-    Message(MessageCategory category, MessageType type, uint64_t id, uint64_t timestamp, const SerialData& serial,
-            const nlohmann::json& jdata)
-        : m_id{id},
-          m_timestamp{timestamp},
-          m_category{static_cast<std::underlying_type_t<MessageCategory>>(category)},
-          m_type{static_cast<std::underlying_type_t<MessageType>>(type)},
-          m_serial{serial}
-    {
-        setJSON(jdata);
-        setSerialHeaders();
-    }
+    {}
     virtual ~Message() = default;
 
-    [[nodiscard]] const SerialData& toSerial() const { return m_serial; }
-    [[nodiscard]] const std::string& toJSON() const { return m_json; }
+    // Does the message have a category and type? (is not related to if the msg has any data).
+    [[nodiscard]] bool valid() const noexcept { return m_category && m_type; }
 
-    [[nodiscard]] bool hasSerial() const noexcept { return static_cast<bool>(m_serial.count); }
-    [[nodiscard]] bool hasJSON() const noexcept { return !m_json.empty(); }
-
-    [[nodiscard]] bool empty() const noexcept { return !m_category || !m_type; }
-
+    [[nodiscard]] MessageProtocol protocol() const noexcept { return static_cast<MessageProtocol>(m_protocol); }
     [[nodiscard]] MessageCategory category() const noexcept { return static_cast<MessageCategory>(m_category); }
     [[nodiscard]] MessageType type() const noexcept { return static_cast<MessageType>(m_type); }
 
@@ -312,26 +280,116 @@ public:
     [[nodiscard]] uint64_t timestamp() const noexcept { return m_timestamp; }
 
     // Number of bytes reserved for message header.
-    [[nodiscard]] static constexpr std::ptrdiff_t DataOffset() noexcept
+    [[nodiscard]] static constexpr std::ptrdiff_t HeaderByteCount() noexcept
     {
         return sizeof(m_id) + sizeof(m_timestamp) + sizeof(m_category) + sizeof(m_type);
     }
 
+    // Data retriever to implement.
+    [[nodiscard]] virtual const uint8_t* data() const noexcept { return nullptr; }
+
+    // Data size retriever to implement.
+    [[nodiscard]] virtual std::size_t count() const noexcept { return 0; }
+
+private:
+    uint64_t m_id{};
+    uint64_t m_timestamp{};
+    std::underlying_type_t<MessageProtocol> m_protocol{0};
+    std::underlying_type_t<MessageCategory> m_category{0};
+    std::underlying_type_t<MessageType> m_type{0};
+};
+
+//
+// Serial Message class.
+//
+
+class MessageSerial : public Message
+{
+public:
+    MessageSerial(MessageCategory mc, MessageType mt, uint64_t mid, uint64_t mts)
+        : Message(MessageProtocol::Serial, mc, mt, mid, mts),
+          m_serial{}
+    {
+        setNoDataSerial();
+    }
+    MessageSerial(MessageCategory mc, MessageType mt, uint64_t mid, uint64_t mts, SerialData serial)
+        : Message(MessageProtocol::Serial, mc, mt, mid, mts),
+          m_serial{std::move(serial)}
+    {
+        setSerialHeaders();
+    }
+    virtual ~MessageSerial() = default;
+
+    // Data retriever to implement.
+    [[nodiscard]] const uint8_t* data() const noexcept override { return m_serial.ptr.get(); }
+
+    // Data size retriever to implement.
+    [[nodiscard]] std::size_t count() const noexcept override { return m_serial.count; }
+
 private:
     void setNoDataSerial()
     {
-        m_serial.count = static_cast<std::size_t>(DataOffset());
+        m_serial.count = static_cast<std::size_t>(HeaderByteCount());
         m_serial.ptr = std::make_shared<uint8_t[]>(m_serial.count);
         setSerialHeaders();
     }
 
+    void setSerialHeaders() const
+    {
+        // Set first two bytes in serial data.
+        // Narrow cast is safe here. 0 <= DataOffset() <= max of std::size_t.
+        if (m_serial.count >= static_cast<std::size_t>(HeaderByteCount()) && m_serial.ptr)
+        {
+            const auto c{static_cast<std::underlying_type_t<MessageCategory>>(category())};
+            const auto t{static_cast<std::underlying_type_t<MessageType>>(type())};
+
+            uint8_t* storage{serial_w_integral(&m_serial.ptr[0], c)};
+            storage = serial_w_integral(storage, t);
+            storage = serial_w_integral(storage, id());
+            serial_w_integral(storage, timestamp());
+        }
+    }
+
+private:
+    SerialData m_serial{};
+};
+
+//
+// JSON Message class.
+//
+
+class MessageJSON : public Message
+{
+public:
+    MessageJSON(MessageCategory mc, MessageType mt, uint64_t mid, uint64_t mts)
+        : Message(MessageProtocol::JSON, mc, mt, mid, mts)
+    {
+        setNoDataJSON();
+    }
+    MessageJSON(MessageCategory mc, MessageType mt, uint64_t mid, uint64_t mts, const nlohmann::json& data)
+        : Message(MessageProtocol::JSON, mc, mt, mid, mts)
+    {
+        setJSON(data);
+    }
+    virtual ~MessageJSON() = default;
+
+    // Data retriever to implement.
+    [[nodiscard]] const uint8_t* data() const noexcept override
+    {
+        return reinterpret_cast<const uint8_t*>(m_json.data());
+    }
+
+    // Data size retriever to implement.
+    [[nodiscard]] std::size_t count() const noexcept override { return m_json.size(); }
+
+private:
     void setNoDataJSON()
     {
         // Generate json header for message.
         m_json = nlohmann::json{{"category", MessageCategoryToStr(category())},
                                 {"type", MessageTypeToStr(type())},
-                                {"id", m_id},
-                                {"timestamp", m_timestamp}}
+                                {"id", id()},
+                                {"timestamp", timestamp()}}
                      .dump();
     }
 
@@ -341,83 +399,86 @@ private:
         m_json = nlohmann::json{
             {"category", MessageCategoryToStr(category())},
             {"type", MessageTypeToStr(type())},
-            {"id", m_id},
-            {"timestamp", m_timestamp},
+            {"id", id()},
+            {"timestamp", timestamp()},
             {"data",
              data}}.dump();
     }
 
-    void setSerialHeaders() const
-    {
-        // Set first two bytes in serial data.
-        // Narrow cast is safe here. 0 <= DataOffset() <= max of std::size_t.
-        if (m_serial.count >= static_cast<std::size_t>(DataOffset()) && m_serial.ptr)
-        {
-            uint8_t* storage{serial_w_integral(&m_serial.ptr[0], m_category)};
-            storage = serial_w_integral(storage, m_type);
-            storage = serial_w_integral(storage, m_id);
-            serial_w_integral(storage, m_timestamp);
-        }
-    }
-
 private:
-    SerialData m_serial{};
     std::string m_json{};
-    uint64_t m_id{};
-    uint64_t m_timestamp{};
-    std::underlying_type_t<MessageCategory> m_category{0};
-    std::underlying_type_t<MessageType> m_type{0};
 };
 
 // Creates a SerialData object to hold count bytes + the serial header bytes.
 inline SerialData CreateSerialData(std::size_t count)
 {
-    const std::size_t byte_count = Message::DataOffset() + count;
+    const std::size_t byte_count = Message::HeaderByteCount() + count;
     return {std::make_shared<uint8_t[]>(byte_count), byte_count};
 }
+
+//
+// Get Message class type depending on MessageProtocol.
+//
+
+template <MessageProtocol Protocol>
+struct GetMessageClass : std::false_type
+{};
+
+template <>
+struct GetMessageClass<MessageProtocol::Serial> : std::true_type
+{
+    using Type = MessageSerial;
+};
+
+template <>
+struct GetMessageClass<MessageProtocol::JSON> : std::true_type
+{
+    using Type = MessageJSON;
+};
 
 //
 // Message create functions.
 //
 
-template <MessageCategory Category, MessageType Type, typename... Args>
-Message CreateMessage(Args&&... args)
+template <MessageProtocol Protocol, MessageCategory Category, MessageType Type, typename... Args>
+std::shared_ptr<Message> CreateMessage(Args&&... args)
 {
     static_assert(MatchCategoryAndType<Category, Type>::value, "MessageCategory and MessageType does not have a match");
+    static_assert(GetMessageClass<Protocol>::value, "Can not get MessageClass from provided protocol");
 
-    return Message{Category, Type, std::forward<Args>(args)...};
+    return std::make_shared<typename GetMessageClass<Protocol>::Type>(Category, Type, std::forward<Args>(args)...);
 }
 
-template <MessageType Type, typename... Args>
-Message InfoMessage(Args&&... args)
+template <MessageProtocol Protocol, MessageType Type, typename... Args>
+std::shared_ptr<Message> InfoMessage(Args&&... args)
 {
     static_assert(MatchCategoryAndType<MessageCategory::Info, Type>::value, "Type is not an Info message");
 
-    return CreateMessage<MessageCategory::Info, Type>(std::forward<Args>(args)...);
+    return CreateMessage<Protocol, MessageCategory::Info, Type>(std::forward<Args>(args)...);
 }
 
-template <MessageType Type, typename... Args>
-Message CombatMessage(Args&&... args)
+template <MessageProtocol Protocol, MessageType Type, typename... Args>
+std::shared_ptr<Message> CombatMessage(Args&&... args)
 {
     static_assert(MatchCategoryAndType<MessageCategory::Combat, Type>::value, "Type is not a Combat message");
 
-    return CreateMessage<MessageCategory::Combat, Type>(std::forward<Args>(args)...);
+    return CreateMessage<Protocol, MessageCategory::Combat, Type>(std::forward<Args>(args)...);
 }
 
-template <MessageType Type, typename... Args>
-Message ExtrasMessage(Args&&... args)
+template <MessageProtocol Protocol, MessageType Type, typename... Args>
+std::shared_ptr<Message> ExtrasMessage(Args&&... args)
 {
     static_assert(MatchCategoryAndType<MessageCategory::Extras, Type>::value, "Type is not an Extras message");
 
-    return CreateMessage<MessageCategory::Extras, Type>(std::forward<Args>(args)...);
+    return CreateMessage<Protocol, MessageCategory::Extras, Type>(std::forward<Args>(args)...);
 }
 
-template <MessageType Type, typename... Args>
-Message SquadMessage(Args&&... args)
+template <MessageProtocol Protocol, MessageType Type, typename... Args>
+std::shared_ptr<Message> SquadMessage(Args&&... args)
 {
     static_assert(MatchCategoryAndType<MessageCategory::Squad, Type>::value, "Type is not a Squad message");
 
-    return CreateMessage<MessageCategory::Squad, Type>(std::forward<Args>(args)...);
+    return CreateMessage<Protocol, MessageCategory::Squad, Type>(std::forward<Args>(args)...);
 }
 
 #endif // BRIDGE_MESSAGE_HPP

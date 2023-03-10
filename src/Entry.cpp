@@ -111,7 +111,22 @@ static void SendPlayerMsg(const Squad::PlayerInfoEntry& entry)
     const uint64_t timestamp{GetMillisecondsSinceEpoch()};
 
     if (Server->trackingCategory(MessageCategory::Squad))
-        Server->sendMessage(Squad::PlayerEntryMessageGenerator<Type>(id, timestamp, entry, Server->usingProtocols()));
+    {
+        const auto protocols = Server->usingProtocols();
+
+        if (IsProtocolBitSet<MessageProtocol::Serial>(protocols))
+        {
+            const std::size_t playerEntrySize = SerialSize(entry);
+            SerialData serial{CreateSerialData(playerEntrySize)};
+            ToSerial(entry, &serial.ptr[Message::HeaderByteCount()], playerEntrySize);
+            Server->sendMessage(SquadMessage<MessageProtocol::Serial, Type>(id, timestamp, serial));
+        }
+        if (IsProtocolBitSet<MessageProtocol::JSON>(protocols))
+        {
+            nlohmann::json json{ToJSON(entry)};
+            Server->sendMessage(SquadMessage<MessageProtocol::JSON, Type>(id, timestamp, json));
+        }
+    }
 }
 
 static void SquadModifySender(SquadAction action, const Squad::PlayerInfoEntry& entry)
@@ -287,10 +302,19 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
     if (!Server->trackingCategory(MessageCategory::Combat))
         return 0;
 
-    Message combatMsg{Combat::CombatMessageGenerator(msgID, msgTimestamp, ev, src, dst, skillname, id, revision,
-                                                     Server->usingProtocols())};
-    if (!combatMsg.empty())
-        Server->sendMessage(combatMsg);
+    const auto protocols = Server->usingProtocols();
+
+    if (IsProtocolBitSet<MessageProtocol::Serial>(protocols))
+    {
+        SerialData serial{Combat::CombatToSerial(ev, src, dst, skillname, id, revision)};
+        Server->sendMessage(
+            CombatMessage<MessageProtocol::Serial, MessageType::CombatEvent>(msgID, msgTimestamp, serial));
+    }
+    if (IsProtocolBitSet<MessageProtocol::JSON>(protocols))
+    {
+        nlohmann::json json{Combat::CombatToJSON(ev, src, dst, skillname, id, revision)};
+        Server->sendMessage(CombatMessage<MessageProtocol::JSON, MessageType::CombatEvent>(msgID, msgTimestamp, json));
+    }
 
     return 0;
 }
@@ -428,7 +452,24 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
             }
 
             if (Server->trackingCategory(MessageCategory::Extras))
-                Server->sendMessage(Extras::SquadMessageGenerator(id, timestamp, *uinfo, Server->usingProtocols()));
+            {
+                const auto protocols = Server->usingProtocols();
+
+                if (IsProtocolBitSet<MessageProtocol::Serial>(protocols))
+                {
+                    const std::size_t userInfoCount = Extras::SerialSize(*uinfo);
+                    SerialData serial{CreateSerialData(userInfoCount)};
+                    Extras::ToSerial(*uinfo, &serial.ptr[Message::HeaderByteCount()], userInfoCount);
+                    Server->sendMessage(
+                        ExtrasMessage<MessageProtocol::Serial, MessageType::ExtrasSquadUpdate>(id, timestamp, serial));
+                }
+                if (IsProtocolBitSet<MessageProtocol::JSON>(protocols))
+                {
+                    nlohmann::json json{Extras::ToJSON(*uinfo)};
+                    Server->sendMessage(
+                        ExtrasMessage<MessageProtocol::JSON, MessageType::ExtrasSquadUpdate>(id, timestamp, json));
+                }
+            }
         }
     }
 }
@@ -436,15 +477,51 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
 static void language_changed_callback(Language pNewLanguage)
 {
     if (Server->trackingCategory(MessageCategory::Extras))
-        Server->sendMessage(Extras::LanguageMessageGenerator(AppData.requestID(), GetMillisecondsSinceEpoch(),
-                                                             pNewLanguage, Server->usingProtocols()));
+    {
+        const auto protocols = Server->usingProtocols();
+        const auto id = AppData.requestID();
+        const auto timestamp{GetMillisecondsSinceEpoch()};
+
+        if (IsProtocolBitSet<MessageProtocol::Serial>(protocols))
+        {
+            constexpr std::size_t langCount = Extras::SerialSize(Language{});
+            SerialData serial{CreateSerialData(langCount)};
+            Extras::ToSerial(pNewLanguage, &serial.ptr[Message::HeaderByteCount()], langCount);
+            Server->sendMessage(
+                ExtrasMessage<MessageProtocol::Serial, MessageType::ExtrasLanguageChanged>(id, timestamp, serial));
+        }
+        if (IsProtocolBitSet<MessageProtocol::JSON>(protocols))
+        {
+            nlohmann::json json{Extras::ToJSON(pNewLanguage)};
+            Server->sendMessage(
+                ExtrasMessage<MessageProtocol::JSON, MessageType::ExtrasLanguageChanged>(id, timestamp, json));
+        }
+    }
 }
 
 static void keybind_changed_callback(KeyBinds::KeyBindChanged pChangedKeyBind)
 {
     if (Server->trackingCategory(MessageCategory::Extras))
-        Server->sendMessage(Extras::KeyBindMessageGenerator(AppData.requestID(), GetMillisecondsSinceEpoch(),
-                                                            pChangedKeyBind, Server->usingProtocols()));
+    {
+        const auto protocols = Server->usingProtocols();
+        const auto id = AppData.requestID();
+        const auto timestamp{GetMillisecondsSinceEpoch()};
+
+        if (IsProtocolBitSet<MessageProtocol::Serial>(protocols))
+        {
+            constexpr std::size_t keyBindCount = Extras::SerialSize(KeyBinds::KeyBindChanged{});
+            SerialData serial{CreateSerialData(keyBindCount)};
+            Extras::ToSerial(pChangedKeyBind, &serial.ptr[Message::HeaderByteCount()], keyBindCount);
+            Server->sendMessage(
+                ExtrasMessage<MessageProtocol::Serial, MessageType::ExtrasKeyBindChanged>(id, timestamp, serial));
+        }
+        if (IsProtocolBitSet<MessageProtocol::JSON>(protocols))
+        {
+            nlohmann::json json{Extras::ToJSON(pChangedKeyBind)};
+            Server->sendMessage(
+                ExtrasMessage<MessageProtocol::JSON, MessageType::ExtrasKeyBindChanged>(id, timestamp, json));
+        }
+    }
 }
 
 static void chat_message_callback(const ChatMessageInfo* pChatMessage)
@@ -453,8 +530,26 @@ static void chat_message_callback(const ChatMessageInfo* pChatMessage)
         return;
 
     if (Server->trackingCategory(MessageCategory::Extras))
-        Server->sendMessage(Extras::ChatMessageGenerator(AppData.requestID(), GetMillisecondsSinceEpoch(),
-                                                         *pChatMessage, Server->usingProtocols()));
+    {
+        const auto protocols = Server->usingProtocols();
+        const auto id = AppData.requestID();
+        const auto timestamp{GetMillisecondsSinceEpoch()};
+
+        if (IsProtocolBitSet<MessageProtocol::Serial>(protocols))
+        {
+            const std::size_t chatMsgCount = Extras::SerialSize(*pChatMessage);
+            SerialData serial{CreateSerialData(chatMsgCount)};
+            Extras::ToSerial(*pChatMessage, &serial.ptr[Message::HeaderByteCount()], chatMsgCount);
+            Server->sendMessage(
+                ExtrasMessage<MessageProtocol::Serial, MessageType::ExtrasChatMessage>(id, timestamp, serial));
+        }
+        if (IsProtocolBitSet<MessageProtocol::JSON>(protocols))
+        {
+            nlohmann::json json{Extras::ToJSON(*pChatMessage)};
+            Server->sendMessage(
+                ExtrasMessage<MessageProtocol::JSON, MessageType::ExtrasChatMessage>(id, timestamp, json));
+        }
+    }
 }
 
 template <typename T>
@@ -554,8 +649,24 @@ extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(c
         ++AppData.Info.validator;
         BRIDGE_DEBUG("Updated BridgeInfo");
 
-        const auto msg{BridgeInfoMessageGenerator(AppData.requestID(), GetMillisecondsSinceEpoch(), AppData.Info,
-                                                  Server->usingProtocols())};
-        Server->sendBridgeInfo(msg, AppData.Info.validator);
+        const auto protocols = Server->usingProtocols();
+        const auto id = AppData.requestID();
+        const auto timestamp{GetMillisecondsSinceEpoch()};
+        const auto validator = AppData.Info.validator;
+
+        if (IsProtocolBitSet<MessageProtocol::Serial>(protocols))
+        {
+            const std::size_t infoSize = SerialSize(AppData.Info);
+            SerialData serial{CreateSerialData(infoSize)};
+            ToSerial(AppData.Info, &serial.ptr[Message::HeaderByteCount()], infoSize);
+            Server->sendBridgeInfo(InfoMessage<MessageProtocol::Serial, MessageType::BridgeInfo>(id, timestamp, serial),
+                                   validator);
+        }
+        if (IsProtocolBitSet<MessageProtocol::JSON>(protocols))
+        {
+            nlohmann::json json{ToJSON(AppData.Info)};
+            Server->sendBridgeInfo(InfoMessage<MessageProtocol::JSON, MessageType::BridgeInfo>(id, timestamp, json),
+                                   validator);
+        }
     }
 }

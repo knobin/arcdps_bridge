@@ -180,7 +180,7 @@ namespace Squad
     SerialData PlayerContainer::toSerial(std::size_t startPadding) const
     {
         SerialData data{};
-        data.count = Message::DataOffset() + startPadding + sizeof(uint64_t);
+        data.count = Message::HeaderByteCount() + startPadding + sizeof(uint64_t);
 
         std::size_t entries = 0;
         for (std::size_t i{0}; i < m_squad.size(); ++i)
@@ -193,7 +193,7 @@ namespace Squad
         }
 
         data.ptr = std::make_unique<uint8_t[]>(data.count);
-        const auto padding = Message::DataOffset() + static_cast<std::ptrdiff_t>(startPadding);
+        const auto padding = Message::HeaderByteCount() + static_cast<std::ptrdiff_t>(startPadding);
         uint8_t* location = serial_w_integral(&data.ptr[padding], static_cast<uint64_t>(entries)); // Set entries count.
 
         for (std::size_t i{0}; i < m_squad.size(); ++i)

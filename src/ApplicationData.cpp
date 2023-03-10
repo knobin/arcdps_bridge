@@ -88,37 +88,6 @@ void ToSerial(const BridgeInfo& info, uint8_t* storage, std::size_t)
     location[2] = static_cast<uint8_t>(info.extrasLoaded);
 }
 
-Message BridgeInfoMessageGenerator(uint64_t id, uint64_t timestamp, const BridgeInfo& info,
-                                   std::underlying_type_t<MessageProtocol> protocols)
-{
-    const auto protocolSerial = static_cast<std::underlying_type_t<MessageProtocol>>(MessageProtocol::Serial);
-    const auto protocolJSON = static_cast<std::underlying_type_t<MessageProtocol>>(MessageProtocol::JSON);
-
-    SerialData serial{};
-
-    if (protocols & protocolSerial)
-    {
-        const std::size_t infoSize = SerialSize(info);
-        serial = CreateSerialData(infoSize);
-        ToSerial(info, &serial.ptr[Message::DataOffset()], infoSize);
-
-        if (protocols == protocolSerial)
-            return InfoMessage<MessageType::BridgeInfo>(id, timestamp, serial);
-    }
-
-    nlohmann::json json{};
-
-    if (protocols & protocolJSON)
-    {
-        json = ToJSON(info);
-
-        if (protocols == protocolJSON)
-            return InfoMessage<MessageType::BridgeInfo>(id, timestamp, json);
-    }
-
-    return InfoMessage<MessageType::BridgeInfo>(id, timestamp, serial, json);
-}
-
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 void Configs::set(const std::string& header, const std::string& entry, const std::string& value)

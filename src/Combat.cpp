@@ -126,7 +126,7 @@ namespace Combat
             1 + id_count + revision_count + ev_count + src_count + dst_count + skillname_count;
         SerialData serial = CreateSerialData(total_count);
 
-        uint8_t* location = &serial.ptr[Message::DataOffset()];
+        uint8_t* location = &serial.ptr[Message::HeaderByteCount()];
 
         // Non nullptr bits.
         uint8_t bits = 0;
@@ -135,7 +135,7 @@ namespace Combat
         bits |= ((dst) ? 4 : 0);
         serial_w_integral(location, bits);
 
-        std::ptrdiff_t index = Message::DataOffset() + 1;
+        std::ptrdiff_t index = Message::HeaderByteCount() + 1;
 
         if (ev)
             ToSerial(*ev, &serial.ptr[index], ev_count);
@@ -181,35 +181,5 @@ namespace Combat
         }
 
         return json;
-    }
-
-    Message CombatMessageGenerator(uint64_t msgID, uint64_t msgTimestamp, cbtevent* ev, ag* src, ag* dst,
-                                   char* skillname, uint64_t id, uint64_t revision,
-                                   std::underlying_type_t<MessageProtocol> protocols)
-    {
-        const auto protocolSerial = static_cast<std::underlying_type_t<MessageProtocol>>(MessageProtocol::Serial);
-        const auto protocolJSON = static_cast<std::underlying_type_t<MessageProtocol>>(MessageProtocol::JSON);
-
-        SerialData serial{};
-
-        if (protocols & protocolSerial)
-        {
-            serial = CombatToSerial(ev, src, dst, skillname, id, revision);
-
-            if (protocols == protocolSerial)
-                return CombatMessage<MessageType::CombatEvent>(msgID, msgTimestamp, serial);
-        }
-
-        nlohmann::json json{};
-
-        if (protocols & protocolJSON)
-        {
-            json = CombatToJSON(ev, src, dst, skillname, id, revision);
-
-            if (protocols == protocolJSON)
-                return CombatMessage<MessageType::CombatEvent>(msgID, msgTimestamp, json);
-        }
-
-        return CombatMessage<MessageType::CombatEvent>(msgID, msgTimestamp, serial, json);
     }
 } // namespace Combat

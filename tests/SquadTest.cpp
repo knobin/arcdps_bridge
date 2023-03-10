@@ -301,49 +301,6 @@ TEST_CASE("ToJSON(const PlayerInfoEntry& entry)")
 }
 
 //
-// Generator (PlayerEntry).
-//
-
-struct GeneratorHelper
-{
-    using Type = Squad::PlayerInfoEntry;
-    static auto SerialSize(const Type& value) { return Squad::SerialSize(value); }
-    static auto ToSerial(const Type& value, uint8_t* storage, std::size_t count)
-    {
-        return Squad::ToSerial(value, storage, count);
-    }
-    static auto ToJSON(const Type& value) { return Squad::ToJSON(value); }
-};
-
-template <MessageType Type>
-static void RequirePlayerInfoEntryGeneratorHelper(uint64_t id, uint64_t timestamp, const Squad::PlayerInfoEntry& entry)
-{
-    RequireMessageGenerator<GeneratorHelper, MessageCategory::Squad, Type>(id, timestamp, entry,
-                                                                           Squad::PlayerEntryMessageGenerator<Type>);
-}
-
-static void RequirePlayerInfoEntryGenerator(uint64_t id, uint64_t timestamp, const Squad::PlayerInfoEntry& entry)
-{
-    RequirePlayerInfoEntryGeneratorHelper<MessageType::SquadAdd>(id, timestamp, entry);
-    RequirePlayerInfoEntryGeneratorHelper<MessageType::SquadRemove>(id, timestamp, entry);
-    RequirePlayerInfoEntryGeneratorHelper<MessageType::SquadUpdate>(id, timestamp, entry);
-}
-
-TEST_CASE("PlayerEntryMessageGenerator")
-{
-    char a[12] = "AccountName";
-    char c[14] = "CharacterName";
-
-    Squad::PlayerInfo info{std::string{a}, std::string{c}, 1, 2, 3, 4, 5, false, false, false};
-    Squad::PlayerInfoEntry entry{info, 1};
-
-    const uint64_t id = RandomIntegral<uint64_t>();
-    const uint64_t timestamp = RandomIntegral<uint64_t>();
-
-    RequirePlayerInfoEntryGenerator(id, timestamp, entry);
-}
-
-//
 // Budget fuzzing (PlayerInfoEntry).
 //
 
@@ -367,13 +324,6 @@ struct PlayerInfoEntryNode : Node
     {
         nlohmann::json j = Squad::ToJSON(value);
         REQUIRE(j.dump() == PlayerInfoEntryStrJSON(value));
-    }
-    void other() override
-    {
-        const uint64_t id = RandomIntegral<uint64_t>();
-        const uint64_t timestamp = RandomIntegral<uint64_t>();
-
-        RequirePlayerInfoEntryGenerator(id, timestamp, value);
     }
 };
 
@@ -409,7 +359,7 @@ TEST_CASE("Budget fuzzing (only PlayerInfoEntryNode)")
 static uint8_t* RequirePlayerContainer(const std::vector<Squad::PlayerInfoEntry>& entries, uint8_t* storage,
                                        std::size_t padding = 0)
 {
-    uint8_t* location = storage + Message::DataOffset() + padding; // Squad data includes start padding.
+    uint8_t* location = storage + Message::HeaderByteCount() + padding; // Squad data includes start padding.
 
     location = RequireAtLocation(location, static_cast<uint64_t>(entries.size()));
 
@@ -493,7 +443,7 @@ TEST_CASE("PlayerContainer::toJSON()")
 
 static std::vector<Squad::PlayerInfoEntry> RandomPlayerContainer(Squad::PlayerContainer& squad)
 {
-    const std::size_t player_count = RandomIntegral<std::size_t, 0, 50>();
+    const auto player_count = RandomIntegral<std::size_t, 0, 50>();
     std::vector<Squad::PlayerInfoEntry> entries{};
     entries.reserve(player_count);
 
@@ -530,7 +480,7 @@ static std::vector<Squad::PlayerInfoEntry> RandomPlayerContainer(Squad::PlayerCo
 
 TEST_CASE("Budget fuzzing (PlayerContainer)")
 {
-    const std::size_t tests = RandomIntegral<std::size_t, 0, 128>();
+    const auto tests = RandomIntegral<std::size_t, 0, 128>();
     for (std::size_t i{0}; i < tests; ++i)
     {
         // Random squad data.

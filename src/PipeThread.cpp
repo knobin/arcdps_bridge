@@ -20,7 +20,7 @@
 #include <limits>
 #include <sstream>
 
-static Message StatusMessage(uint64_t id, bool success, const std::string& error = "")
+static std::shared_ptr<Message> StatusMessage(uint64_t id, bool success, const std::string& error = "")
 {
     const uint64_t timestamp{GetMillisecondsSinceEpoch()};
 
@@ -28,21 +28,20 @@ static Message StatusMessage(uint64_t id, bool success, const std::string& error
     if (!success)
         j["error"] = error;
 
-    return InfoMessage<MessageType::Status>(id, timestamp, j);
+    return InfoMessage<MessageProtocol::JSON, MessageType::Status>(id, timestamp, j);
 }
 
-static Message ClosingMessage(uint64_t id, MessageProtocol protocol)
+static std::shared_ptr<Message> ClosingMessage(uint64_t id, MessageProtocol protocol)
 {
     if (protocol == MessageProtocol::Serial)
-        return InfoMessage<MessageType::Closing>(id, GetMillisecondsSinceEpoch(), true, false);
-    else if (protocol == MessageProtocol::JSON)
-        return InfoMessage<MessageType::Closing>(id, GetMillisecondsSinceEpoch(), false, true);
+        return InfoMessage<MessageProtocol::Serial, MessageType::Closing>(id, GetMillisecondsSinceEpoch());
 
-    return InfoMessage<MessageType::Closing>(id, GetMillisecondsSinceEpoch());
+    // else if (protocol == MessageProtocol::JSON)
+    return InfoMessage<MessageProtocol::JSON, MessageType::Closing>(id, GetMillisecondsSinceEpoch());
 }
 
-static Message SquadStatusMessage(uint64_t id, const std::string& self, const Squad::PlayerContainer& squad,
-                                  MessageProtocol protocol)
+static std::shared_ptr<Message> SquadStatusMessage(uint64_t id, const std::string& self,
+                                                   const Squad::PlayerContainer& squad, MessageProtocol protocol)
 {
     const uint64_t timestamp{GetMillisecondsSinceEpoch()};
 
@@ -52,17 +51,14 @@ static Message SquadStatusMessage(uint64_t id, const std::string& self, const Sq
     if (protocol == MessageProtocol::Serial)
     {
         serial = squad.toSerial(self.size() + 1); // + 1 for null terminator.
-        serial_w_string(&serial.ptr[Message::DataOffset()], self.c_str(), self.size());
-        return SquadMessage<MessageType::SquadStatus>(id, timestamp, serial);
-    }
-    else if (protocol == MessageProtocol::JSON)
-    {
-        json = squad.toJSON();
-        json["self"] = self;
-        return SquadMessage<MessageType::SquadStatus>(id, timestamp, json);
+        serial_w_string(&serial.ptr[Message::HeaderByteCount()], self.c_str(), self.size());
+        return SquadMessage<MessageProtocol::Serial, MessageType::SquadStatus>(id, timestamp, serial);
     }
 
-    return SquadMessage<MessageType::SquadStatus>(id, timestamp, serial, json);
+    // else if (protocol == MessageProtocol::JSON)
+    json = squad.toJSON();
+    json["self"] = self;
+    return SquadMessage<MessageProtocol::JSON, MessageType::SquadStatus>(id, timestamp, json);
 }
 
 static std::underlying_type_t<MessageProtocol> IsProtocolStr(const std::string& str)
@@ -116,35 +112,16 @@ static void PrintMsgDebug(const Message& msg, MessageProtocol protocol, std::siz
     #define BRIDGE_PRINT_MSG(...)
 #endif
 
-static SendStatus SendToClient(void* handle, const Message& msg, MessageProtocol protocol)
+static SendStatus SendToClient(void* handle, Message* msg, MessageProtocol protocol)
 {
-    SendStatus send{};
-
-    if (protocol == MessageProtocol::Serial)
+    if (msg->protocol() != protocol)
     {
-#if BRIDGE_LOG_LEVEL >= BRIDGE_LOG_LEVEL_ERROR
-        if (!msg.hasSerial())
-        {
-            BRIDGE_ERROR(
-                "Sending Message has no serial data, but client/server protocol is set to MessageProtocol::Serial");
-        }
-#endif
-        SerialData data{msg.toSerial()};
-        send = WriteToPipe(handle, data.ptr.get(), data.count);
-    }
-    else if (protocol == MessageProtocol::JSON)
-    {
-#if BRIDGE_LOG_LEVEL >= BRIDGE_LOG_LEVEL_ERROR
-        if (!msg.hasJSON())
-        {
-            BRIDGE_ERROR(
-                "Sending Message has no JSON data, but client/server protocol is set to MessageProtocol::JSON");
-        }
-#endif
-        send = WriteToPipe(handle, msg.toJSON());
+        BRIDGE_ERROR("Sending Message with protocol \"{}\", but client/server protocol is set to \"{}\"",
+                     MessageProtocolToStr(msg->protocol()), MessageProtocolToStr(protocol));
+        return {};
     }
 
-    return send;
+    return WriteToPipe(handle, msg);
 }
 
 PipeThread::PipeThread(std::size_t id, void* handle, MessageTracking* mt, const ApplicationData& appdata,
@@ -210,8 +187,8 @@ void PipeThread::start(uint64_t bridgeValidator)
         // Check if data is valid json.
         if (!nlohmann::json::accept(readStatus.data))
         {
-            const Message statusMsg{StatusMessage(handler->m_appData.requestID(), false, "invalid JSON")};
-            WriteToPipe(handle, statusMsg.toJSON());
+            std::shared_ptr<Message> statusMsg{StatusMessage(handler->m_appData.requestID(), false, "invalid JSON")};
+            WriteToPipe(handle, statusMsg.get());
             BRIDGE_ERROR("[ptid {}] Recieved invalid JSON, Ending PipeThread.", threadID);
             CloseHandle(handle);
             handler->m_handle = nullptr;
@@ -264,8 +241,8 @@ void PipeThread::start(uint64_t bridgeValidator)
         // Subscription error (if any).
         if (!(handler->m_eventTrack.combat || handler->m_eventTrack.extras || handler->m_eventTrack.squad))
         {
-            const Message statusMsg{StatusMessage(handler->m_appData.requestID(), false, "no subscription")};
-            WriteToPipe(handle, statusMsg.toJSON());
+            std::shared_ptr<Message> statusMsg{StatusMessage(handler->m_appData.requestID(), false, "no subscription")};
+            WriteToPipe(handle, statusMsg.get());
             BRIDGE_ERROR("[ptid {}] No subscription, Ending PipeThread.", threadID);
             CloseHandle(handle);
             handler->m_handle = nullptr;
@@ -287,8 +264,9 @@ void PipeThread::start(uint64_t bridgeValidator)
         // Protocol error (if any).
         if (protocolNum == 0)
         {
-            const Message statusMsg{StatusMessage(handler->m_appData.requestID(), false, "no such protocol")};
-            WriteToPipe(handle, statusMsg.toJSON());
+            const std::shared_ptr<Message> statusMsg{
+                StatusMessage(handler->m_appData.requestID(), false, "no such protocol")};
+            WriteToPipe(handle, statusMsg.get());
             BRIDGE_ERROR("[ptid {}] No such protocol, Ending PipeThread.", threadID);
             CloseHandle(handle);
             handler->m_handle = nullptr;
@@ -296,21 +274,22 @@ void PipeThread::start(uint64_t bridgeValidator)
             return;
         }
 
+        handler->m_protocol = protocolNum; // Set active protocol here (sendMessage will use this for filtering).
         const MessageProtocol protocol{static_cast<MessageProtocol>(protocolNum)};
         handler->m_mt->useProtocol(protocol);
         BRIDGE_INFO("[ptid {}] Client is using protocol \"{}\"", threadID, MessageProtocolToStr(protocol));
 
         // Success!
         {
-            const Message statusMsg{StatusMessage(handler->m_appData.requestID(), true)};
-            SendStatus send = WriteToPipe(handle, statusMsg.toJSON());
+            const std::shared_ptr<Message> statusMsg{StatusMessage(handler->m_appData.requestID(), true)};
+            SendStatus send = WriteToPipe(handle, statusMsg.get());
             if (!send.success)
             {
                 BRIDGE_ERROR("[ptid {}] Error sending data with err: {}!", threadID, send.error);
             }
         }
 
-        Message msg{};
+        std::shared_ptr<Message> msg{};
 
         if (handler->m_eventTrack.squad)
         {
@@ -324,10 +303,10 @@ void PipeThread::start(uint64_t bridgeValidator)
                 // Clear queue if any messages.
                 std::unique_lock<std::mutex> msgLock(msgCont.mutex);
                 if (!msgCont.queue.empty())
-                    std::queue<Message>().swap(msgCont.queue);
+                    std::queue<std::shared_ptr<Message>>().swap(msgCont.queue);
             });
 
-            SendStatus send{SendToClient(handle, msg, protocol)};
+            SendStatus send{SendToClient(handle, msg.get(), protocol)};
             BRIDGE_PRINT_MSG(msg, protocol, threadID);
             if (!send.success)
             {
@@ -342,7 +321,7 @@ void PipeThread::start(uint64_t bridgeValidator)
         while (handler->m_run)
         {
             BRIDGE_MSG_DEBUG("Retrieving message to send.");
-            msg = Message{};
+            msg.reset();
 
             {
                 std::unique_lock<std::mutex> lock(handler->m_msgCont.mutex);
@@ -379,7 +358,7 @@ void PipeThread::start(uint64_t bridgeValidator)
                 handler->m_msgCont.queue.pop();
 
                 // Do not send empty message.
-                if (msg.empty())
+                if (msg == nullptr || !msg->valid())
                 {
                     BRIDGE_WARN("[ptid {}] Empty message found", threadID);
                     continue;
@@ -388,7 +367,7 @@ void PipeThread::start(uint64_t bridgeValidator)
 
             // Send retrieved message.
             handler->m_status = Status::Sending;
-            SendStatus sendStatus = SendToClient(handle, msg, protocol);
+            SendStatus sendStatus = SendToClient(handle, msg.get(), protocol);
             BRIDGE_PRINT_MSG(msg, protocol, threadID);
 
             if (!sendStatus.success)
@@ -411,8 +390,8 @@ void PipeThread::start(uint64_t bridgeValidator)
             // If client is still connected and the thread is closing, send closing event.
             BRIDGE_DEBUG("[ptid {}] Sending closing event to client.", threadID);
 
-            const Message closingMsg{ClosingMessage(handler->m_appData.requestID(), protocol)};
-            SendToClient(handle, closingMsg, protocol);
+            std::shared_ptr<Message> closingMsg{ClosingMessage(handler->m_appData.requestID(), protocol)};
+            SendToClient(handle, closingMsg.get(), protocol);
             BRIDGE_PRINT_MSG(closingMsg, protocol, threadID);
             // Ignore sending error here.
         }
@@ -455,7 +434,7 @@ void PipeThread::stop()
             if (m_status == Status::WaitingForMessage)
             {
                 BRIDGE_DEBUG("PipeThread [ptid {}] is waiting for message, attempting to send empty message...", m_id);
-                m_msgCont.queue.push(Message{});
+                m_msgCont.queue.emplace();
                 m_msgCont.cv.notify_one();
             }
         }
@@ -471,7 +450,7 @@ void PipeThread::stop()
     BRIDGE_DEBUG("PipeThread [ptid {}] Closed!", m_id);
 }
 
-void PipeThread::sendBridgeInfo(const Message& msg, uint64_t validator)
+void PipeThread::sendBridgeInfo(std::shared_ptr<Message> msg, uint64_t validator)
 {
     std::unique_lock<std::mutex> lock(m_mutex);
 
@@ -483,19 +462,19 @@ void PipeThread::sendBridgeInfo(const Message& msg, uint64_t validator)
         if (m_msgCont.queue.size() < m_appData.Config.msgQueueSize)
         {
             BRIDGE_DEBUG("Sending updated BridgeInfo to client [ptid {}].", m_id);
-            m_msgCont.queue.push(msg);
+            m_msgCont.queue.emplace(std::move(msg));
             m_msgCont.cv.notify_one();
         }
     }
 }
 
-void PipeThread::sendMessage(const Message& msg)
+void PipeThread::sendMessage(std::shared_ptr<Message> msg)
 {
     std::unique_lock<std::mutex> lock(m_mutex);
 
     bool send = false;
 
-    switch (msg.category())
+    switch (msg->category())
     {
         case MessageCategory::Combat:
             send = m_eventTrack.combat;
@@ -515,15 +494,20 @@ void PipeThread::sendMessage(const Message& msg)
         std::unique_lock<std::mutex> msgLock(m_msgCont.mutex);
         if (m_msgCont.queue.size() < m_appData.Config.msgQueueSize)
         {
-            m_msgCont.queue.push(msg);
+            m_msgCont.queue.emplace(std::move(msg));
             m_msgCont.cv.notify_one();
         }
     }
 }
 
-SendStatus WriteToPipe(HANDLE handle, const std::string& msg)
+SendStatus WriteToPipe(HANDLE handle, const Message* msg)
 {
-    return WriteToPipe(handle, reinterpret_cast<const uint8_t*>(msg.c_str()), msg.size());
+    return WriteToPipe(handle, msg->data(), msg->count());
+}
+
+SendStatus WriteToPipe(HANDLE handle, const Message& msg)
+{
+    return WriteToPipe(handle, msg.data(), msg.count());
 }
 
 SendStatus WriteToPipe(HANDLE handle, const uint8_t* data, std::size_t count)
@@ -538,21 +522,21 @@ SendStatus WriteToPipe(HANDLE handle, const uint8_t* data, std::size_t count)
     return status;
 }
 
-constexpr std::size_t BUFSIZE{512};
+constexpr std::size_t BUFFER_SIZE{512};
 
 ReadStatus ReadFromPipe(HANDLE handle)
 {
     ReadStatus status{};
-    TCHAR buffer[BUFSIZE]{};
+    TCHAR buffer[BUFFER_SIZE]{};
 
     do
     {
-        status.success = ReadFile(handle, buffer, BUFSIZE * sizeof(TCHAR), &status.numBytesRead, nullptr);
+        status.success = ReadFile(handle, buffer, BUFFER_SIZE * sizeof(TCHAR), &status.numBytesRead, nullptr);
         status.error = GetLastError();
         if (!status.success && status.error != ERROR_MORE_DATA)
             break;
 
-        if (status.numBytesRead < BUFSIZE)
+        if (status.numBytesRead < BUFFER_SIZE)
             buffer[status.numBytesRead] = '\0';
 
         status.data += std::string{buffer};

@@ -30,8 +30,6 @@ namespace Extras
     [[nodiscard]] std::size_t SerialSize(const UserInfo& info);
     void ToSerial(const UserInfo& info, uint8_t* storage, std::size_t count);
     [[nodiscard]] nlohmann::json ToJSON(const UserInfo& user);
-    [[nodiscard]] Message SquadMessageGenerator(uint64_t id, uint64_t timestamp, const UserInfo& info,
-                                                std::underlying_type_t<MessageProtocol> protocols);
 
     //
     // Extras Language Callback.
@@ -43,8 +41,6 @@ namespace Extras
     }
     void ToSerial(Language language, uint8_t* storage, std::size_t count);
     [[nodiscard]] nlohmann::json ToJSON(Language language);
-    [[nodiscard]] Message LanguageMessageGenerator(uint64_t id, uint64_t timestamp, Language language,
-                                                   std::underlying_type_t<MessageProtocol> protocols);
 
     //
     // Extras KeyBind Callback.
@@ -61,9 +57,6 @@ namespace Extras
     }
     void ToSerial(const KeyBinds::KeyBindChanged& pChangedKeyBind, uint8_t* storage, std::size_t count);
     [[nodiscard]] nlohmann::json ToJSON(const KeyBinds::KeyBindChanged& pChangedKeyBind);
-    [[nodiscard]] Message KeyBindMessageGenerator(uint64_t id, uint64_t timestamp,
-                                                  const KeyBinds::KeyBindChanged& pChangedKeyBind,
-                                                  std::underlying_type_t<MessageProtocol> protocols);
 
     //
     // Extras Chat Message Callback.
@@ -75,8 +68,7 @@ namespace Extras
     [[nodiscard]] std::size_t SerialSize(const ChatMessageInfo& chatMsgInfo);
     void ToSerial(const ChatMessageInfo& chatMsgInfo, uint8_t* storage, std::size_t count);
     [[nodiscard]] nlohmann::json ToJSON(const ChatMessageInfo& chatMsgInfo);
-    [[nodiscard]] Message ChatMessageGenerator(uint64_t id, uint64_t timestamp, const ChatMessageInfo& pChatMessage,
-                                               std::underlying_type_t<MessageProtocol> protocols);
+
 } // namespace Extras
 
 #endif // BRIDGE_EXTRAS_HPP

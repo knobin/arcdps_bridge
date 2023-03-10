@@ -31,15 +31,15 @@
 
 struct BridgeVersionInfo
 {
-    std::string_view version{BRIDGE_VERSION_STR};   // Bridge version.
+    std::string_view version{BRIDGE_VERSION_STR};       // Bridge version.
     uint32_t majorApiVersion{BRIDGE_API_VERSION_MAJOR}; // Incremented when there is a change that breaks backwards compatibility in any way.
     uint32_t minorApiVersion{BRIDGE_API_VERSION_MINOR}; // Incremented when the API is extended in a way that does not break backwards compatibility.
 } static constexpr BridgeVersion;
 
 struct BridgeInfo
 {
-    std::string extrasVersion{};                         // Unofficial Extras version.
-    std::string arcvers{};                           // ArcDPS version.
+    std::string extrasVersion{};    // Unofficial Extras version.
+    std::string arcvers{};          // ArcDPS version.
 
     uint64_t validator{1};  // Runtime version of the BridgeInfo, if any value changes this will be incremented.
 
@@ -57,8 +57,6 @@ struct BridgeInfo
 [[nodiscard]] nlohmann::json ToJSON(const BridgeInfo& info);
 [[nodiscard]] std::size_t SerialSize(const BridgeInfo& info);
 void ToSerial(const BridgeInfo& info, uint8_t* storage, std::size_t);
-[[nodiscard]] Message BridgeInfoMessageGenerator(uint64_t id, uint64_t timestamp, const BridgeInfo& info,
-                                                  std::underlying_type_t<MessageProtocol> protocols);
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 

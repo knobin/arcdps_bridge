@@ -134,34 +134,6 @@ TEST_CASE("ToJSON(const UserInfo& user)")
 }
 
 //
-// Generator (PlayerEntry).
-//
-
-struct GeneratorHelper
-{
-    using Type = BridgeInfo;
-    static auto SerialSize(const Type& value) { return ::SerialSize(value); }
-    static auto ToSerial(const Type& value, uint8_t* storage, std::size_t count)
-    {
-        return ::ToSerial(value, storage, count);
-    }
-    static auto ToJSON(const Type& value) { return ::ToJSON(value); }
-};
-
-TEST_CASE("BridgeInfoMessageGenerator")
-{
-    BridgeInfo info{};
-    info.extrasVersion = "extras version string";
-    info.arcvers = "arc version string";
-
-    const auto id = RandomIntegral<uint64_t>();
-    const auto timestamp = RandomIntegral<uint64_t>();
-
-    RequireMessageGenerator<GeneratorHelper, MessageCategory::Info, MessageType::BridgeInfo>(
-        id, timestamp, info, BridgeInfoMessageGenerator);
-}
-
-//
 // Budget fuzzing (BridgeInfo).
 //
 

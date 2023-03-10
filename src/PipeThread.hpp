@@ -41,7 +41,7 @@ public:
     {
         std::mutex mutex{};
         std::condition_variable cv{};
-        std::queue<Message> queue{};
+        std::queue<std::shared_ptr<Message>> queue{};
     };
 
     struct EventTracking
@@ -64,9 +64,10 @@ public:
     [[nodiscard]] bool running() const { return m_running; }
 
     [[nodiscard]] std::size_t id() const { return m_id; }
+    [[nodiscard]] MessageProtocol protocol() const noexcept { return static_cast<MessageProtocol>(m_protocol.load()); }
 
-    void sendBridgeInfo(const Message& msg, uint64_t validator);
-    void sendMessage(const Message& msg);
+    void sendBridgeInfo(std::shared_ptr<Message> msg, uint64_t validator);
+    void sendMessage(std::shared_ptr<Message> msg);
 
     [[nodiscard]] EventTracking eventTracking() const { return m_eventTrack; }
 
@@ -84,6 +85,7 @@ private:
     std::atomic<bool> m_running{false};
     std::size_t m_id;
     uint64_t m_bridgeValidator{0}; // 0 = not sent to client yet.
+    std::atomic<std::underlying_type_t<MessageProtocol>> m_protocol{0};
     bool m_threadStarted{false};
 };
 
@@ -104,7 +106,8 @@ struct SendStatus
     DWORD error{0};
     BOOL success{false};
 };
-SendStatus WriteToPipe(HANDLE handle, const std::string& msg);
+SendStatus WriteToPipe(HANDLE handle, const Message* msg);
+SendStatus WriteToPipe(HANDLE handle, const Message& msg);
 SendStatus WriteToPipe(HANDLE handle, const uint8_t* data, std::size_t count);
 
 #endif // BRIDGE_PIPETHREAD_HPP

@@ -117,42 +117,6 @@ namespace Squad
 
     [[nodiscard]] nlohmann::json ToJSON(const PlayerInfo& player);
     [[nodiscard]] nlohmann::json ToJSON(const PlayerInfoEntry& entry);
-
-    template <MessageType Type>
-    [[nodiscard]] Message PlayerEntryMessageGenerator(uint64_t id, uint64_t timestamp, const PlayerInfoEntry& entry,
-                                                      std::underlying_type_t<MessageProtocol> protocols)
-    {
-        static_assert(Type == MessageType::SquadAdd || Type == MessageType::SquadRemove ||
-                          Type == MessageType::SquadUpdate,
-                      "Type is not a Squad message");
-
-        const auto protocolSerial = static_cast<std::underlying_type_t<MessageProtocol>>(MessageProtocol::Serial);
-        const auto protocolJSON = static_cast<std::underlying_type_t<MessageProtocol>>(MessageProtocol::JSON);
-
-        SerialData serial{};
-
-        if (protocols & protocolSerial)
-        {
-            const std::size_t playerentry_size = SerialSize(entry);
-            serial = CreateSerialData(playerentry_size);
-            ToSerial(entry, &serial.ptr[Message::DataOffset()], playerentry_size);
-
-            if (protocols == protocolSerial)
-                return SquadMessage<Type>(id, timestamp, serial);
-        }
-
-        nlohmann::json json{};
-
-        if (protocols & protocolJSON)
-        {
-            json = ToJSON(entry);
-
-            if (protocols == protocolJSON)
-                return SquadMessage<Type>(id, timestamp, json);
-        }
-
-        return SquadMessage<Type>(id, timestamp, serial, json);
-    }
 } // namespace Squad
 
 bool operator==(const Squad::PlayerInfo& lhs, const Squad::PlayerInfo& rhs);

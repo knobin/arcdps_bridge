@@ -106,8 +106,8 @@ void PipeHandler::start()
                 {
                     BRIDGE_DEBUG("Sending ConnectionStatus message to client [{}].", threadID);
 
-                    const Message msg{ConnectionStatusMessage(handler->m_appData.requestID(), info, true)};
-                    SendStatus sendStatus = WriteToPipe(handle, msg.toJSON());
+                    std::shared_ptr<Message> msg{ConnectionStatusMessage(handler->m_appData.requestID(), info, true)};
+                    SendStatus sendStatus = WriteToPipe(handle, msg.get());
                     if (sendStatus.success)
                     {
                         BRIDGE_DEBUG("Successfully started client with id = {}.", threadID);
@@ -119,8 +119,9 @@ void PipeHandler::start()
                 {
                     constexpr std::string_view err{"Could not create PipeThread due to max amount of clients are connected."};
                     BRIDGE_DEBUG("Sending error \"{}\" to client [{}].", err, threadID);
-                    const Message msg{ConnectionStatusMessage(handler->m_appData.requestID(), info, false, std::string{err})};
-                    WriteToPipe(handle, msg.toJSON());
+                    std::shared_ptr<Message> msg{
+                        ConnectionStatusMessage(handler->m_appData.requestID(), info, false, std::string{err})};
+                    WriteToPipe(handle, msg.get());
                 }
             }
 
@@ -219,9 +220,9 @@ void PipeHandler::stop()
     BRIDGE_DEBUG("PipeHandler stopped.");
 }
 
-void PipeHandler::sendBridgeInfo(const Message& msg, uint64_t validator)
+void PipeHandler::sendBridgeInfo(const std::shared_ptr<Message>& msg, uint64_t validator)
 {
-    if (msg.empty())
+    if (!msg->valid())
         return;
 
     std::unique_lock<std::mutex> lock(m_mutex);
@@ -229,24 +230,20 @@ void PipeHandler::sendBridgeInfo(const Message& msg, uint64_t validator)
     if (m_running)
     {
         for (std::unique_ptr<PipeThread>& pt : m_threads)
-            if (pt->started())
+            if (pt->started() && pt->protocol() == msg->protocol())
                 pt->sendBridgeInfo(msg, validator);
     }
 }
 
-void PipeHandler::sendMessage(const Message& msg)
+void PipeHandler::sendMessage(const std::shared_ptr<Message>& msg)
 {
-    if (msg.empty())
+    if (!msg->valid())
         return;
 
     std::unique_lock<std::mutex> lock(m_mutex);
 
     if (m_running)
-    {
-        for (std::unique_ptr<PipeThread>& pt : m_threads)
-            if (pt->started())
-                pt->sendMessage(msg);
-    }
+        forwardMessageToThreads(msg);
 }
 
 bool PipeHandler::trackingCategory(MessageCategory category) const
@@ -379,7 +376,8 @@ bool MessageTracking::usingProtocol(MessageProtocol protocol) const
     return ret;
 }
 
-Message ConnectionStatusMessage(uint64_t id, const nlohmann::json& info, bool success, const std::string& error)
+std::shared_ptr<Message> ConnectionStatusMessage(uint64_t id, const nlohmann::json& info, bool success,
+                                                 const std::string& error)
 {
     const uint64_t timestamp{GetMillisecondsSinceEpoch()};
 
@@ -393,5 +391,5 @@ Message ConnectionStatusMessage(uint64_t id, const nlohmann::json& info, bool su
     if (!success)
         j["error"] = error;
 
-    return InfoMessage<MessageType::ConnectionStatus>(id, timestamp, j);
+    return InfoMessage<MessageProtocol::JSON, MessageType::ConnectionStatus>(id, timestamp, j);
 }
