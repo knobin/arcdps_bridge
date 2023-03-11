@@ -5,23 +5,14 @@
 #  Created by Robin Gustafsson on 2022-06-22.
 #
 
-
-from email.message import Message
-from unicodedata import category
+import sys
 import win32pipe, win32file, pywintypes
 import json
 
 from enum import Enum
 
-from rich.console import Console
-from rich.layout import Layout
-
-
 PipeName = r'\\.\pipe\arcdps-bridge'
 Players = {}
-
-console = Console()
-layout = Layout()
 
 
 ###################################################################################################
@@ -40,24 +31,25 @@ class MessageCategory(Enum):
 
 class MessageType(Enum):
     # Info types.
-    BridgeInfo  = 1
-    Status      = 2
-    Closing     = 3
+    ConnectionStatus = 1,
+    BridgeInfo = 2,
+    Status = 3,
+    Closing = 4,
 
     # ArcDPS combat api types.
-    CombatEvent = 4
+    CombatEvent = 5,
 
     # Extras event types.
-    ExtrasSquadUpdate       = 5
-    ExtrasLanguageChanged   = 6
-    ExtrasKeyBindChanged    = 7
-    ExtrasChatMessage       = 8
+    ExtrasSquadUpdate = 6,
+    ExtrasLanguageChanged = 7,
+    ExtrasKeyBindChanged = 8,
+    ExtrasChatMessage = 9,
 
     # Squad event types.
-    SquadStatus     = 9
-    SquadAdd        = 10
-    SquadUpdate     = 11
-    SquadRemove     = 12
+    SquadStatus = 10,
+    SquadAdd = 11,
+    SquadUpdate = 12,
+    SquadRemove = 13
 
 
 class MessageProtocol(Enum):
@@ -74,7 +66,18 @@ class MessageProtocol(Enum):
 
 
 def subscribe_message(sub, protocol):
-    return '{"subscribe": ' + str(sub) + ', "protocol": "' + protocol.name + '"}'
+    req = [
+        MessageType.ConnectionStatus.name,
+        MessageType.BridgeInfo.name,
+        MessageType.Status.name,
+        MessageType.Closing.name
+    ]
+    types_list = req + sub
+    x = {"subscribe": types_list, "protocol": protocol.name}
+    msg = json.dumps(x)
+    msg.replace("'", '"')
+    print(f"subscribe msg: ", msg)
+    return msg
 
 
 def setup_connection(handle, sub_msg):
@@ -179,7 +182,12 @@ def pipe_client():
         
         # Pipe is connected to server.
         # Server will send Bridge Information, and expects a subscribe return.
-        sub_value = MessageCategory.Combat.value | MessageCategory.Squad.value
+        sub_value = [
+            MessageType.SquadStatus.name,
+            MessageType.SquadAdd.name,
+            MessageType.SquadUpdate.name,
+            MessageType.SquadRemove.name
+        ]
         if setup_connection(handle, subscribe_message(sub_value, MessageProtocol.JSON)):
             # Subscribed to events successfully.
             # Server will now send events to client.
@@ -191,7 +199,7 @@ def pipe_client():
                 if (evt["category"] == MessageCategory.Squad.name):
                     squad_message(evt["type"], evt["data"])
 
-                if (evt["category"] == MessageCategory.Info.name):
+                elif (evt["category"] == MessageCategory.Info.name):
                     if (evt["type"] == MessageType.BridgeInfo.name):
                         # New bridge information is available.
                         binfo = evt["data"]
@@ -200,6 +208,9 @@ def pipe_client():
                         # Server is closing here, no further messages will be sent.
                         print("Server is closing.")
                         break;
+
+                else:
+                    print("Received: ", evt["type"], evt["data"])
 
     except pywintypes.error as e:
         print("Exception caught: ", str(e))
@@ -272,18 +283,17 @@ def read_player(data):
     offset = acc_len + char_len
 
     d = dict()
-
     d["value"] = {
         "accountName": acc["value"],
         "characterName": char["value"],
-        "joinTime": read_int(data[offset:], 8), # int.from_bytes(data[offset : offset+8], byteorder='little', signed=True),
-        "profession": read_uint(data[offset+8:], 4), # int.from_bytes(data[offset+8 : offset+8+4], byteorder='little', signed=False),
-        "elite": read_uint(data[offset+8+4:], 4), # int.from_bytes(data[offset+8+4 : offset+8+4+4], byteorder='little', signed=False),
-        "role": read_uint(data[offset+8+4+4:], 1), # int.from_bytes(data[offset+8+4+4 : offset+8+4+4+1], byteorder='little', signed=False),
-        "subgroup": read_uint(data[offset+8+4+4+1:], 1), # int.from_bytes(data[offset+8+4+4+1 : offset+8+4+4+1+1], byteorder='little', signed=False),
-        "inInstance": bool(read_uint(data[offset+8+4+4+1+1:], 1)), # bool(int.from_bytes(data[offset+8+4+4+1+1 : offset+8+4+4+1+1+1], byteorder='little', signed=False)),
-        "self": bool(read_uint(data[offset+8+4+4+1+1+1:], 1)), # bool(int.from_bytes(data[offset+8+4+4+1+1+1 : offset+8+4+4+1+1+1+1], byteorder='little', signed=False)),
-        "readyStatus": bool(read_uint(data[offset+8+4+4+1+1+1+1:], 1)), #  bool(int.from_bytes(data[offset+8+4+4+1+1+1+1 : offset+8+4+4+1+1+1+1+1], byteorder='little', signed=False))
+        "joinTime": read_int(data[offset:], 8), 
+        "profession": read_uint(data[offset+8:], 4), 
+        "elite": read_uint(data[offset+8+4:], 4), 
+        "role": read_uint(data[offset+8+4+4:], 1), 
+        "subgroup": read_uint(data[offset+8+4+4+1:], 1), 
+        "inInstance": bool(read_uint(data[offset+8+4+4+1+1:], 1)), 
+        "self": bool(read_uint(data[offset+8+4+4+1+1+1:], 1)),
+        "readyStatus": bool(read_uint(data[offset+8+4+4+1+1+1+1:], 1)),
     }
     d["count"] = offset+8+4+4+1+1+1+1+1
     return d
@@ -440,7 +450,7 @@ def read_combat(data):
     return d
 
 
-def read_squadextras(data):
+def read_extras_squad_update(data):
     account_name = read_string(data)
     offset = account_name["count"]
     
@@ -453,6 +463,60 @@ def read_squadextras(data):
         "ReadyStatus": read_uint(data[offset+8+1+1:], 1)
     }
     d["count"] = offset+8+1+1+1
+    return d
+
+
+def read_extras_language_changed(data):    
+    d = dict()
+    d["value"] = {
+        "Language": read_int(data, 4)
+    }
+    d["count"] = 4
+    return d
+
+
+def read_extras_keybind_changed(data):
+    d = dict()
+    d["value"] = {
+        "KeyControl": read_int(data, 4),
+        "KeyIndex": read_uint(data[4:], 4), 
+        "SingleKey": {
+            "DeviceType": read_int(data[4+4:], 4),
+            "Code": read_int(data[4+4+4:], 4),
+            "Modifier": read_int(data[4+4+4+4:], 4)
+        }
+    }
+    d["count"] = 4+4+4+4+4
+    return d
+
+
+def read_extras_chat_message(data):    
+    d = dict()
+    d["value"] = {
+        "ChannelId": read_uint(data, 4),
+        "Type": read_uint(data[4:], 1),
+        "Subgroup": read_int(data[4+1:], 1),
+        "IsBroadcast": read_int(data[4+1+1:], 1),
+    }
+
+    timestamp = read_string(data[4+1+1+1:])
+    offset = timestamp["count"]
+
+    account_name = read_string(data[4+1+1+1+offset:])
+    offset = offset + account_name["count"]
+
+    character_name = read_string(data[4+1+1+1+offset:])
+    offset = offset + character_name["count"]
+
+    text = read_string(data[4+1+1+1+offset:])
+    offset = offset + text["count"]
+
+    d["value"]["Timestamp"] = timestamp["value"]
+    d["value"]["AccountName"] = account_name["value"]
+    d["value"]["CharacterName"] = character_name["value"]
+    d["value"]["Text"] = text["value"]
+
+    d["count"] = 4+1+1+1+offset
     return d
 
 
@@ -479,18 +543,22 @@ def combat_serial(msgtype, data):
 def extras_serial(msgtype, data):
     print("extras_serial", msgtype)
     if msgtype == MessageType.ExtrasSquadUpdate:
-        print("Received SquadStatus")
-        extras = read_squadextras(data)
-        print(extras)
+        print("Received ExtrasSquadUpdate")
+        update = read_extras_squad_update(data)
+        print(update)
     elif msgtype == MessageType.ExtrasLanguageChanged:
-        # TODO
-        pass
+        print("Received ExtrasLanguageChanged")
+        lang = read_extras_language_changed(data)
+        print(lang)
     elif msgtype == MessageType.ExtrasKeyBindChanged:
-        # TODO
-        pass
+        print("Received ExtrasKeyBindChanged")
+        keybind = read_extras_keybind_changed(data)
+        print(keybind)
     elif msgtype == MessageType.ExtrasChatMessage:
-        # TODO
-        pass
+        print("Received ExtrasChatMessage")
+        chat = read_extras_chat_message(data)
+        print(chat)
+
 
 def squad_serial(msgtype, data):
     if msgtype == MessageType.SquadStatus:
@@ -529,7 +597,12 @@ def pipe_client_serial():
         
         # Pipe is connected to server.
         # Server will send Bridge Information, and expects a subscribe return.
-        sub_value = MessageCategory.Extras.value #  MessageCategory.Combat.value | MessageCategory.Squad.value 
+        sub_value = [
+            MessageType.SquadStatus.name,
+            MessageType.SquadAdd.name,
+            MessageType.SquadUpdate.name,
+            MessageType.SquadRemove.name
+        ]
         if setup_connection(handle, subscribe_message(sub_value, MessageProtocol.Serial)):
             # Subscribed to events successfully.
             # Server will now send events to client.
@@ -540,6 +613,7 @@ def pipe_client_serial():
                 if len(data_bytes) > 1:
                     category = MessageCategory_from_uint8(read_uint(data_bytes, 1))
                     msgtype = MessageType_from_uint8(read_uint(data_bytes[1:], 1))
+                    dataOffset = 18
                     print(category, msgtype, read_uint(data_bytes, 1), read_uint(data_bytes[1:], 1))
                     if category != None and msgtype != None:
                         if category == MessageCategory.Info:
@@ -548,13 +622,13 @@ def pipe_client_serial():
                                 print("Server is closing.")
                                 break;
                             else:
-                                info_serial(msgtype, data_bytes[2:])
+                                info_serial(msgtype, data_bytes[dataOffset:])
                         elif category == MessageCategory.Combat:
-                            combat_serial(msgtype, data_bytes[2:])
+                            combat_serial(msgtype, data_bytes[dataOffset:])
                         elif category == MessageCategory.Extras:
-                            extras_serial(msgtype, data_bytes[2:])
+                            extras_serial(msgtype, data_bytes[dataOffset:])
                         elif category == MessageCategory.Squad:
-                            squad_serial(msgtype, data_bytes[2:])
+                            squad_serial(msgtype, data_bytes[dataOffset:])
     
     except pywintypes.error as e:
         print("Exception caught: ", str(e))
@@ -573,7 +647,34 @@ def pipe_client_serial():
 #
 
 
+def print_usage():
+    print("Use -p {Serial/JSON} to select a protocol and -s {Combat/Extras/Squad} to subsribe to events")
+    
+
 if __name__ == '__main__':
-    #  console.print(layout)
-    #pipe_client();
-    pipe_client_serial()
+    run = False
+    use_serial = True
+
+    if len(sys.argv) < 2:
+        print_usage()
+    else:
+        for i in range(1, len(sys.argv)):
+            if sys.argv[i] == "-p":
+                valueIndex = i + 1
+                if valueIndex < len(sys.argv):
+                    protocol = sys.argv[valueIndex].lower()
+                    if protocol == "serial":
+                        run = True
+                    elif protocol == "json":
+                        run = True
+                        use_serial = False
+                    else:
+                        print("No such protocol, use {Serial/JSON}")
+                
+    if run:
+        if use_serial:
+            print("Using Serial protocol.")
+            pipe_client_serial()
+        else:
+            print("Using JSON protocol.")
+            pipe_client();
