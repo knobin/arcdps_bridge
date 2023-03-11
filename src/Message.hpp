@@ -82,6 +82,8 @@ enum class MessageType : uint8_t
     SquadRemove = 13
 };
 
+constexpr std::size_t MessageTypeCount = 14; // Including first 0 value.
+
 constexpr std::string_view MessageTypeToStr(MessageType type) noexcept
 {
     switch (type)
@@ -116,6 +118,22 @@ constexpr std::string_view MessageTypeToStr(MessageType type) noexcept
 
     return "";
 }
+
+// All possible strings for MessageType.
+constexpr std::array<std::string_view, MessageTypeCount - 1> MessageTypeStrings{
+    MessageTypeToStr(MessageType::ConnectionStatus),
+    MessageTypeToStr(MessageType::BridgeInfo),
+    MessageTypeToStr(MessageType::Status),
+    MessageTypeToStr(MessageType::Closing),
+    MessageTypeToStr(MessageType::CombatEvent),
+    MessageTypeToStr(MessageType::ExtrasSquadUpdate),
+    MessageTypeToStr(MessageType::ExtrasLanguageChanged),
+    MessageTypeToStr(MessageType::ExtrasKeyBindChanged),
+    MessageTypeToStr(MessageType::ExtrasChatMessage),
+    MessageTypeToStr(MessageType::SquadStatus),
+    MessageTypeToStr(MessageType::SquadAdd),
+    MessageTypeToStr(MessageType::SquadUpdate),
+    MessageTypeToStr(MessageType::SquadRemove)};
 
 //
 // Implementation for matching MessageInfo types to MessageCategory.
@@ -206,6 +224,10 @@ constexpr bool IsProtocolBitSet(std::underlying_type_t<MessageProtocol> bits) no
     const auto protocolBit = static_cast<std::underlying_type_t<MessageProtocol>>(Protocol);
     return bits & protocolBit;
 }
+
+//
+// SerialData.
+//
 
 struct SerialData
 {

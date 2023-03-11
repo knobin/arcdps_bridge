@@ -110,7 +110,7 @@ static void SendPlayerMsg(const Squad::PlayerInfoEntry& entry)
     const uint64_t id{AppData.requestID()};
     const uint64_t timestamp{GetMillisecondsSinceEpoch()};
 
-    if (Server->trackingCategory(MessageCategory::Squad))
+    if (Server->isTrackingType(Type))
     {
         const auto protocols = Server->usingProtocols();
 
@@ -299,7 +299,7 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
         }
     }
 
-    if (!Server->trackingCategory(MessageCategory::Combat))
+    if (!(Server->isTrackingType(MessageType::CombatEvent)))
         return 0;
 
     const auto protocols = Server->usingProtocols();
@@ -451,7 +451,7 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
                 SquadHandler->addPlayer(player, SquadModifySender, updater, SquadModifyHandler::ExtrasBit);
             }
 
-            if (Server->trackingCategory(MessageCategory::Extras))
+            if (Server->isTrackingType(MessageType::ExtrasSquadUpdate))
             {
                 const auto protocols = Server->usingProtocols();
 
@@ -476,7 +476,7 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
 
 static void language_changed_callback(Language pNewLanguage)
 {
-    if (Server->trackingCategory(MessageCategory::Extras))
+    if (Server->isTrackingType(MessageType::ExtrasLanguageChanged))
     {
         const auto protocols = Server->usingProtocols();
         const auto id = AppData.requestID();
@@ -501,7 +501,7 @@ static void language_changed_callback(Language pNewLanguage)
 
 static void keybind_changed_callback(KeyBinds::KeyBindChanged pChangedKeyBind)
 {
-    if (Server->trackingCategory(MessageCategory::Extras))
+    if (Server->isTrackingType(MessageType::ExtrasKeyBindChanged))
     {
         const auto protocols = Server->usingProtocols();
         const auto id = AppData.requestID();
@@ -529,7 +529,7 @@ static void chat_message_callback(const ChatMessageInfo* pChatMessage)
     if (!pChatMessage)
         return;
 
-    if (Server->trackingCategory(MessageCategory::Extras))
+    if (Server->isTrackingType(MessageType::ExtrasChatMessage))
     {
         const auto protocols = Server->usingProtocols();
         const auto id = AppData.requestID();

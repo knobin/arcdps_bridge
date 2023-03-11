@@ -14,16 +14,32 @@ PipeHandler::PipeHandler(const std::string& pipeName, const ApplicationData& app
     : m_pipeName{pipeName},
       m_appData{appdata},
       m_squadModifyHandler{squadModifyHandler}
-{}
+{
+
+#if BRIDGE_LOG_LEVEL >= BRIDGE_LOG_LEVEL_DEBUG
+    BRIDGE_DEBUG("PipeHandler using protocol: {}.", m_msgTracking.usingProtocol(MessageProtocol::Serial));
+    BRIDGE_DEBUG("PipeHandler using protocol: {}.", m_msgTracking.usingProtocol(MessageProtocol::JSON));
+    for (auto i{1}; i < MessageTypeCount; ++i)
+    {
+        const auto type = static_cast<MessageType>(i);
+        BRIDGE_DEBUG("PipeHandler tracking \"{}\": {}.", MessageTypeStrings[i - 1], m_msgTracking.isTrackingType(type));
+    }
+#endif
+}
 
 PipeHandler::~PipeHandler()
 {
-    BRIDGE_DEBUG("~PipeHandler tracking combat events: {}.", m_msgTracking.isTrackingCategory(MessageCategory::Combat));
-    BRIDGE_DEBUG("~PipeHandler tracking extras events: {}.", m_msgTracking.isTrackingCategory(MessageCategory::Extras));
-    BRIDGE_DEBUG("~PipeHandler tracking squad events: {}.", m_msgTracking.isTrackingCategory(MessageCategory::Squad));
+#if BRIDGE_LOG_LEVEL >= BRIDGE_LOG_LEVEL_DEBUG
     BRIDGE_DEBUG("~PipeHandler using protocol: {}.", m_msgTracking.usingProtocol(MessageProtocol::Serial));
     BRIDGE_DEBUG("~PipeHandler using protocol: {}.", m_msgTracking.usingProtocol(MessageProtocol::JSON));
+    for (auto i{1}; i < MessageTypeCount; ++i)
+    {
+        const auto type = static_cast<MessageType>(i);
+        BRIDGE_DEBUG("~PipeHandler tracking \"{}\": {}.", MessageTypeStrings[i - 1],
+                     m_msgTracking.isTrackingType(type));
+    }
     BRIDGE_DEBUG("~PipeHandler, running: {} threads: {}", m_run, m_threads.size());
+#endif
 }
 
 void PipeHandler::start()
@@ -222,6 +238,9 @@ void PipeHandler::stop()
 
 void PipeHandler::sendBridgeInfo(const std::shared_ptr<Message>& msg, uint64_t validator)
 {
+    if (msg == nullptr)
+        return;
+
     if (!msg->valid())
         return;
 
@@ -237,21 +256,18 @@ void PipeHandler::sendBridgeInfo(const std::shared_ptr<Message>& msg, uint64_t v
 
 void PipeHandler::sendMessage(const std::shared_ptr<Message>& msg)
 {
-    if (!msg->valid())
-        return;
-
     std::unique_lock<std::mutex> lock(m_mutex);
 
     if (m_running)
         forwardMessageToThreads(msg);
 }
 
-bool PipeHandler::trackingCategory(MessageCategory category) const
+bool PipeHandler::isTrackingType(MessageType type) const
 {
-    return m_msgTracking.isTrackingCategory(category);
+    return m_msgTracking.isTrackingType(type);
 }
 
-bool PipeHandler::usingProtocol(MessageProtocol protocol) const
+bool PipeHandler::isUsingProtocol(MessageProtocol protocol) const
 {
     return m_msgTracking.usingProtocol(protocol);
 }
@@ -261,73 +277,15 @@ std::underlying_type_t<MessageProtocol> PipeHandler::usingProtocols() const
     using utype = std::underlying_type_t<MessageProtocol>;
     utype protocols{};
 
-    if (usingProtocol(MessageProtocol::Serial))
+    if (isUsingProtocol(MessageProtocol::Serial))
         protocols |= static_cast<utype>(MessageProtocol::Serial);
-    if (usingProtocol(MessageProtocol::JSON))
+    if (isUsingProtocol(MessageProtocol::JSON))
         protocols |= static_cast<utype>(MessageProtocol::JSON);
 
     return protocols;
 }
 
-void MessageTracking::trackCategory(MessageCategory category)
-{
-    switch (category)
-    {
-        case MessageCategory::Combat:
-            ++m_combat;
-            break;
-        case MessageCategory::Extras:
-            ++m_extras;
-            break;
-        case MessageCategory::Squad:
-            ++m_squad;
-            break;
-        default:
-            break;
-    }
-}
-
-void MessageTracking::untrackCategory(MessageCategory category)
-{
-    switch (category)
-    {
-        case MessageCategory::Combat:
-            --m_combat;
-            break;
-        case MessageCategory::Extras:
-            --m_extras;
-            break;
-        case MessageCategory::Squad:
-            --m_squad;
-            break;
-        default:
-            break;
-    }
-}
-
-bool MessageTracking::isTrackingCategory(MessageCategory category) const
-{
-    bool ret = false;
-
-    switch (category)
-    {
-        case MessageCategory::Combat:
-            ret = static_cast<bool>(m_combat);
-            break;
-        case MessageCategory::Extras:
-            ret = static_cast<bool>(m_extras);
-            break;
-        case MessageCategory::Squad:
-            ret = static_cast<bool>(m_squad);
-            break;
-        default:
-            break;
-    }
-
-    return ret;
-}
-
-void MessageTracking::useProtocol(MessageProtocol protocol)
+void MessageTracking::incProtocol(MessageProtocol protocol)
 {
     switch (protocol)
     {
@@ -342,7 +300,7 @@ void MessageTracking::useProtocol(MessageProtocol protocol)
     }
 }
 
-void MessageTracking::unuseProtocol(MessageProtocol protocol)
+void MessageTracking::decProtocol(MessageProtocol protocol)
 {
     switch (protocol)
     {
@@ -381,13 +339,12 @@ std::shared_ptr<Message> ConnectionStatusMessage(uint64_t id, const nlohmann::js
 {
     const uint64_t timestamp{GetMillisecondsSinceEpoch()};
 
-    nlohmann::json j{
-        {"version", BridgeVersion.version},
-        {"majorApiVersion", BridgeVersion.majorApiVersion},
-        {"minorApiVersion", BridgeVersion.minorApiVersion},
-        {"info", info},
-        {"success", success}
-    };
+    nlohmann::json j{{"version", BridgeVersion.version},
+                     {"majorApiVersion", BridgeVersion.majorApiVersion},
+                     {"minorApiVersion", BridgeVersion.minorApiVersion},
+                     {"info", info},
+                     {"success", success},
+                     {"types", MessageTypeStrings}};
     if (!success)
         j["error"] = error;
 

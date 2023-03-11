@@ -18,25 +18,15 @@
 #include <memory>
 #include <vector>
 
-class MessageTracking
+class MessageTracking : public PipeThread::EventTracking
 {
 public:
-    // Tracked event categories.
-    void trackCategory(MessageCategory category);
-    void untrackCategory(MessageCategory category);
-    [[nodiscard]] bool isTrackingCategory(MessageCategory category) const;
-
     // Using protocols.
-    void useProtocol(MessageProtocol protocol);
-    void unuseProtocol(MessageProtocol protocol);
+    void incProtocol(MessageProtocol protocol);
+    void decProtocol(MessageProtocol protocol);
     [[nodiscard]] bool usingProtocol(MessageProtocol protocol) const;
 
 private:
-    // Categories.
-    std::atomic<std::size_t> m_combat{0};
-    std::atomic<std::size_t> m_extras{0};
-    std::atomic<std::size_t> m_squad{0};
-
     // Protocols.
     std::atomic<std::size_t> m_serial{0};
     std::atomic<std::size_t> m_json{0};
@@ -71,8 +61,8 @@ public:
         }
     }
 
-    [[nodiscard]] bool trackingCategory(MessageCategory category) const;
-    [[nodiscard]] bool usingProtocol(MessageProtocol protocol) const;
+    [[nodiscard]] bool isTrackingType(MessageType type) const;
+    [[nodiscard]] bool isUsingProtocol(MessageProtocol protocol) const;
     [[nodiscard]] std::underlying_type_t<MessageProtocol> usingProtocols() const;
 
 private:
@@ -81,6 +71,12 @@ private:
 
     void forwardMessageToThreads(const std::shared_ptr<Message>& msg)
     {
+        if (msg == nullptr)
+            return;
+
+        if (!msg->valid())
+            return;
+
         for (std::unique_ptr<PipeThread>& pt : m_threads)
             if (pt->started() && pt->protocol() == msg->protocol())
                 pt->sendMessage(msg);

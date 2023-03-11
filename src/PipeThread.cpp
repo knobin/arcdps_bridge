@@ -137,7 +137,25 @@ PipeThread::PipeThread(std::size_t id, void* handle, MessageTracking* mt, const 
 
 PipeThread::~PipeThread()
 {
+#if BRIDGE_LOG_LEVEL >= BRIDGE_LOG_LEVEL_DEBUG
+    for (auto i{1}; i < MessageTypeCount; ++i)
+    {
+        const auto type = static_cast<MessageType>(i);
+        BRIDGE_DEBUG("~PipeThread tracking \"{}\": {}.", MessageTypeStrings[i - 1], isTrackingType(type));
+    }
     BRIDGE_DEBUG("~PipeThread [ptid {}], running: {}", m_id, m_running);
+#endif
+}
+
+std::underlying_type_t<MessageType> MsgTypeStringToType(std::string_view str)
+{
+    for (auto i{0}; i < MessageTypeStrings.size(); ++i)
+    {
+        if (MessageTypeStrings[i] == str)
+            return static_cast<std::underlying_type_t<MessageType>>(i + 1);
+    }
+
+    return 0;
 }
 
 void PipeThread::start(uint64_t bridgeValidator)
@@ -198,56 +216,31 @@ void PipeThread::start(uint64_t bridgeValidator)
 
         nlohmann::json j = nlohmann::json::parse(readStatus.data);
 
-        // Subscribe.
-        using MessageCategoryU = std::underlying_type_t<MessageCategory>;
-        MessageCategoryU filter = 0;
-
-        if (j.contains("subscribe") && j["subscribe"].is_number())
+        // Subscribe, array of strings.
+        if (j.contains("subscribe") && j["subscribe"].is_array())
         {
-            int32_t sub_value = j["subscribe"].get<int32_t>();
+            std::vector<std::string> types = j["subscribe"];
 
-            constexpr auto ui8min = static_cast<int32_t>(std::numeric_limits<MessageCategoryU>::min());
-            constexpr auto ui8max = static_cast<int32_t>(std::numeric_limits<MessageCategoryU>::max());
-
-            if (sub_value >= ui8min && sub_value <= ui8max)
-                filter = static_cast<MessageCategoryU>(sub_value);
-
-            BRIDGE_DEBUG("[ptid {}] Recieved filter \"{}\" from client.", threadID, static_cast<int>(filter));
-        }
-
-        auto combatValue = static_cast<MessageCategoryU>(MessageCategory::Combat);
-        if ((filter & combatValue) == combatValue)
-        {
-            handler->m_eventTrack.combat = true;
-            handler->m_mt->trackCategory(MessageCategory::Combat);
-        }
-        auto extrasValue = static_cast<MessageCategoryU>(MessageCategory::Extras);
-        if ((filter & extrasValue) == extrasValue)
-        {
-            handler->m_eventTrack.extras = true;
-            handler->m_mt->trackCategory(MessageCategory::Extras);
-        }
-        auto squadValue = static_cast<MessageCategoryU>(MessageCategory::Squad);
-        if ((filter & squadValue) == squadValue)
-        {
-            handler->m_eventTrack.squad = true;
-            handler->m_mt->trackCategory(MessageCategory::Squad);
-        }
-
-        BRIDGE_INFO("[ptid {}] Client has subscribed to \"Combat\": {}", threadID, handler->m_eventTrack.combat);
-        BRIDGE_INFO("[ptid {}] Client has subscribed to \"Extras\": {}", threadID, handler->m_eventTrack.extras);
-        BRIDGE_INFO("[ptid {}] Client has subscribed to \"Squad\": {}", threadID, handler->m_eventTrack.squad);
-
-        // Subscription error (if any).
-        if (!(handler->m_eventTrack.combat || handler->m_eventTrack.extras || handler->m_eventTrack.squad))
-        {
-            std::shared_ptr<Message> statusMsg{StatusMessage(handler->m_appData.requestID(), false, "no subscription")};
-            WriteToPipe(handle, statusMsg.get());
-            BRIDGE_ERROR("[ptid {}] No subscription, Ending PipeThread.", threadID);
-            CloseHandle(handle);
-            handler->m_handle = nullptr;
-            handler->m_running = false;
-            return;
+            for (const auto& str : types)
+            {
+                const auto msgTypeValue = MsgTypeStringToType(str);
+                if (msgTypeValue > 0)
+                {
+                    handler->incType(static_cast<MessageType>(msgTypeValue));
+                    BRIDGE_DEBUG("[ptid {}] Client subscribed to \"{}\".", threadID, str);
+                }
+                else
+                {
+                    const std::string err = "Invalid Message Type \"" + str + "\".";
+                    const auto statusMsg{StatusMessage(handler->m_appData.requestID(), false, err)};
+                    WriteToPipe(handle, statusMsg.get());
+                    BRIDGE_ERROR("[ptid {}] No such Message Type \"{}\", Ending PipeThread.", threadID, str);
+                    CloseHandle(handle);
+                    handler->m_handle = nullptr;
+                    handler->m_running = false;
+                    return;
+                }
+            }
         }
 
         // Protocol.
@@ -257,15 +250,14 @@ void PipeThread::start(uint64_t bridgeValidator)
         if (j.contains("protocol") && j["protocol"].is_string())
         {
             std::string protocol = j["protocol"].get<std::string>();
-            BRIDGE_DEBUG("[ptid {}] Recieved protocol \"{}\" from client.", threadID, protocol);
+            BRIDGE_DEBUG("[ptid {}] Received protocol \"{}\" from client.", threadID, protocol);
             protocolNum = IsProtocolStr(protocol);
         }
 
         // Protocol error (if any).
         if (protocolNum == 0)
         {
-            const std::shared_ptr<Message> statusMsg{
-                StatusMessage(handler->m_appData.requestID(), false, "no such protocol")};
+            const auto statusMsg{StatusMessage(handler->m_appData.requestID(), false, "no such protocol")};
             WriteToPipe(handle, statusMsg.get());
             BRIDGE_ERROR("[ptid {}] No such protocol, Ending PipeThread.", threadID);
             CloseHandle(handle);
@@ -276,7 +268,7 @@ void PipeThread::start(uint64_t bridgeValidator)
 
         handler->m_protocol = protocolNum; // Set active protocol here (sendMessage will use this for filtering).
         const MessageProtocol protocol{static_cast<MessageProtocol>(protocolNum)};
-        handler->m_mt->useProtocol(protocol);
+        handler->m_mt->incProtocol(protocol);
         BRIDGE_INFO("[ptid {}] Client is using protocol \"{}\"", threadID, MessageProtocolToStr(protocol));
 
         // Success!
@@ -289,9 +281,11 @@ void PipeThread::start(uint64_t bridgeValidator)
             }
         }
 
+        BRIDGE_INFO("[ptid {}] Client is now connected and can recieve events.", threadID);
+
         std::shared_ptr<Message> msg{};
 
-        if (handler->m_eventTrack.squad)
+        if (handler->isTrackingType(MessageType::SquadStatus))
         {
             handler->m_status = Status::Sending;
 
@@ -397,15 +391,10 @@ void PipeThread::start(uint64_t bridgeValidator)
         }
 
         // Untrack protocol.
-        handler->m_mt->unuseProtocol(protocol);
+        handler->m_mt->decProtocol(protocol);
 
         // Untrack events.
-        if (handler->m_eventTrack.combat)
-            handler->m_mt->untrackCategory(MessageCategory::Combat);
-        if (handler->m_eventTrack.extras)
-            handler->m_mt->untrackCategory(MessageCategory::Extras);
-        if (handler->m_eventTrack.squad)
-            handler->m_mt->untrackCategory(MessageCategory::Squad);
+        handler->resetTypeTracking();
 
         handler->m_status = Status::NONE;
         CloseHandle(handle);
@@ -472,24 +461,7 @@ void PipeThread::sendMessage(std::shared_ptr<Message> msg)
 {
     std::unique_lock<std::mutex> lock(m_mutex);
 
-    bool send = false;
-
-    switch (msg->category())
-    {
-        case MessageCategory::Combat:
-            send = m_eventTrack.combat;
-            break;
-        case MessageCategory::Extras:
-            send = m_eventTrack.extras;
-            break;
-        case MessageCategory::Squad:
-            send = m_eventTrack.squad;
-            break;
-        default:
-            break;
-    }
-
-    if (send)
+    if (isTrackingType(msg->type()))
     {
         std::unique_lock<std::mutex> msgLock(m_msgCont.mutex);
         if (m_msgCont.queue.size() < m_appData.Config.msgQueueSize)
@@ -498,6 +470,68 @@ void PipeThread::sendMessage(std::shared_ptr<Message> msg)
             m_msgCont.cv.notify_one();
         }
     }
+}
+
+void PipeThread::incType(MessageType type)
+{
+    if (!isTrackingType(type))
+    {
+        m_eventTrack.incType(type);
+        if (m_mt)
+            m_mt->incType(type);
+    }
+}
+
+void PipeThread::decType(MessageType type)
+{
+    if (isTrackingType(type))
+    {
+        m_eventTrack.decType(type);
+        if (m_mt)
+            m_mt->decType(type);
+    }
+}
+
+void PipeThread::trackType(MessageType type)
+{
+    incType(type);
+}
+
+void PipeThread::resetTypeTracking()
+{
+    for (std::ptrdiff_t i{1}; i < MessageTypeCount; ++i)
+    {
+        decType(static_cast<MessageType>(i));
+    }
+}
+
+bool PipeThread::isTrackingType(MessageType type) const
+{
+    return m_eventTrack.isTrackingType(type);
+}
+
+void PipeThread::EventTracking::incType(MessageType type)
+{
+    using MessageTypeU = std::underlying_type_t<MessageType>;
+    const auto index = static_cast<MessageTypeU>(type);
+    ++m_types[static_cast<std::ptrdiff_t>(index)];
+}
+
+void PipeThread::EventTracking::decType(MessageType type)
+{
+    if (isTrackingType(type))
+    {
+        using MessageTypeU = std::underlying_type_t<MessageType>;
+        const auto index = static_cast<MessageTypeU>(type);
+        --m_types[static_cast<std::ptrdiff_t>(index)];
+    }
+}
+
+bool PipeThread::EventTracking::isTrackingType(MessageType type) const
+{
+    using MessageTypeU = std::underlying_type_t<MessageType>;
+    const auto index = static_cast<MessageTypeU>(type);
+    return m_types[static_cast<std::ptrdiff_t>(index)];
 }
 
 SendStatus WriteToPipe(HANDLE handle, const Message* msg)

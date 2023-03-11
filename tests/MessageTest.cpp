@@ -81,7 +81,7 @@ TEST_CASE("MessageType values")
     }
 }
 
-TEST_CASE("MessageType")
+TEST_CASE("MessageTypeToStr")
 {
     REQUIRE(MessageTypeToStr(MessageType::ConnectionStatus) == "ConnectionStatus");
     REQUIRE(MessageTypeToStr(MessageType::BridgeInfo) == "BridgeInfo");
@@ -96,6 +96,28 @@ TEST_CASE("MessageType")
     REQUIRE(MessageTypeToStr(MessageType::SquadAdd) == "SquadAdd");
     REQUIRE(MessageTypeToStr(MessageType::SquadUpdate) == "SquadUpdate");
     REQUIRE(MessageTypeToStr(MessageType::SquadRemove) == "SquadRemove");
+}
+
+TEST_CASE("MessageTypeCount")
+{
+    REQUIRE(MessageTypeCount == 14);
+}
+
+TEST_CASE("MessageTypeStrings")
+{
+    REQUIRE(MessageTypeStrings[0] == "ConnectionStatus");
+    REQUIRE(MessageTypeStrings[1] == "BridgeInfo");
+    REQUIRE(MessageTypeStrings[2] == "Status");
+    REQUIRE(MessageTypeStrings[3] == "Closing");
+    REQUIRE(MessageTypeStrings[4] == "CombatEvent");
+    REQUIRE(MessageTypeStrings[5] == "ExtrasSquadUpdate");
+    REQUIRE(MessageTypeStrings[6] == "ExtrasLanguageChanged");
+    REQUIRE(MessageTypeStrings[7] == "ExtrasKeyBindChanged");
+    REQUIRE(MessageTypeStrings[8] == "ExtrasChatMessage");
+    REQUIRE(MessageTypeStrings[9] == "SquadStatus");
+    REQUIRE(MessageTypeStrings[10] == "SquadAdd");
+    REQUIRE(MessageTypeStrings[11] == "SquadUpdate");
+    REQUIRE(MessageTypeStrings[12] == "SquadRemove");
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -207,6 +229,23 @@ TEST_CASE("MessageProtocolToStr")
 {
     REQUIRE(MessageProtocolToStr(MessageProtocol::Serial) == "Serial");
     REQUIRE(MessageProtocolToStr(MessageProtocol::JSON) == "JSON");
+}
+
+TEST_CASE("IsProtocolBitSet")
+{
+    using utype = std::underlying_type_t<MessageProtocol>;
+    constexpr auto serial = static_cast<utype>(MessageProtocol::Serial);
+    constexpr auto json = static_cast<utype>(MessageProtocol::JSON);
+
+    REQUIRE(IsProtocolBitSet<MessageProtocol::Serial>(serial));
+    REQUIRE(IsProtocolBitSet<MessageProtocol::JSON>(json));
+
+    REQUIRE_FALSE(IsProtocolBitSet<MessageProtocol::Serial>(json));
+    REQUIRE_FALSE(IsProtocolBitSet<MessageProtocol::JSON>(serial));
+
+    constexpr auto all = serial + json;
+    REQUIRE(IsProtocolBitSet<MessageProtocol::Serial>(all));
+    REQUIRE(IsProtocolBitSet<MessageProtocol::JSON>(all));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -539,5 +578,26 @@ TEST_CASE("MessageJSON")
 
         REQUIRE(msg.count() == j.size());
         REQUIRE(std::memcmp(msg.data(), j.data(), msg.count()) == 0);
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+//                            GetMessageClass                                //
+///////////////////////////////////////////////////////////////////////////////
+
+TEST_CASE("GetMessageClass")
+{
+    REQUIRE_FALSE(GetMessageClass<static_cast<MessageProtocol>(0)>::value);
+
+    SECTION("Serial")
+    {
+        REQUIRE(GetMessageClass<MessageProtocol::Serial>::value);
+        REQUIRE(std::is_same_v<GetMessageClass<MessageProtocol::Serial>::Type, MessageSerial>);
+    }
+
+    SECTION("JSON")
+    {
+        REQUIRE(GetMessageClass<MessageProtocol::JSON>::value);
+        REQUIRE(std::is_same_v<GetMessageClass<MessageProtocol::JSON>::Type, MessageJSON>);
     }
 }

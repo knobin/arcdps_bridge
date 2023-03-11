@@ -46,9 +46,13 @@ public:
 
     struct EventTracking
     {
-        bool combat{false};
-        bool extras{false};
-        bool squad{false};
+        void incType(MessageType type);
+        void decType(MessageType type);
+        [[nodiscard]] bool isTrackingType(MessageType type) const;
+
+    private:
+        // Types.
+        std::array<std::atomic<std::underlying_type_t<MessageType>>, MessageTypeCount> m_types{};
     };
 
 public:
@@ -69,7 +73,17 @@ public:
     void sendBridgeInfo(std::shared_ptr<Message> msg, uint64_t validator);
     void sendMessage(std::shared_ptr<Message> msg);
 
-    [[nodiscard]] EventTracking eventTracking() const { return m_eventTrack; }
+    [[nodiscard]] const EventTracking& eventTracking() const { return m_eventTrack; }
+    [[nodiscard]] bool isTrackingType(MessageType type) const;
+
+private:
+    // Track Types.
+    void trackType(MessageType type);
+    void resetTypeTracking();
+
+    // Helpers for Type tracking.
+    void incType(MessageType type);
+    void decType(MessageType type);
 
 private:
     MessageContainer m_msgCont{};
