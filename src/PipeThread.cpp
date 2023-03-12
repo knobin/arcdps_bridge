@@ -205,7 +205,7 @@ void PipeThread::start(uint64_t bridgeValidator)
         // Check if data is valid json.
         if (!nlohmann::json::accept(readStatus.data))
         {
-            std::shared_ptr<Message> statusMsg{StatusMessage(handler->m_appData.requestID(), false, "invalid JSON")};
+            std::shared_ptr<Message> statusMsg{StatusMessage(handler->m_appData.requestID(), false, "Invalid JSON")};
             WriteToPipe(handle, statusMsg.get());
             BRIDGE_ERROR("[ptid {}] Recieved invalid JSON, Ending PipeThread.", threadID);
             CloseHandle(handle);
@@ -217,6 +217,7 @@ void PipeThread::start(uint64_t bridgeValidator)
         nlohmann::json j = nlohmann::json::parse(readStatus.data);
 
         // Subscribe, array of strings.
+        std::size_t subCount{0};
         if (j.contains("subscribe") && j["subscribe"].is_array())
         {
             std::vector<std::string> types = j["subscribe"];
@@ -228,6 +229,7 @@ void PipeThread::start(uint64_t bridgeValidator)
                 {
                     handler->incType(static_cast<MessageType>(msgTypeValue));
                     BRIDGE_DEBUG("[ptid {}] Client subscribed to \"{}\".", threadID, str);
+                    ++subCount;
                 }
                 else
                 {
@@ -241,6 +243,18 @@ void PipeThread::start(uint64_t bridgeValidator)
                     return;
                 }
             }
+        }
+
+        // Subscription error (if no types are subscribed to).
+        if (subCount == 0)
+        {
+            const auto statusMsg{StatusMessage(handler->m_appData.requestID(), false, "No types are subscribed to")};
+            WriteToPipe(handle, statusMsg.get());
+            BRIDGE_ERROR("[ptid {}] No types are subscribed to, Ending PipeThread.", threadID);
+            CloseHandle(handle);
+            handler->m_handle = nullptr;
+            handler->m_running = false;
+            return;
         }
 
         // Protocol.
@@ -257,7 +271,7 @@ void PipeThread::start(uint64_t bridgeValidator)
         // Protocol error (if any).
         if (protocolNum == 0)
         {
-            const auto statusMsg{StatusMessage(handler->m_appData.requestID(), false, "no such protocol")};
+            const auto statusMsg{StatusMessage(handler->m_appData.requestID(), false, "No such protocol")};
             WriteToPipe(handle, statusMsg.get());
             BRIDGE_ERROR("[ptid {}] No such protocol, Ending PipeThread.", threadID);
             CloseHandle(handle);
