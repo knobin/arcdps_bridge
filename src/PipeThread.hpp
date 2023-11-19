@@ -23,7 +23,16 @@
 // Windows Headers
 #include <windows.h>
 
-class MessageTracking;
+struct EventTracking
+{
+    void incType(MessageType type);
+    void decType(MessageType type);
+    [[nodiscard]] bool isTrackingType(MessageType type) const;
+
+private:
+    // Types.
+    std::array<std::atomic<std::underlying_type_t<MessageType>>, MessageTypeCount> m_types{};
+};
 
 class PipeThread
 {
@@ -41,23 +50,12 @@ public:
     {
         std::mutex mutex{};
         std::condition_variable cv{};
-        std::queue<std::shared_ptr<Message>> queue{};
-    };
-
-    struct EventTracking
-    {
-        void incType(MessageType type);
-        void decType(MessageType type);
-        [[nodiscard]] bool isTrackingType(MessageType type) const;
-
-    private:
-        // Types.
-        std::array<std::atomic<std::underlying_type_t<MessageType>>, MessageTypeCount> m_types{};
+        std::queue<Message> queue{};
     };
 
 public:
     PipeThread() = delete;
-    PipeThread(std::size_t id, void* handle, MessageTracking* mt, const ApplicationData& appdata,
+    PipeThread(std::size_t id, void* handle, const ApplicationData& appdata, EventTracking *eventTracking,
                const SquadModifyHandler* squadModifyHandler);
     ~PipeThread();
 
@@ -68,12 +66,10 @@ public:
     [[nodiscard]] bool running() const { return m_running; }
 
     [[nodiscard]] std::size_t id() const { return m_id; }
-    [[nodiscard]] MessageProtocol protocol() const noexcept { return static_cast<MessageProtocol>(m_protocol.load()); }
 
-    void sendBridgeInfo(std::shared_ptr<Message> msg, uint64_t validator);
-    void sendMessage(std::shared_ptr<Message> msg);
+    void sendBridgeInfo(const Message& msg, uint64_t validator);
+    void sendMessage(const Message& msg);
 
-    [[nodiscard]] const EventTracking& eventTracking() const { return m_eventTrack; }
     [[nodiscard]] bool isTrackingType(MessageType type) const;
 
 private:
@@ -91,15 +87,14 @@ private:
     std::thread m_thread{};
     std::mutex m_mutex{};
     const SquadModifyHandler* m_squadModifyHandler;
-    EventTracking m_eventTrack{};
+    EventTracking m_eventTracking{};
+    EventTracking *m_handlerEventTracking{nullptr};
     void* m_handle{nullptr};
-    MessageTracking* m_mt{nullptr};
     Status m_status{Status::NONE};
     std::atomic<bool> m_run{false};
     std::atomic<bool> m_running{false};
     std::size_t m_id;
     uint64_t m_bridgeValidator{0}; // 0 = not sent to client yet.
-    std::atomic<std::underlying_type_t<MessageProtocol>> m_protocol{0};
     bool m_threadStarted{false};
 };
 

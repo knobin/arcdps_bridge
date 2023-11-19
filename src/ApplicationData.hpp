@@ -39,7 +39,7 @@ struct BridgeVersionInfo
 struct BridgeInfo
 {
     std::string extrasVersion{};    // Unofficial Extras version.
-    std::string arcvers{};          // ArcDPS version.
+    std::string arcVersion{};       // ArcDPS version.
 
     uint64_t validator{1};  // Runtime version of the BridgeInfo, if any value changes this will be incremented.
 
@@ -52,11 +52,66 @@ struct BridgeInfo
     mutable std::mutex mutex;
 };
 
-// clang-format on
+nlohmann::json ToJSON(const BridgeInfo& info);
 
-[[nodiscard]] nlohmann::json ToJSON(const BridgeInfo& info);
-[[nodiscard]] std::size_t SerialSize(const BridgeInfo& info);
-void ToSerial(const BridgeInfo& info, uint8_t* storage, std::size_t);
+class BridgeInfoSerializer
+{
+public:
+    BridgeInfoSerializer() = delete;
+    explicit BridgeInfoSerializer(const BridgeInfo& info)
+        : m_info{info}
+    {}
+
+    [[nodiscard]] inline std::size_t size() const noexcept
+    {
+        return fixedSize() + dynamicSize();
+    }
+
+    [[nodiscard]] static constexpr std::size_t fixedSize() noexcept
+    {
+        constexpr auto evStr{2 * sizeof(uint16_t)}; // extrasVersion "pointer" and size.
+        constexpr auto avStr{2 * sizeof(uint16_t)}; // arcvers "pointer" and size.
+        return evStr + avStr + (3 * sizeof(uint8_t)) + sizeof(m_info.validator) + sizeof(m_info.extrasInfoVersion);
+    }
+
+    [[nodiscard]] std::size_t dynamicSize() const noexcept
+    {
+        const auto evSize{(!m_info.extrasVersion.empty() ? m_info.extrasVersion.size() + 1 : 0)};
+        const auto avSize{(!m_info.arcVersion.empty() ? m_info.arcVersion.size() + 1 : 0)};
+        return evSize + avSize;
+    }
+
+    void writeToBuffers(MessageBuffers buffers) const
+    {
+        // Runtime version of BridgeInfo.
+        buffers.fixed = serial_w_integral(buffers.fixed, m_info.validator);
+
+        // extrasVersion.
+        const auto evIndex = static_cast<uint16_t>(buffers.dynamic - buffers.fixed);
+        buffers.dynamic = serial_w_string(buffers.dynamic, m_info.extrasVersion.data(), m_info.extrasVersion.size());
+        buffers.fixed = serial_w_integral(buffers.fixed, evIndex);
+        buffers.fixed = serial_w_integral(buffers.fixed, m_info.extrasVersion.size() + 1);
+
+        // arcVersion.
+        const auto avIndex = static_cast<uint16_t>(buffers.dynamic - buffers.fixed);
+        buffers.dynamic = serial_w_string(buffers.dynamic, m_info.arcVersion.data(), m_info.arcVersion.size());
+        buffers.fixed = serial_w_integral(buffers.fixed, avIndex);
+        buffers.fixed = serial_w_integral(buffers.fixed, m_info.arcVersion.size() + 1);
+
+        // Extras InfoVersion used.
+        buffers.fixed = serial_w_integral(buffers.fixed, m_info.extrasInfoVersion);
+
+        // Booleans.
+        buffers.fixed[0] = static_cast<uint8_t>(m_info.arcLoaded);
+        buffers.fixed[1] = static_cast<uint8_t>(m_info.extrasFound);
+        buffers.fixed[2] = static_cast<uint8_t>(m_info.extrasLoaded);
+    }
+
+private:
+    const BridgeInfo& m_info;
+};
+
+// clang-format on
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -107,7 +162,7 @@ struct ApplicationData
 
     std::string_view ConfigFile{"arcdps_bridge.ini"};
     std::string_view LogFile{"arcdps_bridge.log"};
-    std::string_view PipeName{"\\\\.\\pipe\\arcdps-bridge"};
+    std::string_view PipeName{R"(\\.\pipe\arcdps-bridge)"};
 
     [[nodiscard]] uint64_t requestID() const noexcept { return counter++; }
 

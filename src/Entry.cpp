@@ -95,6 +95,8 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID)
             BRIDGE_LOG_DESTROY();
             break;
         }
+        default:
+            break;
     }
     return TRUE;
 }
@@ -112,20 +114,11 @@ static void SendPlayerMsg(const Squad::PlayerInfoEntry& entry)
 
     if (Server->isTrackingType(Type))
     {
-        const auto protocols = Server->usingProtocols();
-
-        if (IsProtocolBitSet<MessageProtocol::Serial>(protocols))
-        {
-            const std::size_t playerEntrySize = SerialSize(entry);
-            SerialData serial{CreateSerialData(playerEntrySize)};
-            ToSerial(entry, &serial.ptr[Message::HeaderByteCount()], playerEntrySize);
-            Server->sendMessage(SquadMessage<MessageProtocol::Serial, Type>(id, timestamp, serial));
-        }
-        if (IsProtocolBitSet<MessageProtocol::JSON>(protocols))
-        {
-            nlohmann::json json{ToJSON(entry)};
-            Server->sendMessage(SquadMessage<MessageProtocol::JSON, Type>(id, timestamp, json));
-        }
+        Squad::PlayerInfoEntrySerializer serializer{entry};
+        MessageBuffer buffer{MessageBuffer::Create(serializer.size())};
+        MessageBuffers buffers{MessageBuffers::Create(buffer, Squad::PlayerInfoEntrySerializer::fixedSize())};
+        buffers = serializer.writeToBuffers(buffers);
+        Server->sendMessage(SquadMessage<Type>(id, timestamp, buffer));
     }
 }
 
@@ -302,19 +295,11 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
     if (!(Server->isTrackingType(MessageType::CombatEvent)))
         return 0;
 
-    const auto protocols = Server->usingProtocols();
-
-    if (IsProtocolBitSet<MessageProtocol::Serial>(protocols))
-    {
-        SerialData serial{Combat::CombatToSerial(ev, src, dst, skillname, id, revision)};
-        Server->sendMessage(
-            CombatMessage<MessageProtocol::Serial, MessageType::CombatEvent>(msgID, msgTimestamp, serial));
-    }
-    if (IsProtocolBitSet<MessageProtocol::JSON>(protocols))
-    {
-        nlohmann::json json{Combat::CombatToJSON(ev, src, dst, skillname, id, revision)};
-        Server->sendMessage(CombatMessage<MessageProtocol::JSON, MessageType::CombatEvent>(msgID, msgTimestamp, json));
-    }
+    Combat::EventSerializer serializer{ev, src, dst, skillname, id, revision};
+    MessageBuffer buffer{MessageBuffer::Create(serializer.size())};
+    MessageBuffers buffers{MessageBuffers::Create(buffer, Combat::EventSerializer::fixedSize())};
+    buffers = serializer.writeToBuffers(buffers);
+    Server->sendMessage(CombatMessage<MessageType::CombatEvent>(msgID, msgTimestamp, buffer));
 
     return 0;
 }
@@ -385,15 +370,15 @@ static uintptr_t mod_release()
 /* export -- arcdps looks for this exported function and calls the address it returns on client load */
 extern "C" __declspec(dllexport) void* get_init_addr(char* arcversionstr, void*, void*, HMODULE, void*, void*, UINT)
 {
-    AppData.Info.arcvers = std::string{arcversionstr};
-    BRIDGE_INFO("ArcDPS version: \"{}\"", AppData.Info.arcvers);
+    AppData.Info.arcVersion= std::string{arcversionstr};
+    BRIDGE_INFO("ArcDPS version: \"{}\"", AppData.Info.arcVersion);
     return mod_init;
 }
 
 /* export -- arcdps looks for this exported function and calls the address it returns on client exit */
 extern "C" __declspec(dllexport) void* get_release_addr()
 {
-    AppData.Info.arcvers = "";
+    AppData.Info.arcVersion = "";
     return mod_release;
 }
 
@@ -453,22 +438,11 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
 
             if (Server->isTrackingType(MessageType::ExtrasSquadUpdate))
             {
-                const auto protocols = Server->usingProtocols();
-
-                if (IsProtocolBitSet<MessageProtocol::Serial>(protocols))
-                {
-                    const std::size_t userInfoCount = Extras::SerialSize(*uinfo);
-                    SerialData serial{CreateSerialData(userInfoCount)};
-                    Extras::ToSerial(*uinfo, &serial.ptr[Message::HeaderByteCount()], userInfoCount);
-                    Server->sendMessage(
-                        ExtrasMessage<MessageProtocol::Serial, MessageType::ExtrasSquadUpdate>(id, timestamp, serial));
-                }
-                if (IsProtocolBitSet<MessageProtocol::JSON>(protocols))
-                {
-                    nlohmann::json json{Extras::ToJSON(*uinfo)};
-                    Server->sendMessage(
-                        ExtrasMessage<MessageProtocol::JSON, MessageType::ExtrasSquadUpdate>(id, timestamp, json));
-                }
+                Extras::UserInfoSerializer serializer{*uinfo};
+                MessageBuffer buffer{MessageBuffer::Create(serializer.size())};
+                MessageBuffers buffers{MessageBuffers::Create(buffer, Extras::UserInfoSerializer::fixedSize())};
+                buffers = serializer.writeToBuffers(buffers);
+                Server->sendMessage(ExtrasMessage<MessageType::ExtrasSquadUpdate>(id, timestamp, buffer));
             }
         }
     }
@@ -478,24 +452,14 @@ static void language_changed_callback(Language pNewLanguage)
 {
     if (Server->isTrackingType(MessageType::ExtrasLanguageChanged))
     {
-        const auto protocols = Server->usingProtocols();
         const auto id = AppData.requestID();
         const auto timestamp{GetMillisecondsSinceEpoch()};
 
-        if (IsProtocolBitSet<MessageProtocol::Serial>(protocols))
-        {
-            constexpr std::size_t langCount = Extras::SerialSize(Language{});
-            SerialData serial{CreateSerialData(langCount)};
-            Extras::ToSerial(pNewLanguage, &serial.ptr[Message::HeaderByteCount()], langCount);
-            Server->sendMessage(
-                ExtrasMessage<MessageProtocol::Serial, MessageType::ExtrasLanguageChanged>(id, timestamp, serial));
-        }
-        if (IsProtocolBitSet<MessageProtocol::JSON>(protocols))
-        {
-            nlohmann::json json{Extras::ToJSON(pNewLanguage)};
-            Server->sendMessage(
-                ExtrasMessage<MessageProtocol::JSON, MessageType::ExtrasLanguageChanged>(id, timestamp, json));
-        }
+        Extras::LanguageSerializer serializer{pNewLanguage};
+        MessageBuffer buffer{MessageBuffer::Create(Extras::LanguageSerializer::size())};
+        MessageBuffers buffers{MessageBuffers::Create(buffer, Extras::LanguageSerializer::fixedSize())};
+        buffers = serializer.writeToBuffers(buffers);
+        Server->sendMessage(ExtrasMessage<MessageType::ExtrasLanguageChanged>(id, timestamp, buffer));
     }
 }
 
@@ -503,24 +467,14 @@ static void keybind_changed_callback(KeyBinds::KeyBindChanged pChangedKeyBind)
 {
     if (Server->isTrackingType(MessageType::ExtrasKeyBindChanged))
     {
-        const auto protocols = Server->usingProtocols();
         const auto id = AppData.requestID();
         const auto timestamp{GetMillisecondsSinceEpoch()};
 
-        if (IsProtocolBitSet<MessageProtocol::Serial>(protocols))
-        {
-            constexpr std::size_t keyBindCount = Extras::SerialSize(KeyBinds::KeyBindChanged{});
-            SerialData serial{CreateSerialData(keyBindCount)};
-            Extras::ToSerial(pChangedKeyBind, &serial.ptr[Message::HeaderByteCount()], keyBindCount);
-            Server->sendMessage(
-                ExtrasMessage<MessageProtocol::Serial, MessageType::ExtrasKeyBindChanged>(id, timestamp, serial));
-        }
-        if (IsProtocolBitSet<MessageProtocol::JSON>(protocols))
-        {
-            nlohmann::json json{Extras::ToJSON(pChangedKeyBind)};
-            Server->sendMessage(
-                ExtrasMessage<MessageProtocol::JSON, MessageType::ExtrasKeyBindChanged>(id, timestamp, json));
-        }
+        Extras::KeyBindSerializer serializer{pChangedKeyBind};
+        MessageBuffer buffer{MessageBuffer::Create(Extras::KeyBindSerializer::size())};
+        MessageBuffers buffers{MessageBuffers::Create(buffer, Extras::KeyBindSerializer::fixedSize())};
+        buffers = serializer.writeToBuffers(buffers);
+        Server->sendMessage(ExtrasMessage<MessageType::ExtrasKeyBindChanged>(id, timestamp, buffer));
     }
 }
 
@@ -531,24 +485,14 @@ static void chat_message_callback(const ChatMessageInfo* pChatMessage)
 
     if (Server->isTrackingType(MessageType::ExtrasChatMessage))
     {
-        const auto protocols = Server->usingProtocols();
         const auto id = AppData.requestID();
         const auto timestamp{GetMillisecondsSinceEpoch()};
 
-        if (IsProtocolBitSet<MessageProtocol::Serial>(protocols))
-        {
-            const std::size_t chatMsgCount = Extras::SerialSize(*pChatMessage);
-            SerialData serial{CreateSerialData(chatMsgCount)};
-            Extras::ToSerial(*pChatMessage, &serial.ptr[Message::HeaderByteCount()], chatMsgCount);
-            Server->sendMessage(
-                ExtrasMessage<MessageProtocol::Serial, MessageType::ExtrasChatMessage>(id, timestamp, serial));
-        }
-        if (IsProtocolBitSet<MessageProtocol::JSON>(protocols))
-        {
-            nlohmann::json json{Extras::ToJSON(*pChatMessage)};
-            Server->sendMessage(
-                ExtrasMessage<MessageProtocol::JSON, MessageType::ExtrasChatMessage>(id, timestamp, json));
-        }
+        Extras::ChatMessageSerializer serializer{*pChatMessage};
+        MessageBuffer buffer{MessageBuffer::Create(serializer.size())};
+        MessageBuffers buffers{MessageBuffers::Create(buffer, Extras::ChatMessageSerializer::fixedSize())};
+        buffers = serializer.writeToBuffers(buffers);
+        Server->sendMessage(ExtrasMessage<MessageType::ExtrasChatMessage>(id, timestamp, buffer));
     }
 }
 
@@ -649,24 +593,14 @@ extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(c
         ++AppData.Info.validator;
         BRIDGE_DEBUG("Updated BridgeInfo");
 
-        const auto protocols = Server->usingProtocols();
         const auto id = AppData.requestID();
         const auto timestamp{GetMillisecondsSinceEpoch()};
         const auto validator = AppData.Info.validator;
 
-        if (IsProtocolBitSet<MessageProtocol::Serial>(protocols))
-        {
-            const std::size_t infoSize = SerialSize(AppData.Info);
-            SerialData serial{CreateSerialData(infoSize)};
-            ToSerial(AppData.Info, &serial.ptr[Message::HeaderByteCount()], infoSize);
-            Server->sendBridgeInfo(InfoMessage<MessageProtocol::Serial, MessageType::BridgeInfo>(id, timestamp, serial),
-                                   validator);
-        }
-        if (IsProtocolBitSet<MessageProtocol::JSON>(protocols))
-        {
-            nlohmann::json json{ToJSON(AppData.Info)};
-            Server->sendBridgeInfo(InfoMessage<MessageProtocol::JSON, MessageType::BridgeInfo>(id, timestamp, json),
-                                   validator);
-        }
+        BridgeInfoSerializer serializer{AppData.Info};
+        MessageBuffer buffer{MessageBuffer::Create(serializer.size())};
+        MessageBuffers buffers{MessageBuffers::Create(buffer, BridgeInfoSerializer::fixedSize())};
+        serializer.writeToBuffers(buffers);
+        Server->sendBridgeInfo(InfoMessage<MessageType::BridgeInfo>(id, timestamp, buffer), validator);
     }
 }

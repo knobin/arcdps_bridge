@@ -41,8 +41,6 @@ Configs InitConfigs(const std::string& filepath)
     return config;
 }
 
-///////////////////////////////////////////////////////////////////////////////////////////////////
-
 nlohmann::json ToJSON(const BridgeInfo& info)
 {
     nlohmann::json j{{"extrasVersion", nullptr},
@@ -56,36 +54,10 @@ nlohmann::json ToJSON(const BridgeInfo& info)
     if (!info.extrasVersion.empty())
         j["extrasVersion"] = info.extrasVersion;
 
-    if (!info.arcvers.empty())
-        j["arcVersion"] = info.arcvers;
+    if (!info.arcVersion.empty())
+        j["arcVersion"] = info.arcVersion;
 
     return j;
-}
-
-std::size_t SerialSize(const BridgeInfo& info)
-{
-    return info.extrasVersion.size() + info.arcvers.size() + 2 + (3 * sizeof(uint8_t)) +
-           sizeof(info.validator) + sizeof(info.extrasInfoVersion);
-}
-
-void ToSerial(const BridgeInfo& info, uint8_t* storage, std::size_t)
-{
-    uint8_t* location = storage;
-
-    // Runtime version of BridgeInfo.
-    location = serial_w_integral(location, info.validator);
-
-    // Version strings.
-    location = serial_w_string(location, info.extrasVersion.data(), info.extrasVersion.size());
-    location = serial_w_string(location, info.arcvers.data(), info.arcvers.size());
-
-    // Extras InfoVersion used.
-    location = serial_w_integral(location, info.extrasInfoVersion);
-
-    // Booleans.
-    location[0] = static_cast<uint8_t>(info.arcLoaded);
-    location[1] = static_cast<uint8_t>(info.extrasFound);
-    location[2] = static_cast<uint8_t>(info.extrasLoaded);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////

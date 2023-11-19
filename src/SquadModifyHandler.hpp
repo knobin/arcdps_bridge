@@ -5,8 +5,8 @@
 //  Created by Robin Gustafsson on 2022-07-26.
 //
 
-#ifndef BRIDGE_SQUADMODIFYHANDLER_HPP
-#define BRIDGE_SQUADMODIFYHANDLER_HPP
+#ifndef BRIDGE_SQUAD_MODIFY_HANDLER_HPP
+#define BRIDGE_SQUAD_MODIFY_HANDLER_HPP
 
 // Local Headers
 #include "PlayerContainer.hpp"
@@ -212,4 +212,4 @@ inline void SquadModifyHandler::clearCachedPlayer()
             m_addCache[i] = PlayerCache{};
 }
 
-#endif // BRIDGE_SQUADMODIFYHANDLER_HPP
+#endif // BRIDGE_SQUAD_MODIFY_HANDLER_HPP

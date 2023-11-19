@@ -7,22 +7,22 @@
 
 // Local Headers
 #include "PipeHandler.hpp"
+
+#include <utility>
 #include "Log.hpp"
 
-PipeHandler::PipeHandler(const std::string& pipeName, const ApplicationData& appdata,
+PipeHandler::PipeHandler(std::string pipeName, const ApplicationData& appdata,
                          const SquadModifyHandler* squadModifyHandler)
-    : m_pipeName{pipeName},
+    : m_pipeName{std::move(pipeName)},
       m_appData{appdata},
       m_squadModifyHandler{squadModifyHandler}
 {
 
 #if BRIDGE_LOG_LEVEL >= BRIDGE_LOG_LEVEL_DEBUG
-    BRIDGE_DEBUG("PipeHandler using protocol: {}.", m_msgTracking.usingProtocol(MessageProtocol::Serial));
-    BRIDGE_DEBUG("PipeHandler using protocol: {}.", m_msgTracking.usingProtocol(MessageProtocol::JSON));
     for (auto i{1}; i < MessageTypeCount; ++i)
     {
         const auto type = static_cast<MessageType>(i);
-        BRIDGE_DEBUG("PipeHandler tracking \"{}\": {}.", MessageTypeStrings[i - 1], m_msgTracking.isTrackingType(type));
+        BRIDGE_DEBUG("PipeHandler tracking \"{}\": {}.", MessageTypeStrings[i - 1], m_eventTracking.isTrackingType(type));
     }
 #endif
 }
@@ -30,13 +30,11 @@ PipeHandler::PipeHandler(const std::string& pipeName, const ApplicationData& app
 PipeHandler::~PipeHandler()
 {
 #if BRIDGE_LOG_LEVEL >= BRIDGE_LOG_LEVEL_DEBUG
-    BRIDGE_DEBUG("~PipeHandler using protocol: {}.", m_msgTracking.usingProtocol(MessageProtocol::Serial));
-    BRIDGE_DEBUG("~PipeHandler using protocol: {}.", m_msgTracking.usingProtocol(MessageProtocol::JSON));
     for (auto i{1}; i < MessageTypeCount; ++i)
     {
         const auto type = static_cast<MessageType>(i);
         BRIDGE_DEBUG("~PipeHandler tracking \"{}\": {}.", MessageTypeStrings[i - 1],
-                     m_msgTracking.isTrackingType(type));
+                     m_eventTracking.isTrackingType(type));
     }
     BRIDGE_DEBUG("~PipeHandler, running: {} threads: {}", m_run, m_threads.size());
 #endif
@@ -122,8 +120,8 @@ void PipeHandler::start()
                 {
                     BRIDGE_DEBUG("Sending ConnectionStatus message to client [{}].", threadID);
 
-                    std::shared_ptr<Message> msg{ConnectionStatusMessage(handler->m_appData.requestID(), info, true)};
-                    SendStatus sendStatus = WriteToPipe(handle, msg.get());
+                    Message msg{ConnectionStatusMessage(handler->m_appData.requestID(), info, true)};
+                    SendStatus sendStatus = WriteToPipe(handle, msg);
                     if (sendStatus.success)
                     {
                         BRIDGE_DEBUG("Successfully started client with id = {}.", threadID);
@@ -135,9 +133,8 @@ void PipeHandler::start()
                 {
                     constexpr std::string_view err{"Could not create PipeThread due to max amount of clients are connected."};
                     BRIDGE_DEBUG("Sending error \"{}\" to client [{}].", err, threadID);
-                    std::shared_ptr<Message> msg{
-                        ConnectionStatusMessage(handler->m_appData.requestID(), info, false, std::string{err})};
-                    WriteToPipe(handle, msg.get());
+                    Message msg{ConnectionStatusMessage(handler->m_appData.requestID(), info, false, std::string{err})};
+                    WriteToPipe(handle, msg);
                 }
             }
 
@@ -165,7 +162,7 @@ PipeThread* PipeHandler::dispatchPipeThread(void* handle, std::size_t id)
     {
         // Maybe add some error handling here in case if vector throws.
         return m_threads
-            .emplace_back(std::make_unique<PipeThread>(id, handle, &m_msgTracking, m_appData, m_squadModifyHandler))
+            .emplace_back(std::make_unique<PipeThread>(id, handle, m_appData, &m_eventTracking, m_squadModifyHandler))
             .get();
     }
 
@@ -236,12 +233,9 @@ void PipeHandler::stop()
     BRIDGE_DEBUG("PipeHandler stopped.");
 }
 
-void PipeHandler::sendBridgeInfo(const std::shared_ptr<Message>& msg, uint64_t validator)
+void PipeHandler::sendBridgeInfo(const Message& msg, uint64_t validator)
 {
-    if (msg == nullptr)
-        return;
-
-    if (!msg->valid())
+    if (!msg.valid())
         return;
 
     std::unique_lock<std::mutex> lock(m_mutex);
@@ -249,12 +243,12 @@ void PipeHandler::sendBridgeInfo(const std::shared_ptr<Message>& msg, uint64_t v
     if (m_running)
     {
         for (std::unique_ptr<PipeThread>& pt : m_threads)
-            if (pt->started() && pt->protocol() == msg->protocol())
+            if (pt->started())
                 pt->sendBridgeInfo(msg, validator);
     }
 }
 
-void PipeHandler::sendMessage(const std::shared_ptr<Message>& msg)
+void PipeHandler::sendMessage(const Message& msg)
 {
     std::unique_lock<std::mutex> lock(m_mutex);
 
@@ -264,77 +258,10 @@ void PipeHandler::sendMessage(const std::shared_ptr<Message>& msg)
 
 bool PipeHandler::isTrackingType(MessageType type) const
 {
-    return m_msgTracking.isTrackingType(type);
+    return m_eventTracking.isTrackingType(type);
 }
 
-bool PipeHandler::isUsingProtocol(MessageProtocol protocol) const
-{
-    return m_msgTracking.usingProtocol(protocol);
-}
-
-std::underlying_type_t<MessageProtocol> PipeHandler::usingProtocols() const
-{
-    using utype = std::underlying_type_t<MessageProtocol>;
-    utype protocols{};
-
-    if (isUsingProtocol(MessageProtocol::Serial))
-        protocols |= static_cast<utype>(MessageProtocol::Serial);
-    if (isUsingProtocol(MessageProtocol::JSON))
-        protocols |= static_cast<utype>(MessageProtocol::JSON);
-
-    return protocols;
-}
-
-void MessageTracking::incProtocol(MessageProtocol protocol)
-{
-    switch (protocol)
-    {
-        case MessageProtocol::Serial:
-            ++m_serial;
-            break;
-        case MessageProtocol::JSON:
-            ++m_json;
-            break;
-        default:
-            break;
-    }
-}
-
-void MessageTracking::decProtocol(MessageProtocol protocol)
-{
-    switch (protocol)
-    {
-        case MessageProtocol::Serial:
-            --m_serial;
-            break;
-        case MessageProtocol::JSON:
-            --m_json;
-            break;
-        default:
-            break;
-    }
-}
-
-bool MessageTracking::usingProtocol(MessageProtocol protocol) const
-{
-    bool ret = false;
-
-    switch (protocol)
-    {
-        case MessageProtocol::Serial:
-            ret = static_cast<bool>(m_serial);
-            break;
-        case MessageProtocol::JSON:
-            ret = static_cast<bool>(m_json);
-            break;
-        default:
-            break;
-    }
-
-    return ret;
-}
-
-std::shared_ptr<Message> ConnectionStatusMessage(uint64_t id, const nlohmann::json& info, bool success,
+Message ConnectionStatusMessage(uint64_t id, const nlohmann::json& info, bool success,
                                                  const std::string& error)
 {
     const uint64_t timestamp{GetMillisecondsSinceEpoch()};
@@ -348,5 +275,9 @@ std::shared_ptr<Message> ConnectionStatusMessage(uint64_t id, const nlohmann::js
     if (!success)
         j["error"] = error;
 
-    return InfoMessage<MessageProtocol::JSON, MessageType::ConnectionStatus>(id, timestamp, j);
+    std::string str{j.dump()};
+    auto buffer = MessageBuffer::Create(str.size());
+    std::memcpy(buffer.ptr.get() + MessageHeaderByteCount(), reinterpret_cast<const uint8_t*>(str.data()), str.size());
+
+    return InfoMessage<MessageType::ConnectionStatus>(id, timestamp, buffer);
 }

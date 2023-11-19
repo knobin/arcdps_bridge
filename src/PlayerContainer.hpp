@@ -87,39 +87,122 @@ namespace Squad
 
         void clear();
 
-        [[nodiscard]] nlohmann::json toJSON() const;
-        [[nodiscard]] SerialData toSerial(std::size_t startPadding = 0) const;
+        [[nodiscard]] MessageBuffer CreateMessageBuffer(const std::string& self) const;
 
     private:
         std::array<std::pair<bool, PlayerInfoEntry>, 65> m_squad{};
         mutable std::mutex m_mutex;
     };
 
-    constexpr std::size_t PlayerInfoPartialSize = sizeof(PlayerInfo::joinTime) + sizeof(PlayerInfo::profession) +
-                                                  sizeof(PlayerInfo::elite) + sizeof(PlayerInfo::role) +
-                                                  sizeof(PlayerInfo::subgroup) + (3 * sizeof(uint8_t));
-
-    [[nodiscard]] inline std::size_t SerialSize(const PlayerInfo& player) noexcept
+    class PlayerInfoSerializer
     {
-        const std::size_t acc_str_count{1 + player.accountName.size()};
-        const std::size_t char_str_count{1 + player.characterName.size()};
+    public:
+        PlayerInfoSerializer() = delete;
+        explicit PlayerInfoSerializer(const PlayerInfo& info)
+            : m_info{info}
+        {}
 
-        return acc_str_count + char_str_count + PlayerInfoPartialSize;
-    }
+        [[nodiscard]] inline std::size_t size() const noexcept
+        {
+            return fixedSize() + dynamicSize();
+        }
 
-    [[nodiscard]] inline std::size_t SerialSize(const PlayerInfoEntry& entry) noexcept
+        [[nodiscard]] static constexpr std::size_t fixedSize() noexcept
+        {
+            constexpr auto acc{2 * sizeof(uint16_t)}; // AccountName "pointer" and size.
+            constexpr auto cha{2 * sizeof(uint16_t)}; // CharacterName "pointer" and size.
+            return acc + cha + sizeof(PlayerInfo::joinTime) + sizeof(PlayerInfo::profession) +
+                sizeof(PlayerInfo::elite) + sizeof(PlayerInfo::role) +
+                sizeof(PlayerInfo::subgroup) + (3 * sizeof(uint8_t));
+        }
+
+        [[nodiscard]] std::size_t dynamicSize() const noexcept
+        {
+            const auto accSize{(!m_info.accountName.empty() ? m_info.accountName.size() + 1 : 0)};
+            const auto charSize{(!m_info.characterName.empty() ? m_info.characterName.size() + 1 : 0)};
+            return accSize + charSize;
+        }
+
+        [[nodiscard]] MessageBuffers writeToBuffers(MessageBuffers buffers) const
+        {
+            // AccountName.
+            const auto acIndex = static_cast<uint16_t>(buffers.dynamic - buffers.fixed);
+            buffers.dynamic = serial_w_string(buffers.dynamic, m_info.accountName.data(), m_info.accountName.size());
+            buffers.fixed = serial_w_integral(buffers.fixed, acIndex);
+            buffers.fixed = serial_w_integral(buffers.fixed, m_info.accountName.size() + 1);
+
+            // CharacterName.
+            const auto chIndex = static_cast<uint16_t>(buffers.dynamic - buffers.fixed);
+            buffers.dynamic = serial_w_string(buffers.dynamic, m_info.characterName.data(), m_info.characterName.size());
+            buffers.fixed = serial_w_integral(buffers.fixed, chIndex);
+            buffers.fixed = serial_w_integral(buffers.fixed, m_info.characterName.size() + 1);
+
+            // Fixed.
+            buffers.fixed = serial_w_integral(buffers.fixed, m_info.joinTime);
+            buffers.fixed = serial_w_integral(buffers.fixed, m_info.profession);
+            buffers.fixed = serial_w_integral(buffers.fixed, m_info.elite);
+            buffers.fixed = serial_w_integral(buffers.fixed, m_info.role);
+            buffers.fixed = serial_w_integral(buffers.fixed, m_info.subgroup);
+
+            buffers.fixed = serial_w_integral(buffers.fixed, static_cast<uint8_t>(m_info.inInstance));
+            buffers.fixed = serial_w_integral(buffers.fixed, static_cast<uint8_t>(m_info.self));
+            buffers.fixed = serial_w_integral(buffers.fixed, static_cast<uint8_t>(m_info.readyStatus));
+
+            return buffers;
+        }
+
+    private:
+        const PlayerInfo& m_info;
+    };
+
+    class PlayerInfoEntrySerializer
     {
-        return sizeof(entry.validator) + SerialSize(entry.player);
-    }
+    public:
+        PlayerInfoEntrySerializer() = delete;
+        explicit PlayerInfoEntrySerializer(const PlayerInfoEntry& info)
+            : m_info{info}
+        {}
 
-    void ToSerial(const PlayerInfo& player, uint8_t* storage, std::size_t count);
-    void ToSerial(const PlayerInfoEntry& entry, uint8_t* storage, std::size_t count);
+        [[nodiscard]] inline std::size_t size() const noexcept
+        {
+            return fixedSize() + dynamicSize();
+        }
 
-    [[nodiscard]] nlohmann::json ToJSON(const PlayerInfo& player);
-    [[nodiscard]] nlohmann::json ToJSON(const PlayerInfoEntry& entry);
+        [[nodiscard]] static constexpr std::size_t fixedSize() noexcept
+        {
+            return sizeof(uint16_t) + sizeof(m_info.validator);
+        }
+
+        [[nodiscard]] std::size_t dynamicSize() const noexcept
+        {
+            const PlayerInfoSerializer serializer{m_info.player};
+            return serializer.size();
+        }
+
+        [[nodiscard]] MessageBuffers writeToBuffers(MessageBuffers buffers) const
+        {
+            // Write whole PlayerInfo on dynamic.
+            const auto playerInfoIndex = static_cast<uint16_t>(buffers.dynamic - buffers.fixed);
+            MessageBuffers playerInfoBuffers{buffers.dynamic, buffers.dynamic + PlayerInfoSerializer::fixedSize()};
+            const PlayerInfoSerializer serializer{m_info.player};
+            playerInfoBuffers = serializer.writeToBuffers(playerInfoBuffers);
+            buffers.dynamic = playerInfoBuffers.dynamic; // Update local dynamic location.
+            buffers.fixed = serial_w_integral(buffers.fixed, playerInfoIndex);
+
+            // Fixed.
+            buffers.fixed = serial_w_integral(buffers.fixed, m_info.validator);
+
+            return buffers;
+        }
+
+    private:
+        const PlayerInfoEntry& m_info;
+    };
+
 } // namespace Squad
 
 bool operator==(const Squad::PlayerInfo& lhs, const Squad::PlayerInfo& rhs);
 bool operator!=(const Squad::PlayerInfo& lhs, const Squad::PlayerInfo& rhs);
+
 
 #endif // BRIDGE_PLAYERCONTAINER_HPP

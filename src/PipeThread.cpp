@@ -20,7 +20,7 @@
 #include <limits>
 #include <sstream>
 
-static std::shared_ptr<Message> StatusMessage(uint64_t id, bool success, const std::string& error = "")
+static Message StatusMessage(uint64_t id, bool success, const std::string& error = "")
 {
     const uint64_t timestamp{GetMillisecondsSinceEpoch()};
 
@@ -28,50 +28,23 @@ static std::shared_ptr<Message> StatusMessage(uint64_t id, bool success, const s
     if (!success)
         j["error"] = error;
 
-    return InfoMessage<MessageProtocol::JSON, MessageType::Status>(id, timestamp, j);
+    std::string str{j.dump()};
+    auto buffer = MessageBuffer::Create(str.size());
+    std::memcpy(buffer.ptr.get() + MessageHeaderByteCount(), reinterpret_cast<const uint8_t*>(str.data()), str.size());
+
+    return InfoMessage<MessageType::Status>(id, timestamp, buffer);
 }
 
-static std::shared_ptr<Message> ClosingMessage(uint64_t id, MessageProtocol protocol)
+static Message ClosingMessage(uint64_t id)
 {
-    if (protocol == MessageProtocol::Serial)
-        return InfoMessage<MessageProtocol::Serial, MessageType::Closing>(id, GetMillisecondsSinceEpoch());
-
-    // else if (protocol == MessageProtocol::JSON)
-    return InfoMessage<MessageProtocol::JSON, MessageType::Closing>(id, GetMillisecondsSinceEpoch());
+    return InfoMessage<MessageType::Closing>(id, GetMillisecondsSinceEpoch(), MessageBuffer{});
 }
 
-static std::shared_ptr<Message> SquadStatusMessage(uint64_t id, const std::string& self,
-                                                   const Squad::PlayerContainer& squad, MessageProtocol protocol)
+static Message SquadStatusMessage(uint64_t id, const std::string& self, const Squad::PlayerContainer& squad)
 {
     const uint64_t timestamp{GetMillisecondsSinceEpoch()};
-
-    SerialData serial{};
-    nlohmann::json json{};
-
-    if (protocol == MessageProtocol::Serial)
-    {
-        serial = squad.toSerial(self.size() + 1); // + 1 for null terminator.
-        serial_w_string(&serial.ptr[Message::HeaderByteCount()], self.c_str(), self.size());
-        return SquadMessage<MessageProtocol::Serial, MessageType::SquadStatus>(id, timestamp, serial);
-    }
-
-    // else if (protocol == MessageProtocol::JSON)
-    json = squad.toJSON();
-    json["self"] = self;
-    return SquadMessage<MessageProtocol::JSON, MessageType::SquadStatus>(id, timestamp, json);
-}
-
-static std::underlying_type_t<MessageProtocol> IsProtocolStr(const std::string& str)
-{
-    using MPU = std::underlying_type_t<MessageProtocol>;
-
-    if (MessageProtocolToStr(MessageProtocol::Serial) == str)
-        return static_cast<MPU>(MessageProtocol::Serial);
-
-    if (MessageProtocolToStr(MessageProtocol::JSON) == str)
-        return static_cast<MPU>(MessageProtocol::JSON);
-
-    return 0;
+    auto buffer = squad.CreateMessageBuffer(self);
+    return SquadMessage<MessageType::SquadStatus>(id, timestamp, buffer);
 }
 
 #if BRIDGE_LOG_LEVEL >= BRIDGE_LOG_LEVEL_MSG_DEBUG
@@ -112,23 +85,16 @@ static void PrintMsgDebug(const Message& msg, MessageProtocol protocol, std::siz
     #define BRIDGE_PRINT_MSG(...)
 #endif
 
-static SendStatus SendToClient(void* handle, Message* msg, MessageProtocol protocol)
+static SendStatus SendToClient(void* handle, const Message& msg)
 {
-    if (msg->protocol() != protocol)
-    {
-        BRIDGE_ERROR("Sending Message with protocol \"{}\", but client/server protocol is set to \"{}\"",
-                     MessageProtocolToStr(msg->protocol()), MessageProtocolToStr(protocol));
-        return {};
-    }
-
     return WriteToPipe(handle, msg);
 }
 
-PipeThread::PipeThread(std::size_t id, void* handle, MessageTracking* mt, const ApplicationData& appdata,
+PipeThread::PipeThread(std::size_t id, void* handle, const ApplicationData& appdata, EventTracking *eventTracking,
                        const SquadModifyHandler* squadModifyHandler)
     : m_handle{handle},
-      m_mt{mt},
       m_appData{appdata},
+      m_handlerEventTracking{eventTracking},
       m_id{id},
       m_squadModifyHandler{squadModifyHandler}
 {
@@ -205,8 +171,8 @@ void PipeThread::start(uint64_t bridgeValidator)
         // Check if data is valid json.
         if (!nlohmann::json::accept(readStatus.data))
         {
-            std::shared_ptr<Message> statusMsg{StatusMessage(handler->m_appData.requestID(), false, "Invalid JSON")};
-            WriteToPipe(handle, statusMsg.get());
+            Message statusMsg{StatusMessage(handler->m_appData.requestID(), false, "Invalid JSON")};
+            WriteToPipe(handle, statusMsg);
             BRIDGE_ERROR("[ptid {}] Recieved invalid JSON, Ending PipeThread.", threadID);
             CloseHandle(handle);
             handler->m_handle = nullptr;
@@ -235,7 +201,7 @@ void PipeThread::start(uint64_t bridgeValidator)
                 {
                     const std::string err = "Invalid Message Type \"" + str + "\".";
                     const auto statusMsg{StatusMessage(handler->m_appData.requestID(), false, err)};
-                    WriteToPipe(handle, statusMsg.get());
+                    WriteToPipe(handle, statusMsg);
                     BRIDGE_ERROR("[ptid {}] No such Message Type \"{}\", Ending PipeThread.", threadID, str);
                     CloseHandle(handle);
                     handler->m_handle = nullptr;
@@ -249,7 +215,7 @@ void PipeThread::start(uint64_t bridgeValidator)
         if (subCount == 0)
         {
             const auto statusMsg{StatusMessage(handler->m_appData.requestID(), false, "No types are subscribed to")};
-            WriteToPipe(handle, statusMsg.get());
+            WriteToPipe(handle, statusMsg);
             BRIDGE_ERROR("[ptid {}] No types are subscribed to, Ending PipeThread.", threadID);
             CloseHandle(handle);
             handler->m_handle = nullptr;
@@ -257,38 +223,10 @@ void PipeThread::start(uint64_t bridgeValidator)
             return;
         }
 
-        // Protocol.
-        using MessageProtocolU = std::underlying_type_t<MessageProtocol>;
-        MessageProtocolU protocolNum = 0;
-
-        if (j.contains("protocol") && j["protocol"].is_string())
-        {
-            std::string protocol = j["protocol"].get<std::string>();
-            BRIDGE_DEBUG("[ptid {}] Received protocol \"{}\" from client.", threadID, protocol);
-            protocolNum = IsProtocolStr(protocol);
-        }
-
-        // Protocol error (if any).
-        if (protocolNum == 0)
-        {
-            const auto statusMsg{StatusMessage(handler->m_appData.requestID(), false, "No such protocol")};
-            WriteToPipe(handle, statusMsg.get());
-            BRIDGE_ERROR("[ptid {}] No such protocol, Ending PipeThread.", threadID);
-            CloseHandle(handle);
-            handler->m_handle = nullptr;
-            handler->m_running = false;
-            return;
-        }
-
-        handler->m_protocol = protocolNum; // Set active protocol here (sendMessage will use this for filtering).
-        const MessageProtocol protocol{static_cast<MessageProtocol>(protocolNum)};
-        handler->m_mt->incProtocol(protocol);
-        BRIDGE_INFO("[ptid {}] Client is using protocol \"{}\"", threadID, MessageProtocolToStr(protocol));
-
         // Success!
         {
-            const std::shared_ptr<Message> statusMsg{StatusMessage(handler->m_appData.requestID(), true)};
-            SendStatus send = WriteToPipe(handle, statusMsg.get());
+            const Message statusMsg{StatusMessage(handler->m_appData.requestID(), true)};
+            SendStatus send = WriteToPipe(handle, statusMsg);
             if (!send.success)
             {
                 BRIDGE_ERROR("[ptid {}] Error sending data with err: {}!", threadID, send.error);
@@ -297,24 +235,24 @@ void PipeThread::start(uint64_t bridgeValidator)
 
         BRIDGE_INFO("[ptid {}] Client is now connected and can recieve events.", threadID);
 
-        std::shared_ptr<Message> msg{};
+        Message msg{};
 
         if (handler->isTrackingType(MessageType::SquadStatus))
         {
             handler->m_status = Status::Sending;
 
             handler->m_squadModifyHandler->work(
-                [id = handler->m_appData.requestID(), &msg, &appData = handler->m_appData, protocol,
+                [id = handler->m_appData.requestID(), &msg, &appData = handler->m_appData,
                  &msgCont = handler->m_msgCont]() {
-                msg = SquadStatusMessage(id, appData.SelfAccountName, appData.Squad, protocol);
+                msg = SquadStatusMessage(id, appData.SelfAccountName, appData.Squad);
 
                 // Clear queue if any messages.
                 std::unique_lock<std::mutex> msgLock(msgCont.mutex);
                 if (!msgCont.queue.empty())
-                    std::queue<std::shared_ptr<Message>>().swap(msgCont.queue);
+                    std::queue<Message>().swap(msgCont.queue);
             });
 
-            SendStatus send{SendToClient(handle, msg.get(), protocol)};
+            SendStatus send{SendToClient(handle, msg)};
             BRIDGE_PRINT_MSG(msg, protocol, threadID);
             if (!send.success)
             {
@@ -329,7 +267,7 @@ void PipeThread::start(uint64_t bridgeValidator)
         while (handler->m_run)
         {
             BRIDGE_MSG_DEBUG("Retrieving message to send.");
-            msg.reset();
+            msg = Message{};
 
             {
                 std::unique_lock<std::mutex> lock(handler->m_msgCont.mutex);
@@ -366,7 +304,7 @@ void PipeThread::start(uint64_t bridgeValidator)
                 handler->m_msgCont.queue.pop();
 
                 // Do not send empty message.
-                if (msg == nullptr || !msg->valid())
+                if (!msg.valid())
                 {
                     BRIDGE_WARN("[ptid {}] Empty message found", threadID);
                     continue;
@@ -375,7 +313,7 @@ void PipeThread::start(uint64_t bridgeValidator)
 
             // Send retrieved message.
             handler->m_status = Status::Sending;
-            SendStatus sendStatus = SendToClient(handle, msg.get(), protocol);
+            SendStatus sendStatus = SendToClient(handle, msg);
             BRIDGE_PRINT_MSG(msg, protocol, threadID);
 
             if (!sendStatus.success)
@@ -398,14 +336,11 @@ void PipeThread::start(uint64_t bridgeValidator)
             // If client is still connected and the thread is closing, send closing event.
             BRIDGE_DEBUG("[ptid {}] Sending closing event to client.", threadID);
 
-            std::shared_ptr<Message> closingMsg{ClosingMessage(handler->m_appData.requestID(), protocol)};
-            SendToClient(handle, closingMsg.get(), protocol);
+            Message closingMsg{ClosingMessage(handler->m_appData.requestID())};
+            SendToClient(handle, closingMsg);
             BRIDGE_PRINT_MSG(closingMsg, protocol, threadID);
             // Ignore sending error here.
         }
-
-        // Untrack protocol.
-        handler->m_mt->decProtocol(protocol);
 
         // Untrack events.
         handler->resetTypeTracking();
@@ -453,7 +388,7 @@ void PipeThread::stop()
     BRIDGE_DEBUG("PipeThread [ptid {}] Closed!", m_id);
 }
 
-void PipeThread::sendBridgeInfo(std::shared_ptr<Message> msg, uint64_t validator)
+void PipeThread::sendBridgeInfo(const Message& msg, uint64_t validator)
 {
     std::unique_lock<std::mutex> lock(m_mutex);
 
@@ -465,22 +400,22 @@ void PipeThread::sendBridgeInfo(std::shared_ptr<Message> msg, uint64_t validator
         if (m_msgCont.queue.size() < m_appData.Config.msgQueueSize)
         {
             BRIDGE_DEBUG("Sending updated BridgeInfo to client [ptid {}].", m_id);
-            m_msgCont.queue.emplace(std::move(msg));
+            m_msgCont.queue.push(msg);
             m_msgCont.cv.notify_one();
         }
     }
 }
 
-void PipeThread::sendMessage(std::shared_ptr<Message> msg)
+void PipeThread::sendMessage(const Message& msg)
 {
     std::unique_lock<std::mutex> lock(m_mutex);
 
-    if (isTrackingType(msg->type()))
+    if (isTrackingType(msg.type()))
     {
         std::unique_lock<std::mutex> msgLock(m_msgCont.mutex);
         if (m_msgCont.queue.size() < m_appData.Config.msgQueueSize)
         {
-            m_msgCont.queue.emplace(std::move(msg));
+            m_msgCont.queue.push(msg);
             m_msgCont.cv.notify_one();
         }
     }
@@ -490,9 +425,9 @@ void PipeThread::incType(MessageType type)
 {
     if (!isTrackingType(type))
     {
-        m_eventTrack.incType(type);
-        if (m_mt)
-            m_mt->incType(type);
+        m_eventTracking.incType(type);
+        if (m_handlerEventTracking)
+            m_handlerEventTracking->incType(type);
     }
 }
 
@@ -500,9 +435,9 @@ void PipeThread::decType(MessageType type)
 {
     if (isTrackingType(type))
     {
-        m_eventTrack.decType(type);
-        if (m_mt)
-            m_mt->decType(type);
+        m_eventTracking.decType(type);
+        if (m_handlerEventTracking)
+            m_handlerEventTracking->decType(type);
     }
 }
 
@@ -521,31 +456,7 @@ void PipeThread::resetTypeTracking()
 
 bool PipeThread::isTrackingType(MessageType type) const
 {
-    return m_eventTrack.isTrackingType(type);
-}
-
-void PipeThread::EventTracking::incType(MessageType type)
-{
-    using MessageTypeU = std::underlying_type_t<MessageType>;
-    const auto index = static_cast<MessageTypeU>(type);
-    ++m_types[static_cast<std::ptrdiff_t>(index)];
-}
-
-void PipeThread::EventTracking::decType(MessageType type)
-{
-    if (isTrackingType(type))
-    {
-        using MessageTypeU = std::underlying_type_t<MessageType>;
-        const auto index = static_cast<MessageTypeU>(type);
-        --m_types[static_cast<std::ptrdiff_t>(index)];
-    }
-}
-
-bool PipeThread::EventTracking::isTrackingType(MessageType type) const
-{
-    using MessageTypeU = std::underlying_type_t<MessageType>;
-    const auto index = static_cast<MessageTypeU>(type);
-    return m_types[static_cast<std::ptrdiff_t>(index)];
+    return m_eventTracking.isTrackingType(type);
 }
 
 SendStatus WriteToPipe(HANDLE handle, const Message* msg)
@@ -594,4 +505,28 @@ ReadStatus ReadFromPipe(HANDLE handle)
         status.error = GetLastError();
 
     return status;
+}
+
+void EventTracking::incType(MessageType type)
+{
+    using MessageTypeU = std::underlying_type_t<MessageType>;
+    const auto index = static_cast<MessageTypeU>(type);
+    ++m_types[static_cast<std::ptrdiff_t>(index)];
+}
+
+void EventTracking::decType(MessageType type)
+{
+    if (isTrackingType(type))
+    {
+        using MessageTypeU = std::underlying_type_t<MessageType>;
+        const auto index = static_cast<MessageTypeU>(type);
+        --m_types[static_cast<std::ptrdiff_t>(index)];
+    }
+}
+
+bool EventTracking::isTrackingType(MessageType type) const
+{
+    using MessageTypeU = std::underlying_type_t<MessageType>;
+    const auto index = static_cast<MessageTypeU>(type);
+    return m_types[static_cast<std::ptrdiff_t>(index)];
 }

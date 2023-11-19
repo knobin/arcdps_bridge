@@ -11,9 +11,6 @@
 // Local Headers
 #include "Message.hpp"
 
-// nlohmann_json Headers
-#include <nlohmann/json.hpp>
-
 // C++ Headers
 #include <cstdint>
 #include <cstring>
@@ -84,31 +81,153 @@ struct ag
 
 namespace Combat
 {
-    // Combat event (cbtevent).
-    [[nodiscard]] constexpr std::size_t SerialSize(const cbtevent& ev) noexcept
+    class AgentSerializer
     {
-        return sizeof(ev.time) + sizeof(ev.src_agent) + sizeof(ev.dst_agent) + sizeof(ev.value) + sizeof(ev.buff_dmg) +
-               sizeof(ev.overstack_value) + sizeof(ev.skillid) + sizeof(ev.src_instid) + sizeof(ev.dst_instid) +
-               sizeof(ev.src_master_instid) + sizeof(ev.dst_master_instid) + sizeof(ev.iff) + sizeof(ev.buff) +
-               sizeof(ev.result) + sizeof(ev.is_activation) + sizeof(ev.is_buffremove) + sizeof(ev.is_ninety) +
-               sizeof(ev.is_fifty) + sizeof(ev.is_moving) + sizeof(ev.is_statechange) + sizeof(ev.is_flanking) +
-               sizeof(ev.is_shields) + sizeof(ev.is_offcycle);
-    }
-    void ToSerial(const cbtevent& ev, uint8_t* storage, std::size_t);
+    public:
+        AgentSerializer() = delete;
+        explicit AgentSerializer(ag *agent)
+            : m_agent{agent}
+        {
+            if (agent->name != nullptr)
+                m_strLength = static_cast<uint16_t>(std::strlen(agent->name)) + 1;
+        }
 
-    // Agent (ag).
-    constexpr std::size_t AgentPartialSize =
-        sizeof(ag::id) + sizeof(ag::prof) + sizeof(ag::elite) + sizeof(ag::self) + sizeof(ag::team);
-    [[nodiscard]] nlohmann::json ToJSON(const cbtevent& evt);
-    [[nodiscard]] std::size_t SerialSize(const ag& agent);
-    void ToSerial(const ag& agent, uint8_t* storage, std::size_t count);
-    [[nodiscard]] nlohmann::json ToJSON(const ag& agent);
+        [[nodiscard]] inline std::size_t size() const noexcept
+        {
+            if (m_agent == nullptr)
+                return 0;
 
-    // Combat Message generators (from mod_combat callback).
-    [[nodiscard]] SerialData CombatToSerial(cbtevent* ev, ag* src, ag* dst, char* skillname, uint64_t id,
-                                            uint64_t revision);
-    [[nodiscard]] nlohmann::json CombatToJSON(cbtevent* ev, ag* src, ag* dst, char* skillname, uint64_t id,
-                                              uint64_t revision);
+            return fixedSize() + dynamicSize();
+        }
+
+        [[nodiscard]] static constexpr std::size_t fixedSize() noexcept
+        {
+            constexpr auto str{2 * sizeof(uint16_t)}; // Str "pointer" and size.
+            return str + sizeof(ag::id) + sizeof(ag::prof) + sizeof(ag::elite) + sizeof(ag::self) + sizeof(ag::team);
+        }
+
+        [[nodiscard]] std::size_t dynamicSize() const noexcept
+        {
+            if (m_agent == nullptr)
+                return 0;
+
+            return m_strLength;
+        }
+
+        [[nodiscard]] MessageBuffers writeToBuffers(MessageBuffers buffers) const
+        {
+            if (m_agent != nullptr)
+            {
+                // Dynamic.
+                const auto strIndex = static_cast<uint16_t>(buffers.dynamic - buffers.fixed);
+                buffers.dynamic = serial_w_string(buffers.dynamic, m_agent->name, m_strLength - 1);
+
+                // String.
+                buffers.fixed = serial_w_integral(buffers.fixed, strIndex);
+                buffers.fixed = serial_w_integral(buffers.fixed, m_strLength);
+
+                // Fixed.
+                buffers.fixed = serial_w_integral(buffers.fixed, static_cast<uint64_t>(m_agent->id));
+                buffers.fixed = serial_w_integral(buffers.fixed, m_agent->prof);
+                buffers.fixed = serial_w_integral(buffers.fixed, m_agent->elite);
+                buffers.fixed = serial_w_integral(buffers.fixed, m_agent->self);
+                buffers.fixed = serial_w_integral(buffers.fixed, m_agent->team);
+            }
+            return buffers;
+        }
+
+    private:
+        ag *m_agent{nullptr};
+        uint16_t m_strLength{0};
+    };
+
+    class EventSerializer
+    {
+    public:
+        EventSerializer() = delete;
+        EventSerializer(cbtevent* ev, ag* src, ag* dst, char* sn, uint64_t id, uint64_t revision)
+            : m_ev{ev}, m_src{src}, m_dst{dst}, m_sn{sn}, m_id{id}, m_revision{revision}
+        {
+            if (m_sn)
+                m_snLength = static_cast<uint16_t>(std::strlen(m_sn)) + 1;
+        }
+
+        [[nodiscard]] inline std::size_t size() const noexcept
+        {
+            return fixedSize() + dynamicSize();
+        }
+
+        [[nodiscard]] static constexpr std::size_t fixedSize() noexcept
+        {
+            constexpr auto sn{2 * sizeof(uint16_t)}; // Str "pointer" and size.
+            constexpr auto p{3 * sizeof(uint16_t)}; // "pointer" for ev, src and dst.
+
+            return sn + p + sizeof(m_id) + sizeof(m_revision);
+        }
+
+        [[nodiscard]] std::size_t dynamicSize() const noexcept
+        {
+            // All pointer based variables will be stored on dynamic.
+            return m_snLength + ((m_ev) ? sizeof(cbtevent) : 0) + m_src.size() + m_dst.size();
+        }
+
+        [[nodiscard]] MessageBuffers writeToBuffers(MessageBuffers buffers) const
+        {
+            uint16_t evIndex{0};
+            uint16_t srcIndex{0};
+            uint16_t dstIndex{0};
+            uint16_t snIndex{0};
+
+            // Dynamic.
+            if (m_ev)
+            {
+                evIndex = static_cast<uint16_t>(buffers.dynamic - buffers.fixed);
+                std::memcpy(buffers.dynamic, m_ev, sizeof(cbtevent));
+                buffers.dynamic += sizeof(cbtevent);
+            }
+            if (m_src.size())
+            {
+                // Write whole Agent on dynamic.
+                srcIndex = static_cast<uint16_t>(buffers.dynamic - buffers.fixed);
+                MessageBuffers srcBuffers{buffers.dynamic, buffers.dynamic + AgentSerializer::fixedSize()};
+                srcBuffers = m_src.writeToBuffers(srcBuffers);
+                buffers.dynamic = srcBuffers.dynamic; // Update local dynamic location.
+            }
+            if (m_src.size())
+            {
+                // Write whole Agent on dynamic.
+                dstIndex = static_cast<uint16_t>(buffers.dynamic - buffers.fixed);
+                MessageBuffers dstBuffers{buffers.dynamic, buffers.dynamic + AgentSerializer::fixedSize()};
+                dstBuffers = m_src.writeToBuffers(dstBuffers);
+                buffers.dynamic = dstBuffers.dynamic; // Update local dynamic location.
+            }
+            if (m_sn)
+            {
+                snIndex = static_cast<uint16_t>(buffers.dynamic - buffers.fixed);
+                buffers.dynamic = serial_w_string(buffers.dynamic, m_sn, m_snLength - 1);
+            }
+
+            // Fixed.
+            buffers.fixed = serial_w_integral(buffers.fixed, evIndex);
+            buffers.fixed = serial_w_integral(buffers.fixed, srcIndex);
+            buffers.fixed = serial_w_integral(buffers.fixed, dstIndex);
+            buffers.fixed = serial_w_integral(buffers.fixed, snIndex);
+            buffers.fixed = serial_w_integral(buffers.fixed, m_snLength);
+            buffers.fixed = serial_w_integral(buffers.fixed, m_id);
+            buffers.fixed = serial_w_integral(buffers.fixed, m_revision);
+
+            return buffers;
+        }
+    private:
+        cbtevent *m_ev{nullptr};
+        AgentSerializer m_src;
+        AgentSerializer m_dst;
+        char *m_sn{nullptr};
+        uint16_t m_snLength{0};
+        uint64_t m_id{0};
+        uint64_t m_revision{0};
+    };
+
 } // namespace Combat
 
 #endif // BRIDGE_COMBAT_HPP

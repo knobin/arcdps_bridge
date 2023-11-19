@@ -165,101 +165,58 @@ namespace Squad
         BRIDGE_DEBUG("Cleared squad.");
     }
 
-    nlohmann::json PlayerContainer::toJSON() const
+    MessageBuffer PlayerContainer::CreateMessageBuffer(const std::string& self) const
     {
-        std::unique_lock<std::mutex> lock(m_mutex);
+        std::size_t fixed{};
+        std::size_t dynamic{0};
 
-        nlohmann::json members = nlohmann::json::array();
-        for (std::size_t i{0}; i < m_squad.size(); ++i)
-            if (m_squad[i].first)
-                members.push_back(ToJSON(m_squad[i].second));
+        // Self.
+        fixed += 2 * sizeof(uint16_t); // "Pointer" and size.
+        dynamic += self.size() + 1;
 
-        return {{"members", members}};
-    }
+        // Entry count.
+        fixed += sizeof(uint64_t);
 
-    SerialData PlayerContainer::toSerial(std::size_t startPadding) const
-    {
-        SerialData data{};
-        data.count = Message::HeaderByteCount() + startPadding + sizeof(uint64_t);
-
+        // Members ("entries").
         std::size_t entries = 0;
         for (std::size_t i{0}; i < m_squad.size(); ++i)
         {
             if (m_squad[i].first)
             {
-                data.count += SerialSize(m_squad[i].second);
+                const PlayerInfoEntrySerializer serializer{m_squad[i].second};
+                fixed += PlayerInfoEntrySerializer::fixedSize();
+                dynamic += serializer.dynamicSize();
                 ++entries;
             }
         }
 
-        data.ptr = std::make_unique<uint8_t[]>(data.count);
-        const auto padding = Message::HeaderByteCount() + static_cast<std::ptrdiff_t>(startPadding);
-        uint8_t* location = serial_w_integral(&data.ptr[padding], static_cast<uint64_t>(entries)); // Set entries count.
+        // Allocate.
+        MessageBuffer buffer{MessageBuffer::Create(fixed + dynamic)};
+        constexpr auto headerOffset = MessageHeaderByteCount();
+        MessageBuffers buffers{buffer.ptr.get() + headerOffset, buffer.ptr.get() + headerOffset + fixed};
 
+        // Write Self.
+        const auto selfIndex = static_cast<uint16_t>(buffers.dynamic - buffers.fixed);
+        buffers.dynamic = serial_w_string(buffers.dynamic, self.data(), self.size());
+        buffers.fixed = serial_w_integral(buffers.fixed, selfIndex);
+        buffers.fixed = serial_w_integral(buffers.fixed, self.size() + 1);
+
+        // Write Entries count.
+        buffers.fixed = serial_w_integral(buffers.fixed, static_cast<uint64_t>(entries));
+
+        // Write Entries.
         for (std::size_t i{0}; i < m_squad.size(); ++i)
         {
             if (m_squad[i].first)
             {
-                const std::size_t count = SerialSize(m_squad[i].second);
-                ToSerial(m_squad[i].second, location, count);
-                location += count;
+                const PlayerInfoEntrySerializer serializer{m_squad[i].second};
+                buffers = serializer.writeToBuffers(buffers);
             }
         }
 
-        return data;
+        return buffer;
     }
 
-    nlohmann::json ToJSON(const PlayerInfo& player)
-    {
-        nlohmann::json j{{"accountName", player.accountName},
-                         {"characterName", nullptr},
-                         {"joinTime", player.joinTime},
-                         {"profession", player.profession},
-                         {"elite", player.elite},
-                         {"role", static_cast<int>(player.role)},
-                         {"subgroup", static_cast<int>(player.subgroup)},
-                         {"self", player.self},
-                         {"inInstance", player.inInstance},
-                         {"readyStatus", player.readyStatus}};
-
-        if (!player.characterName.empty())
-            j["characterName"] = player.characterName;
-
-        return j;
-    }
-
-    void ToSerial(const PlayerInfo& player, uint8_t* storage, std::size_t)
-    {
-        uint8_t* location = storage;
-
-        const std::string& acc_name = player.accountName;
-        location = serial_w_string(location, acc_name.c_str(), acc_name.size());
-
-        const std::string& char_name = player.characterName;
-        location = serial_w_string(location, char_name.c_str(), char_name.size());
-
-        location = serial_w_integral(location, player.joinTime);
-        location = serial_w_integral(location, player.profession);
-        location = serial_w_integral(location, player.elite);
-        location = serial_w_integral(location, player.role);
-        location = serial_w_integral(location, player.subgroup);
-
-        location = serial_w_integral(location, static_cast<uint8_t>(player.inInstance));
-        location = serial_w_integral(location, static_cast<uint8_t>(player.self));
-        serial_w_integral(location, static_cast<uint8_t>(player.readyStatus));
-    }
-
-    void ToSerial(const PlayerInfoEntry& entry, uint8_t* storage, std::size_t count)
-    {
-        const std::size_t player_size = count - sizeof(entry.validator);
-        ToSerial(entry.player, storage, player_size);
-        serial_w_integral(storage + player_size, entry.validator);
-    }
-
-    nlohmann::json ToJSON(const PlayerInfoEntry& entry)
-    {
-        return nlohmann::json{{"player", ToJSON(entry.player)}, {"validator", entry.validator}};
-    }
 } // namespace Squad
 
 bool operator==(const Squad::PlayerInfo& lhs, const Squad::PlayerInfo& rhs)
