@@ -69,8 +69,8 @@ public:
 
     [[nodiscard]] static constexpr std::size_t fixedSize() noexcept
     {
-        constexpr auto evStr{2 * sizeof(uint16_t)}; // extrasVersion "pointer" and size.
-        constexpr auto avStr{2 * sizeof(uint16_t)}; // arcvers "pointer" and size.
+        constexpr auto evStr{sizeof(uint64_t) + sizeof(uint32_t)}; // extrasVersion "pointer" and size.
+        constexpr auto avStr{sizeof(uint64_t) + sizeof(uint32_t)}; // arcvers "pointer" and size.
         return evStr + avStr + (3 * sizeof(uint8_t)) + sizeof(m_info.validator) + sizeof(m_info.extrasInfoVersion);
     }
 
@@ -87,16 +87,34 @@ public:
         buffers.fixed = serial_w_integral(buffers.fixed, m_info.validator);
 
         // extrasVersion.
-        const auto evIndex = static_cast<uint16_t>(buffers.dynamic - buffers.fixed);
-        buffers.dynamic = serial_w_string(buffers.dynamic, m_info.extrasVersion.data(), m_info.extrasVersion.size());
-        buffers.fixed = serial_w_integral(buffers.fixed, evIndex);
-        buffers.fixed = serial_w_integral(buffers.fixed, m_info.extrasVersion.size() + 1);
+        {
+            uint64_t evIndex{0};
+            uint32_t evLength{0};
+            if (!m_info.extrasVersion.empty())
+            {
+                evIndex = static_cast<uint64_t>(buffers.dynamic - buffers.fixed);
+                evLength = static_cast<uint32_t>(m_info.extrasVersion.size());
+                buffers.dynamic = serial_w_string(buffers.dynamic, m_info.extrasVersion.data(), evLength);
+                ++evLength;
+            }
+            buffers.fixed = serial_w_integral(buffers.fixed, evIndex);
+            buffers.fixed = serial_w_integral(buffers.fixed, evLength);
+        }
 
         // arcVersion.
-        const auto avIndex = static_cast<uint16_t>(buffers.dynamic - buffers.fixed);
-        buffers.dynamic = serial_w_string(buffers.dynamic, m_info.arcVersion.data(), m_info.arcVersion.size());
-        buffers.fixed = serial_w_integral(buffers.fixed, avIndex);
-        buffers.fixed = serial_w_integral(buffers.fixed, m_info.arcVersion.size() + 1);
+        {
+            uint64_t avIndex{0};
+            uint32_t avLength{0};
+            if (!m_info.arcVersion.empty())
+            {
+                avIndex = static_cast<uint64_t>(buffers.dynamic - buffers.fixed);
+                avLength = static_cast<uint32_t>(m_info.arcVersion.size());
+                buffers.dynamic = serial_w_string(buffers.dynamic, m_info.arcVersion.data(), avLength);
+                ++avLength;
+            }
+            buffers.fixed = serial_w_integral(buffers.fixed, avIndex);
+            buffers.fixed = serial_w_integral(buffers.fixed, avLength);
+        }
 
         // Extras InfoVersion used.
         buffers.fixed = serial_w_integral(buffers.fixed, m_info.extrasInfoVersion);

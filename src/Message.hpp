@@ -214,7 +214,8 @@ inline uint8_t* serial_w_integral(uint8_t* storage, T val)
     return storage + count;
 }
 
-inline uint8_t* serial_w_string(uint8_t* storage, const char* data, std::size_t count)
+// String can only be 4294967295 characters long (including null terminator).
+inline uint8_t* serial_w_string(uint8_t* storage, const char* data, uint32_t count)
 {
     std::memcpy(storage, data, count);
     storage[count] = '\0';

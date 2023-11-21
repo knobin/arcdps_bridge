@@ -109,8 +109,8 @@ namespace Squad
 
         [[nodiscard]] static constexpr std::size_t fixedSize() noexcept
         {
-            constexpr auto acc{2 * sizeof(uint16_t)}; // AccountName "pointer" and size.
-            constexpr auto cha{2 * sizeof(uint16_t)}; // CharacterName "pointer" and size.
+            constexpr auto acc{sizeof(uint64_t) + sizeof(uint32_t)}; // AccountName "pointer" and size.
+            constexpr auto cha{sizeof(uint64_t) + sizeof(uint32_t)}; // CharacterName "pointer" and size.
             return acc + cha + sizeof(PlayerInfo::joinTime) + sizeof(PlayerInfo::profession) +
                 sizeof(PlayerInfo::elite) + sizeof(PlayerInfo::role) +
                 sizeof(PlayerInfo::subgroup) + (3 * sizeof(uint8_t));
@@ -126,16 +126,34 @@ namespace Squad
         [[nodiscard]] MessageBuffers writeToBuffers(MessageBuffers buffers) const
         {
             // AccountName.
-            const auto acIndex = static_cast<uint16_t>(buffers.dynamic - buffers.fixed);
-            buffers.dynamic = serial_w_string(buffers.dynamic, m_info.accountName.data(), m_info.accountName.size());
-            buffers.fixed = serial_w_integral(buffers.fixed, acIndex);
-            buffers.fixed = serial_w_integral(buffers.fixed, m_info.accountName.size() + 1);
+            {
+                uint64_t acIndex{0};
+                uint32_t acLength{0};
+                if (!m_info.accountName.empty())
+                {
+                    acIndex = static_cast<uint64_t>(buffers.dynamic - buffers.fixed);
+                    acLength = static_cast<uint32_t>(m_info.accountName.size());
+                    buffers.dynamic = serial_w_string(buffers.dynamic, m_info.accountName.data(), acLength);
+                    ++acLength;
+                }
+                buffers.fixed = serial_w_integral(buffers.fixed, acIndex);
+                buffers.fixed = serial_w_integral(buffers.fixed, acLength);
+            }
 
             // CharacterName.
-            const auto chIndex = static_cast<uint16_t>(buffers.dynamic - buffers.fixed);
-            buffers.dynamic = serial_w_string(buffers.dynamic, m_info.characterName.data(), m_info.characterName.size());
-            buffers.fixed = serial_w_integral(buffers.fixed, chIndex);
-            buffers.fixed = serial_w_integral(buffers.fixed, m_info.characterName.size() + 1);
+            {
+                uint64_t chIndex{0};
+                uint32_t chLength{0};
+                if (!m_info.characterName.empty())
+                {
+                    chIndex = static_cast<uint64_t>(buffers.dynamic - buffers.fixed);
+                    chLength = static_cast<uint32_t>(m_info.characterName.size());
+                    buffers.dynamic = serial_w_string(buffers.dynamic, m_info.characterName.data(), chLength);
+                    ++chLength;
+                }
+                buffers.fixed = serial_w_integral(buffers.fixed, chIndex);
+                buffers.fixed = serial_w_integral(buffers.fixed, chLength);
+            }
 
             // Fixed.
             buffers.fixed = serial_w_integral(buffers.fixed, m_info.joinTime);

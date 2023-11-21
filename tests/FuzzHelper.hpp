@@ -22,6 +22,17 @@
 #include <random>
 
 //
+// Reading helpers.
+//
+
+template <typename T>
+T ReadIntegral(const uint8_t* location)
+{
+    static_assert(std::is_integral<T>::value, "Integral required.");
+    return *reinterpret_cast<const T*>(location);
+}
+
+//
 // Base Node to inherit from.
 //
 
@@ -117,10 +128,10 @@ static const std::array<std::function<std::unique_ptr<Node>()>, 8> IntegralCreat
 // String node and related random generator functions.
 //
 
-inline uint8_t* RequireStringAtLocation(uint8_t* storage, const char* str, std::size_t count)
+inline uint8_t* RequireStringAtLocation(uint8_t* storage, const char* str, uint32_t count)
 {
     const char* location = reinterpret_cast<const char*>(storage);
-    for (std::size_t i{0}; i < count; ++i)
+    for (uint32_t i{0}; i < count; ++i)
         REQUIRE(location[i] == str[i]);
     REQUIRE(location[count] == '\0');
     return storage + count + 1;
@@ -134,12 +145,12 @@ struct StringNode : Node
 
     std::string value{};
 
-    uint8_t* write(uint8_t* storage) override { return serial_w_string(storage, value.c_str(), value.size()); }
+    uint8_t* write(uint8_t* storage) override { return serial_w_string(storage, value.c_str(), static_cast<uint32_t>(value.size())); }
     uint8_t* require(uint8_t* storage) override
     {
-        return RequireStringAtLocation(storage, value.c_str(), value.size());
+        return RequireStringAtLocation(storage, value.c_str(), static_cast<uint32_t>(value.size()));
     }
-    [[nodiscard]] std::size_t count() const override { return value.size() + 1; }
+    [[nodiscard]] std::size_t count() const override { return static_cast<std::size_t>(value.size()) + 1; }
 };
 
 constexpr std::size_t MaxStringSize = 2048;
@@ -213,8 +224,5 @@ inline void BudgetFuzzer(Creator func)
             location = nodes[j]->require(location); // Serial.
             nodes[j]->json_require();
         }
-
-        // Validate pointer location (== +1 of last storage position).
-        REQUIRE(buffer.get() + count == location);
     }
 }

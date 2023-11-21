@@ -171,11 +171,11 @@ namespace Squad
         std::size_t dynamic{0};
 
         // Self.
-        fixed += 2 * sizeof(uint16_t); // "Pointer" and size.
-        dynamic += self.size() + 1;
+        fixed += sizeof(uint64_t) + sizeof(uint32_t); // "Pointer" and size.
+        dynamic += static_cast<uint32_t>(self.size()) + 1;
 
         // Entry count.
-        fixed += sizeof(uint64_t);
+        fixed += sizeof(uint8_t);
 
         // Members ("entries").
         std::size_t entries = 0;
@@ -196,13 +196,22 @@ namespace Squad
         MessageBuffers buffers{buffer.ptr.get() + headerOffset, buffer.ptr.get() + headerOffset + fixed};
 
         // Write Self.
-        const auto selfIndex = static_cast<uint16_t>(buffers.dynamic - buffers.fixed);
-        buffers.dynamic = serial_w_string(buffers.dynamic, self.data(), self.size());
-        buffers.fixed = serial_w_integral(buffers.fixed, selfIndex);
-        buffers.fixed = serial_w_integral(buffers.fixed, self.size() + 1);
+        {
+            uint64_t selfIndex{0};
+            uint32_t selfLength{0};
+            if (!self.empty())
+            {
+                selfIndex = static_cast<uint64_t>(buffers.dynamic - buffers.fixed);
+                selfLength = static_cast<uint32_t>(self.size());
+                buffers.dynamic = serial_w_string(buffers.dynamic, self.data(), selfLength);
+                ++selfLength;
+            }
+            buffers.fixed = serial_w_integral(buffers.fixed, selfIndex);
+            buffers.fixed = serial_w_integral(buffers.fixed, selfLength);
+        }
 
         // Write Entries count.
-        buffers.fixed = serial_w_integral(buffers.fixed, static_cast<uint64_t>(entries));
+        buffers.fixed = serial_w_integral(buffers.fixed, static_cast<uint8_t>(entries));
 
         // Write Entries.
         for (std::size_t i{0}; i < m_squad.size(); ++i)

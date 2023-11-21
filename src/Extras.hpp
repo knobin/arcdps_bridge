@@ -196,24 +196,64 @@ namespace Extras
         [[nodiscard]] MessageBuffers writeToBuffers(MessageBuffers buffers) const
         {
             // Timestamp.
-            const auto stampIndex = static_cast<uint16_t>(buffers.dynamic - buffers.fixed);
-            buffers.dynamic = serial_w_string(buffers.dynamic, m_chatMsgInfo.Timestamp, m_chatMsgInfo.TimestampLength);
-            buffers.fixed = serial_w_integral(buffers.fixed, stampIndex);
+            {
+                uint64_t stampIndex{0};
+                uint32_t stampLength{0};
+                if (m_chatMsgInfo.Timestamp)
+                {
+                    stampIndex = static_cast<uint64_t>(buffers.dynamic - buffers.fixed);
+                    stampLength = static_cast<uint32_t>(m_chatMsgInfo.TimestampLength);
+                    buffers.dynamic = serial_w_string(buffers.dynamic, m_chatMsgInfo.Timestamp, stampLength);
+                    ++stampLength;
+                }
+                buffers.fixed = serial_w_integral(buffers.fixed, stampIndex);
+                buffers.fixed = serial_w_integral(buffers.fixed, stampLength);
+            }
 
             // AccountName.
-            const auto accIndex = static_cast<uint16_t>(buffers.dynamic - buffers.fixed);
-            buffers.dynamic = serial_w_string(buffers.dynamic, m_chatMsgInfo.AccountName, m_chatMsgInfo.AccountNameLength);
-            buffers.fixed = serial_w_integral(buffers.fixed, accIndex);
+            {
+                uint64_t accIndex{0};
+                uint32_t accLength{0};
+                if (m_chatMsgInfo.AccountName)
+                {
+                    accIndex = static_cast<uint64_t>(buffers.dynamic - buffers.fixed);
+                    accLength = static_cast<uint32_t>(m_chatMsgInfo.AccountNameLength);
+                    buffers.dynamic = serial_w_string(buffers.dynamic, m_chatMsgInfo.AccountName, accLength);
+                    ++accLength;
+                }
+                buffers.fixed = serial_w_integral(buffers.fixed, accIndex);
+                buffers.fixed = serial_w_integral(buffers.fixed, accLength);
+            }
 
             // CharacterName.
-            const auto charIndex = static_cast<uint16_t>(buffers.dynamic - buffers.fixed);
-            buffers.dynamic = serial_w_string(buffers.dynamic, m_chatMsgInfo.CharacterName, m_chatMsgInfo.CharacterNameLength);
-            buffers.fixed = serial_w_integral(buffers.fixed, charIndex);
+            {
+                uint64_t chIndex{0};
+                uint32_t chLength{0};
+                if (m_chatMsgInfo.CharacterName)
+                {
+                    chIndex = static_cast<uint64_t>(buffers.dynamic - buffers.fixed);
+                    chLength = static_cast<uint32_t>(m_chatMsgInfo.CharacterNameLength);
+                    buffers.dynamic = serial_w_string(buffers.dynamic, m_chatMsgInfo.CharacterName, chLength);
+                    ++chLength;
+                }
+                buffers.fixed = serial_w_integral(buffers.fixed, chIndex);
+                buffers.fixed = serial_w_integral(buffers.fixed, chLength);
+            }
 
-            // CharacterName.
-            const auto txtIndex = static_cast<uint16_t>(buffers.dynamic - buffers.fixed);
-            buffers.dynamic = serial_w_string(buffers.dynamic, m_chatMsgInfo.Text, m_chatMsgInfo.TextLength);
-            buffers.fixed = serial_w_integral(buffers.fixed, txtIndex);
+            // ChatMessage.
+            {
+                uint64_t cmIndex{0};
+                uint32_t cmLength{0};
+                if (m_chatMsgInfo.CharacterName)
+                {
+                    cmIndex = static_cast<uint64_t>(buffers.dynamic - buffers.fixed);
+                    cmLength = static_cast<uint32_t>(m_chatMsgInfo.TextLength);
+                    buffers.dynamic = serial_w_string(buffers.dynamic, m_chatMsgInfo.Text, cmLength);
+                    ++cmLength;
+                }
+                buffers.fixed = serial_w_integral(buffers.fixed, cmIndex);
+                buffers.fixed = serial_w_integral(buffers.fixed, cmLength);
+            }
 
             // Fixed.
             buffers.fixed = serial_w_integral(buffers.fixed, m_chatMsgInfo.ChannelId);
