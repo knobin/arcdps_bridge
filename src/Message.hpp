@@ -206,7 +206,7 @@ inline uint64_t GetMillisecondsSinceEpoch()
 }
 
 template <typename T>
-inline uint8_t* serial_w_integral(uint8_t* storage, T val)
+constexpr uint8_t* serial_w_integral(uint8_t* storage, T val)
 {
     static_assert(std::is_integral<T>::value, "Integral required.");
     constexpr std::size_t count{sizeof(T)};
@@ -232,6 +232,7 @@ struct MessageHeader
     std::underlying_type_t<MessageType> type{0};
     uint64_t id{0};
     uint64_t timestamp{0};
+    uint64_t length{0};
 };
 
 inline bool operator==(const MessageHeader& lhs, const MessageHeader& rhs) noexcept
@@ -242,22 +243,70 @@ inline bool operator==(const MessageHeader& lhs, const MessageHeader& rhs) noexc
 // Number of bytes reserved for message header.
 [[nodiscard]] static constexpr std::ptrdiff_t MessageHeaderByteCount() noexcept
 {
-    return sizeof(MessageCategory) + sizeof(MessageType) + sizeof(uint64_t) + sizeof(uint64_t);
+    return sizeof(MessageCategory) +    // Category
+           sizeof(MessageType) +        // Type
+           sizeof(uint64_t) +           // id
+           sizeof(uint64_t) +           // timestamp
+           sizeof(uint64_t);            // length
 }
 
 //
 // Message Data.
 //
 
+class MemoryLocation
+{
+public:
+    MemoryLocation() = default;
+    explicit constexpr MemoryLocation(uint8_t *buffer)
+        : m_start{buffer}, m_buffer{buffer}
+    {}
+    ~MemoryLocation() = default;
+
+    template <typename T>
+    constexpr uint8_t* writeIntegral(T value)
+    {
+        m_buffer = serial_w_integral(m_buffer, value);
+        return m_buffer;
+    }
+
+    uint8_t* writeString(const char* data, uint32_t count)
+    {
+        m_buffer = serial_w_string(m_buffer, data, count);
+        return m_buffer;
+    }
+
+    uint8_t* writeBuffer(const void *data, uint32_t count)
+    {
+        std::memcpy(m_buffer, data, count);
+        m_buffer += count;
+        return m_buffer;
+    }
+
+    [[nodiscard]] constexpr uint8_t* start() const noexcept { return m_start; }
+    [[nodiscard]] constexpr uint8_t* head() const noexcept { return m_buffer; }
+
+private:
+    uint8_t *m_start{nullptr};
+    uint8_t *m_buffer{nullptr};
+};
+
+[[nodiscard]] constexpr uint16_t MemoryHeadOffset(const MemoryLocation& fixed, const MemoryLocation& dynamic) noexcept
+{
+    return static_cast<uint16_t>(dynamic.head() - fixed.head());
+}
+
 struct MessageBuffer
 {
     std::shared_ptr<uint8_t[]> ptr{nullptr};
     std::size_t count{0};
+    uint8_t* start{nullptr};
 
     static MessageBuffer Create(std::size_t count)
     {
         const std::size_t byte_count{static_cast<std::size_t>(MessageHeaderByteCount()) + count};
-        return {std::make_shared<uint8_t[]>(byte_count), byte_count};
+        std::shared_ptr<uint8_t[]> ptr{std::make_shared<uint8_t[]>(byte_count)};
+        return {ptr, byte_count, ptr.get() + MessageHeaderByteCount()};
     }
 };
 
@@ -277,20 +326,6 @@ inline bool operator==(const MessageBuffer& lhs, const MessageBuffer& rhs)
     return true;
 }
 
-struct MessageBuffers
-{
-    uint8_t *fixed{nullptr};
-    uint8_t *dynamic{nullptr};
-
-    static MessageBuffers Create(MessageBuffer& buffer, std::size_t offset)
-    {
-        auto start = buffer.ptr.get() + MessageHeaderByteCount();
-        return {start, start + offset};
-    }
-};
-
-
-
 //
 // Message class.
 //
@@ -309,7 +344,7 @@ public:
             m_buffer = MessageBuffer::Create(0);
         }
 
-        // Set first two bytes in serial data.
+        // Set Header data in message.
         // Narrow cast is safe here. 0 <= DataOffset() <= max of std::size_t.
         if (m_buffer.count >= static_cast<std::size_t>(MessageHeaderByteCount()) && m_buffer.ptr)
         {
@@ -319,7 +354,8 @@ public:
             uint8_t* storage{serial_w_integral(&m_buffer.ptr[0], c)};
             storage = serial_w_integral(storage, t);
             storage = serial_w_integral(storage, id());
-            serial_w_integral(storage, timestamp());
+            storage = serial_w_integral(storage, timestamp());
+            serial_w_integral(storage, static_cast<uint64_t>(m_buffer.count));
         }
     }
     virtual ~Message() = default;
@@ -336,10 +372,10 @@ public:
     [[nodiscard]] uint64_t id() const noexcept { return m_header.id; }
     [[nodiscard]] uint64_t timestamp() const noexcept { return m_header.timestamp; }
 
-    // Data retriever to implement.
+    // Data retriever.
     [[nodiscard]] const uint8_t* data() const noexcept { return m_buffer.ptr.get(); }
 
-    // Data size retriever to implement.
+    // Data size retriever.
     [[nodiscard]] std::size_t count() const noexcept { return m_buffer.count; }
 
 private:

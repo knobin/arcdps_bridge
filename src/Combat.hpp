@@ -114,26 +114,25 @@ namespace Combat
             return m_strLength;
         }
 
-        [[nodiscard]] MessageBuffers writeToBuffers(MessageBuffers buffers) const
+        void writeToBuffers(MemoryLocation& fixed, MemoryLocation& dynamic) const
         {
             if (m_agent != nullptr)
             {
                 // Dynamic.
-                const auto strIndex = static_cast<uint16_t>(buffers.dynamic - buffers.fixed);
-                buffers.dynamic = serial_w_string(buffers.dynamic, m_agent->name, m_strLength - 1);
+                const auto strIndex = static_cast<uint16_t>(dynamic.head() - fixed.head());
+                dynamic.writeString(m_agent->name, m_strLength - 1);
 
                 // String.
-                buffers.fixed = serial_w_integral(buffers.fixed, strIndex);
-                buffers.fixed = serial_w_integral(buffers.fixed, m_strLength);
+                fixed.writeIntegral(strIndex);
+                fixed.writeIntegral(m_strLength);
 
                 // Fixed.
-                buffers.fixed = serial_w_integral(buffers.fixed, static_cast<uint64_t>(m_agent->id));
-                buffers.fixed = serial_w_integral(buffers.fixed, m_agent->prof);
-                buffers.fixed = serial_w_integral(buffers.fixed, m_agent->elite);
-                buffers.fixed = serial_w_integral(buffers.fixed, m_agent->self);
-                buffers.fixed = serial_w_integral(buffers.fixed, m_agent->team);
+                fixed.writeIntegral(static_cast<uint64_t>(m_agent->id));
+                fixed.writeIntegral(m_agent->prof);
+                fixed.writeIntegral(m_agent->elite);
+                fixed.writeIntegral(m_agent->self);
+                fixed.writeIntegral(m_agent->team);
             }
-            return buffers;
         }
 
     private:
@@ -171,7 +170,7 @@ namespace Combat
             return m_snLength + ((m_ev) ? sizeof(cbtevent) : 0) + m_src.size() + m_dst.size();
         }
 
-        [[nodiscard]] MessageBuffers writeToBuffers(MessageBuffers buffers) const
+        void writeToBuffers(MemoryLocation& fixed, MemoryLocation& dynamic) const
         {
             uint16_t evIndex{0};
             uint16_t srcIndex{0};
@@ -181,43 +180,43 @@ namespace Combat
             // Dynamic.
             if (m_ev)
             {
-                evIndex = static_cast<uint16_t>(buffers.dynamic - buffers.fixed);
-                std::memcpy(buffers.dynamic, m_ev, sizeof(cbtevent));
-                buffers.dynamic += sizeof(cbtevent);
+                evIndex = MemoryHeadOffset(fixed, dynamic);
+                dynamic.writeBuffer(m_ev, sizeof(cbtevent));
             }
             if (m_src.size())
             {
                 // Write whole Agent on dynamic.
-                srcIndex = static_cast<uint16_t>(buffers.dynamic - buffers.fixed);
-                MessageBuffers srcBuffers{buffers.dynamic, buffers.dynamic + AgentSerializer::fixedSize()};
-                srcBuffers = m_src.writeToBuffers(srcBuffers);
-                buffers.dynamic = srcBuffers.dynamic; // Update local dynamic location.
+                srcIndex = MemoryHeadOffset(fixed, dynamic);
+                MemoryLocation tmpFixed{dynamic.head()};
+                MemoryLocation tmpDynamic{dynamic.head() + AgentSerializer::fixedSize()};
+                m_src.writeToBuffers(tmpFixed, tmpDynamic);
+                dynamic = tmpDynamic; // Update dynamic location.
             }
-            if (m_src.size())
+            if (m_dst.size())
             {
                 // Write whole Agent on dynamic.
-                dstIndex = static_cast<uint16_t>(buffers.dynamic - buffers.fixed);
-                MessageBuffers dstBuffers{buffers.dynamic, buffers.dynamic + AgentSerializer::fixedSize()};
-                dstBuffers = m_src.writeToBuffers(dstBuffers);
-                buffers.dynamic = dstBuffers.dynamic; // Update local dynamic location.
+                dstIndex = MemoryHeadOffset(fixed, dynamic);
+                MemoryLocation tmpFixed{dynamic.head()};
+                MemoryLocation tmpDynamic{dynamic.head() + AgentSerializer::fixedSize()};
+                m_dst.writeToBuffers(tmpFixed, tmpDynamic);
+                dynamic = tmpDynamic; // Update dynamic location.
             }
             if (m_sn)
             {
-                snIndex = static_cast<uint16_t>(buffers.dynamic - buffers.fixed);
-                buffers.dynamic = serial_w_string(buffers.dynamic, m_sn, m_snLength - 1);
+                snIndex = MemoryHeadOffset(fixed, dynamic);
+                dynamic.writeString(m_sn, m_snLength - 1);
             }
 
             // Fixed.
-            buffers.fixed = serial_w_integral(buffers.fixed, evIndex);
-            buffers.fixed = serial_w_integral(buffers.fixed, srcIndex);
-            buffers.fixed = serial_w_integral(buffers.fixed, dstIndex);
-            buffers.fixed = serial_w_integral(buffers.fixed, snIndex);
-            buffers.fixed = serial_w_integral(buffers.fixed, m_snLength);
-            buffers.fixed = serial_w_integral(buffers.fixed, m_id);
-            buffers.fixed = serial_w_integral(buffers.fixed, m_revision);
-
-            return buffers;
+            fixed.writeIntegral(evIndex);
+            fixed.writeIntegral(srcIndex);
+            fixed.writeIntegral(dstIndex);
+            fixed.writeIntegral(snIndex);
+            fixed.writeIntegral(m_snLength);
+            fixed.writeIntegral(m_id);
+            fixed.writeIntegral(m_revision);
         }
+
     private:
         cbtevent *m_ev{nullptr};
         AgentSerializer m_src;

@@ -98,9 +98,10 @@ TEST_CASE("BridgeInfo Serialization")
         uint8_t storage[totalSize] = {};
 
         BridgeInfoSerializer serializer{info};
-        MessageBuffers buffers{storage, storage + BridgeInfoSerializer::fixedSize()};
+        MemoryLocation fixed{storage};
+        MemoryLocation dynamic{storage + BridgeInfoSerializer::fixedSize()};
 
-        serializer.writeToBuffers(buffers);
+        serializer.writeToBuffers(fixed, dynamic);
         RequireBridgeInfo(info, storage);
     }
 }
@@ -161,8 +162,9 @@ struct BridgeInfoNode : Node
     uint8_t* write(uint8_t* storage) override
     {
         BridgeInfoSerializer serializer{value};
-        MessageBuffers buffers{storage, storage + BridgeInfoSerializer::fixedSize()};
-        serializer.writeToBuffers(buffers);
+        MemoryLocation fixed{storage};
+        MemoryLocation dynamic{storage + BridgeInfoSerializer::fixedSize()};
+        serializer.writeToBuffers(fixed, dynamic);
         return storage + serializer.size();
     }
     uint8_t* require(uint8_t* storage) override

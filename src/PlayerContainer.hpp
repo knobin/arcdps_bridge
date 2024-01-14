@@ -123,7 +123,7 @@ namespace Squad
             return accSize + charSize;
         }
 
-        [[nodiscard]] MessageBuffers writeToBuffers(MessageBuffers buffers) const
+        void writeToBuffers(MemoryLocation& fixed, MemoryLocation& dynamic) const
         {
             // AccountName.
             {
@@ -131,13 +131,13 @@ namespace Squad
                 uint32_t acLength{0};
                 if (!m_info.accountName.empty())
                 {
-                    acIndex = static_cast<uint64_t>(buffers.dynamic - buffers.fixed);
+                    acIndex = MemoryHeadOffset(fixed, dynamic);
                     acLength = static_cast<uint32_t>(m_info.accountName.size());
-                    buffers.dynamic = serial_w_string(buffers.dynamic, m_info.accountName.data(), acLength);
+                    dynamic.writeString(m_info.accountName.data(), acLength);
                     ++acLength;
                 }
-                buffers.fixed = serial_w_integral(buffers.fixed, acIndex);
-                buffers.fixed = serial_w_integral(buffers.fixed, acLength);
+                fixed.writeIntegral(acIndex);
+                fixed.writeIntegral(acLength);
             }
 
             // CharacterName.
@@ -146,27 +146,25 @@ namespace Squad
                 uint32_t chLength{0};
                 if (!m_info.characterName.empty())
                 {
-                    chIndex = static_cast<uint64_t>(buffers.dynamic - buffers.fixed);
+                    chIndex = MemoryHeadOffset(fixed, dynamic);
                     chLength = static_cast<uint32_t>(m_info.characterName.size());
-                    buffers.dynamic = serial_w_string(buffers.dynamic, m_info.characterName.data(), chLength);
+                    dynamic.writeString(m_info.characterName.data(), chLength);
                     ++chLength;
                 }
-                buffers.fixed = serial_w_integral(buffers.fixed, chIndex);
-                buffers.fixed = serial_w_integral(buffers.fixed, chLength);
+                fixed.writeIntegral(chIndex);
+                fixed.writeIntegral(chLength);
             }
 
             // Fixed.
-            buffers.fixed = serial_w_integral(buffers.fixed, m_info.joinTime);
-            buffers.fixed = serial_w_integral(buffers.fixed, m_info.profession);
-            buffers.fixed = serial_w_integral(buffers.fixed, m_info.elite);
-            buffers.fixed = serial_w_integral(buffers.fixed, m_info.role);
-            buffers.fixed = serial_w_integral(buffers.fixed, m_info.subgroup);
+            fixed.writeIntegral(m_info.joinTime);
+            fixed.writeIntegral(m_info.profession);
+            fixed.writeIntegral(m_info.elite);
+            fixed.writeIntegral(m_info.role);
+            fixed.writeIntegral(m_info.subgroup);
 
-            buffers.fixed = serial_w_integral(buffers.fixed, static_cast<uint8_t>(m_info.inInstance));
-            buffers.fixed = serial_w_integral(buffers.fixed, static_cast<uint8_t>(m_info.self));
-            buffers.fixed = serial_w_integral(buffers.fixed, static_cast<uint8_t>(m_info.readyStatus));
-
-            return buffers;
+            fixed.writeIntegral(static_cast<uint8_t>(m_info.inInstance));
+            fixed.writeIntegral(static_cast<uint8_t>(m_info.self));
+            fixed.writeIntegral(static_cast<uint8_t>(m_info.readyStatus));
         }
 
     private:
@@ -197,20 +195,19 @@ namespace Squad
             return serializer.size();
         }
 
-        [[nodiscard]] MessageBuffers writeToBuffers(MessageBuffers buffers) const
+        void writeToBuffers(MemoryLocation& fixed, MemoryLocation& dynamic) const
         {
             // Write whole PlayerInfo on dynamic.
-            const auto playerInfoIndex = static_cast<uint16_t>(buffers.dynamic - buffers.fixed);
-            MessageBuffers playerInfoBuffers{buffers.dynamic, buffers.dynamic + PlayerInfoSerializer::fixedSize()};
+            const auto playerInfoIndex = MemoryHeadOffset(fixed, dynamic);
             const PlayerInfoSerializer serializer{m_info.player};
-            playerInfoBuffers = serializer.writeToBuffers(playerInfoBuffers);
-            buffers.dynamic = playerInfoBuffers.dynamic; // Update local dynamic location.
-            buffers.fixed = serial_w_integral(buffers.fixed, playerInfoIndex);
+            MemoryLocation tmpFixed{dynamic.head()};
+            MemoryLocation tmpDynamic{dynamic.head() + PlayerInfoSerializer::fixedSize()};
+            serializer.writeToBuffers(tmpFixed, tmpDynamic);
+            dynamic = tmpDynamic; // Update dynamic location.
 
             // Fixed.
-            buffers.fixed = serial_w_integral(buffers.fixed, m_info.validator);
-
-            return buffers;
+            fixed.writeIntegral(playerInfoIndex);
+            fixed.writeIntegral(m_info.validator);
         }
 
     private:

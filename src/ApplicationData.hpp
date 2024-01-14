@@ -81,10 +81,10 @@ public:
         return evSize + avSize;
     }
 
-    void writeToBuffers(MessageBuffers buffers) const
+    void writeToBuffers(MemoryLocation& fixed, MemoryLocation& dynamic) const
     {
         // Runtime version of BridgeInfo.
-        buffers.fixed = serial_w_integral(buffers.fixed, m_info.validator);
+        fixed.writeIntegral(m_info.validator);
 
         // extrasVersion.
         {
@@ -92,13 +92,13 @@ public:
             uint32_t evLength{0};
             if (!m_info.extrasVersion.empty())
             {
-                evIndex = static_cast<uint64_t>(buffers.dynamic - buffers.fixed);
+                evIndex = MemoryHeadOffset(fixed, dynamic);
                 evLength = static_cast<uint32_t>(m_info.extrasVersion.size());
-                buffers.dynamic = serial_w_string(buffers.dynamic, m_info.extrasVersion.data(), evLength);
+                dynamic.writeString(m_info.extrasVersion.data(), evLength);
                 ++evLength;
             }
-            buffers.fixed = serial_w_integral(buffers.fixed, evIndex);
-            buffers.fixed = serial_w_integral(buffers.fixed, evLength);
+            fixed.writeIntegral(evIndex);
+            fixed.writeIntegral(evLength);
         }
 
         // arcVersion.
@@ -107,22 +107,22 @@ public:
             uint32_t avLength{0};
             if (!m_info.arcVersion.empty())
             {
-                avIndex = static_cast<uint64_t>(buffers.dynamic - buffers.fixed);
+                avIndex = MemoryHeadOffset(fixed, dynamic);
                 avLength = static_cast<uint32_t>(m_info.arcVersion.size());
-                buffers.dynamic = serial_w_string(buffers.dynamic, m_info.arcVersion.data(), avLength);
+                dynamic.writeString(m_info.arcVersion.data(), avLength);
                 ++avLength;
             }
-            buffers.fixed = serial_w_integral(buffers.fixed, avIndex);
-            buffers.fixed = serial_w_integral(buffers.fixed, avLength);
+            fixed.writeIntegral(avIndex);
+            fixed.writeIntegral(avLength);
         }
 
         // Extras InfoVersion used.
-        buffers.fixed = serial_w_integral(buffers.fixed, m_info.extrasInfoVersion);
+        fixed.writeIntegral(m_info.extrasInfoVersion);
 
         // Booleans.
-        buffers.fixed[0] = static_cast<uint8_t>(m_info.arcLoaded);
-        buffers.fixed[1] = static_cast<uint8_t>(m_info.extrasFound);
-        buffers.fixed[2] = static_cast<uint8_t>(m_info.extrasLoaded);
+        fixed.writeIntegral(static_cast<uint8_t>(m_info.arcLoaded));
+        fixed.writeIntegral(static_cast<uint8_t>(m_info.extrasFound));
+        fixed.writeIntegral(static_cast<uint8_t>(m_info.extrasLoaded));
     }
 
 private:

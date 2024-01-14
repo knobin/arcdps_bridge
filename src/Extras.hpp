@@ -49,20 +49,18 @@ namespace Extras
             return m_strLength;
         }
 
-        [[nodiscard]] MessageBuffers writeToBuffers(MessageBuffers buffers) const
+        void writeToBuffers(MemoryLocation& fixed, MemoryLocation& dynamic) const
         {
             // AccountName.
-            const auto acIndex = static_cast<uint16_t>(buffers.dynamic - buffers.fixed);
-            buffers.dynamic = serial_w_string(buffers.dynamic, m_user.AccountName, m_strLength - 1);
-            buffers.fixed = serial_w_integral(buffers.fixed, acIndex);
+            const auto acIndex = MemoryHeadOffset(fixed, dynamic);
+            dynamic.writeString(m_user.AccountName, m_strLength - 1);
 
             // Fixed.
-            buffers.fixed = serial_w_integral(buffers.fixed, static_cast<int64_t>(m_user.JoinTime));
-            buffers.fixed = serial_w_integral(buffers.fixed, static_cast<std::underlying_type_t<UserRole>>(m_user.Role));
-            buffers.fixed = serial_w_integral(buffers.fixed, m_user.Subgroup);
-            buffers.fixed = serial_w_integral(buffers.fixed, static_cast<uint8_t>(m_user.ReadyStatus));
-
-            return buffers;
+            fixed.writeIntegral(acIndex);
+            fixed.writeIntegral(static_cast<int64_t>(m_user.JoinTime));
+            fixed.writeIntegral(static_cast<std::underlying_type_t<UserRole>>(m_user.Role));
+            fixed.writeIntegral(m_user.Subgroup);
+            fixed.writeIntegral(static_cast<uint8_t>(m_user.ReadyStatus));
         }
 
     private:
@@ -97,10 +95,9 @@ namespace Extras
             return 0;
         }
 
-        [[nodiscard]] MessageBuffers writeToBuffers(MessageBuffers buffers) const
+        void writeToBuffers(MemoryLocation& fixed, MemoryLocation&) const
         {
-            buffers.fixed = serial_w_integral(buffers.fixed, static_cast<std::underlying_type_t<Language>>(m_language));
-            return buffers;
+            fixed.writeIntegral(static_cast<std::underlying_type_t<Language>>(m_language));
         }
 
     private:
@@ -139,19 +136,17 @@ namespace Extras
             return 0;
         }
 
-        [[nodiscard]] MessageBuffers writeToBuffers(MessageBuffers buffers) const
+        void writeToBuffers(MemoryLocation& fixed, MemoryLocation&) const
         {
             const auto keyControl = static_cast<std::underlying_type_t<KeyBinds::KeyControl>>(m_bindChanged.KeyControl);
-            buffers.fixed = serial_w_integral(buffers.fixed, keyControl);
-            buffers.fixed = serial_w_integral(buffers.fixed, m_bindChanged.KeyIndex);
+            fixed.writeIntegral(keyControl);
+            fixed.writeIntegral(m_bindChanged.KeyIndex);
 
             const auto deviceType =
                 static_cast<std::underlying_type_t<KeyBinds::DeviceType>>(m_bindChanged.SingleKey.DeviceType);
-            buffers.fixed = serial_w_integral(buffers.fixed, deviceType);
-            buffers.fixed = serial_w_integral(buffers.fixed, m_bindChanged.SingleKey.Code);
-            buffers.fixed = serial_w_integral(buffers.fixed, m_bindChanged.SingleKey.Modifier);
-
-            return buffers;
+            fixed.writeIntegral(deviceType);
+            fixed.writeIntegral(m_bindChanged.SingleKey.Code);
+            fixed.writeIntegral(m_bindChanged.SingleKey.Modifier);
         }
 
     private:
@@ -193,7 +188,7 @@ namespace Extras
             return timestampCount + accNameCount + charNameCount + textCount;
         }
 
-        [[nodiscard]] MessageBuffers writeToBuffers(MessageBuffers buffers) const
+        void writeToBuffers(MemoryLocation& fixed, MemoryLocation& dynamic) const
         {
             // Timestamp.
             {
@@ -201,13 +196,13 @@ namespace Extras
                 uint32_t stampLength{0};
                 if (m_chatMsgInfo.Timestamp)
                 {
-                    stampIndex = static_cast<uint64_t>(buffers.dynamic - buffers.fixed);
+                    stampIndex = MemoryHeadOffset(fixed, dynamic);
                     stampLength = static_cast<uint32_t>(m_chatMsgInfo.TimestampLength);
-                    buffers.dynamic = serial_w_string(buffers.dynamic, m_chatMsgInfo.Timestamp, stampLength);
+                    dynamic.writeString(m_chatMsgInfo.Timestamp, stampLength);
                     ++stampLength;
                 }
-                buffers.fixed = serial_w_integral(buffers.fixed, stampIndex);
-                buffers.fixed = serial_w_integral(buffers.fixed, stampLength);
+                fixed.writeIntegral(stampIndex);
+                fixed.writeIntegral(stampLength);
             }
 
             // AccountName.
@@ -216,13 +211,13 @@ namespace Extras
                 uint32_t accLength{0};
                 if (m_chatMsgInfo.AccountName)
                 {
-                    accIndex = static_cast<uint64_t>(buffers.dynamic - buffers.fixed);
+                    accIndex = MemoryHeadOffset(fixed, dynamic);
                     accLength = static_cast<uint32_t>(m_chatMsgInfo.AccountNameLength);
-                    buffers.dynamic = serial_w_string(buffers.dynamic, m_chatMsgInfo.AccountName, accLength);
+                    dynamic.writeString(m_chatMsgInfo.AccountName, accLength);
                     ++accLength;
                 }
-                buffers.fixed = serial_w_integral(buffers.fixed, accIndex);
-                buffers.fixed = serial_w_integral(buffers.fixed, accLength);
+                fixed.writeIntegral(accIndex);
+                fixed.writeIntegral(accLength);
             }
 
             // CharacterName.
@@ -231,13 +226,13 @@ namespace Extras
                 uint32_t chLength{0};
                 if (m_chatMsgInfo.CharacterName)
                 {
-                    chIndex = static_cast<uint64_t>(buffers.dynamic - buffers.fixed);
+                    chIndex = MemoryHeadOffset(fixed, dynamic);
                     chLength = static_cast<uint32_t>(m_chatMsgInfo.CharacterNameLength);
-                    buffers.dynamic = serial_w_string(buffers.dynamic, m_chatMsgInfo.CharacterName, chLength);
+                    dynamic.writeString(m_chatMsgInfo.CharacterName, chLength);
                     ++chLength;
                 }
-                buffers.fixed = serial_w_integral(buffers.fixed, chIndex);
-                buffers.fixed = serial_w_integral(buffers.fixed, chLength);
+                fixed.writeIntegral(chIndex);
+                fixed.writeIntegral(chLength);
             }
 
             // ChatMessage.
@@ -246,22 +241,20 @@ namespace Extras
                 uint32_t cmLength{0};
                 if (m_chatMsgInfo.CharacterName)
                 {
-                    cmIndex = static_cast<uint64_t>(buffers.dynamic - buffers.fixed);
+                    cmIndex = MemoryHeadOffset(fixed, dynamic);
                     cmLength = static_cast<uint32_t>(m_chatMsgInfo.TextLength);
-                    buffers.dynamic = serial_w_string(buffers.dynamic, m_chatMsgInfo.Text, cmLength);
+                    dynamic.writeString(m_chatMsgInfo.Text, cmLength);
                     ++cmLength;
                 }
-                buffers.fixed = serial_w_integral(buffers.fixed, cmIndex);
-                buffers.fixed = serial_w_integral(buffers.fixed, cmLength);
+                fixed.writeIntegral(cmIndex);
+                fixed.writeIntegral(cmLength);
             }
 
             // Fixed.
-            buffers.fixed = serial_w_integral(buffers.fixed, m_chatMsgInfo.ChannelId);
-            buffers.fixed = serial_w_integral(buffers.fixed, static_cast<std::underlying_type_t<ChannelType>>(m_chatMsgInfo.Type));
-            buffers.fixed = serial_w_integral(buffers.fixed, m_chatMsgInfo.Subgroup);
-            buffers.fixed = serial_w_integral(buffers.fixed, m_chatMsgInfo.IsBroadcast);
-
-            return buffers;
+            fixed.writeIntegral(m_chatMsgInfo.ChannelId);
+            fixed.writeIntegral(static_cast<std::underlying_type_t<ChannelType>>(m_chatMsgInfo.Type));
+            fixed.writeIntegral(m_chatMsgInfo.Subgroup);
+            fixed.writeIntegral(m_chatMsgInfo.IsBroadcast);
         }
 
     private:

@@ -88,7 +88,6 @@ set(arcdps_bridge_files src/Entry.cpp
     src/ApplicationData.hpp
     src/ApplicationData.cpp
     src/Combat.hpp
-    src/Combat.cpp
     src/Extras.hpp
     src/Extras.cpp
     src/Message.hpp

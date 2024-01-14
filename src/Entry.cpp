@@ -116,8 +116,9 @@ static void SendPlayerMsg(const Squad::PlayerInfoEntry& entry)
     {
         Squad::PlayerInfoEntrySerializer serializer{entry};
         MessageBuffer buffer{MessageBuffer::Create(serializer.size())};
-        MessageBuffers buffers{MessageBuffers::Create(buffer, Squad::PlayerInfoEntrySerializer::fixedSize())};
-        buffers = serializer.writeToBuffers(buffers);
+        MemoryLocation fixed{buffer.start};
+        MemoryLocation dynamic{buffer.start + Squad::PlayerInfoEntrySerializer::fixedSize()};
+        serializer.writeToBuffers(fixed, dynamic);
         Server->sendMessage(SquadMessage<Type>(id, timestamp, buffer));
     }
 }
@@ -297,8 +298,9 @@ static uintptr_t mod_combat(cbtevent* ev, ag* src, ag* dst, char* skillname, uin
 
     Combat::EventSerializer serializer{ev, src, dst, skillname, id, revision};
     MessageBuffer buffer{MessageBuffer::Create(serializer.size())};
-    MessageBuffers buffers{MessageBuffers::Create(buffer, Combat::EventSerializer::fixedSize())};
-    buffers = serializer.writeToBuffers(buffers);
+    MemoryLocation fixed{buffer.start};
+    MemoryLocation dynamic{buffer.start + Combat::EventSerializer::fixedSize()};
+    serializer.writeToBuffers(fixed, dynamic);
     Server->sendMessage(CombatMessage<MessageType::CombatEvent>(msgID, msgTimestamp, buffer));
 
     return 0;
@@ -440,8 +442,9 @@ void squad_update_callback(const UserInfo* updatedUsers, uint64_t updatedUsersCo
             {
                 Extras::UserInfoSerializer serializer{*uinfo};
                 MessageBuffer buffer{MessageBuffer::Create(serializer.size())};
-                MessageBuffers buffers{MessageBuffers::Create(buffer, Extras::UserInfoSerializer::fixedSize())};
-                buffers = serializer.writeToBuffers(buffers);
+                MemoryLocation fixed{buffer.start};
+                MemoryLocation dynamic{buffer.start + Extras::UserInfoSerializer::fixedSize()};
+                serializer.writeToBuffers(fixed, dynamic);
                 Server->sendMessage(ExtrasMessage<MessageType::ExtrasSquadUpdate>(id, timestamp, buffer));
             }
         }
@@ -457,8 +460,9 @@ static void language_changed_callback(Language pNewLanguage)
 
         Extras::LanguageSerializer serializer{pNewLanguage};
         MessageBuffer buffer{MessageBuffer::Create(Extras::LanguageSerializer::size())};
-        MessageBuffers buffers{MessageBuffers::Create(buffer, Extras::LanguageSerializer::fixedSize())};
-        buffers = serializer.writeToBuffers(buffers);
+        MemoryLocation fixed{buffer.start};
+        MemoryLocation dynamic{buffer.start + Extras::LanguageSerializer::fixedSize()};
+        serializer.writeToBuffers(fixed, dynamic);
         Server->sendMessage(ExtrasMessage<MessageType::ExtrasLanguageChanged>(id, timestamp, buffer));
     }
 }
@@ -472,8 +476,9 @@ static void keybind_changed_callback(KeyBinds::KeyBindChanged pChangedKeyBind)
 
         Extras::KeyBindSerializer serializer{pChangedKeyBind};
         MessageBuffer buffer{MessageBuffer::Create(Extras::KeyBindSerializer::size())};
-        MessageBuffers buffers{MessageBuffers::Create(buffer, Extras::KeyBindSerializer::fixedSize())};
-        buffers = serializer.writeToBuffers(buffers);
+        MemoryLocation fixed{buffer.start};
+        MemoryLocation dynamic{buffer.start + Extras::KeyBindSerializer::fixedSize()};
+        serializer.writeToBuffers(fixed, dynamic);
         Server->sendMessage(ExtrasMessage<MessageType::ExtrasKeyBindChanged>(id, timestamp, buffer));
     }
 }
@@ -490,8 +495,9 @@ static void chat_message_callback(const ChatMessageInfo* pChatMessage)
 
         Extras::ChatMessageSerializer serializer{*pChatMessage};
         MessageBuffer buffer{MessageBuffer::Create(serializer.size())};
-        MessageBuffers buffers{MessageBuffers::Create(buffer, Extras::ChatMessageSerializer::fixedSize())};
-        buffers = serializer.writeToBuffers(buffers);
+        MemoryLocation fixed{buffer.start};
+        MemoryLocation dynamic{buffer.start + Extras::ChatMessageSerializer::fixedSize()};
+        serializer.writeToBuffers(fixed, dynamic);
         Server->sendMessage(ExtrasMessage<MessageType::ExtrasChatMessage>(id, timestamp, buffer));
     }
 }
@@ -599,8 +605,9 @@ extern "C" __declspec(dllexport) void arcdps_unofficial_extras_subscriber_init(c
 
         BridgeInfoSerializer serializer{AppData.Info};
         MessageBuffer buffer{MessageBuffer::Create(serializer.size())};
-        MessageBuffers buffers{MessageBuffers::Create(buffer, BridgeInfoSerializer::fixedSize())};
-        serializer.writeToBuffers(buffers);
+        MemoryLocation fixed{buffer.start};
+        MemoryLocation dynamic{buffer.start + BridgeInfoSerializer::fixedSize()};
+        serializer.writeToBuffers(fixed, dynamic);
         Server->sendBridgeInfo(InfoMessage<MessageType::BridgeInfo>(id, timestamp, buffer), validator);
     }
 }

@@ -167,15 +167,15 @@ namespace Squad
 
     MessageBuffer PlayerContainer::CreateMessageBuffer(const std::string& self) const
     {
-        std::size_t fixed{};
-        std::size_t dynamic{0};
+        std::size_t fixedSize{};
+        std::size_t dynamicSize{0};
 
         // Self.
-        fixed += sizeof(uint64_t) + sizeof(uint32_t); // "Pointer" and size.
-        dynamic += static_cast<uint32_t>(self.size()) + 1;
+        fixedSize += sizeof(uint64_t) + sizeof(uint32_t); // "Pointer" and size.
+        dynamicSize += static_cast<uint32_t>(self.size()) + 1;
 
         // Entry count.
-        fixed += sizeof(uint8_t);
+        fixedSize += sizeof(uint8_t);
 
         // Members ("entries").
         std::size_t entries = 0;
@@ -184,16 +184,16 @@ namespace Squad
             if (m_squad[i].first)
             {
                 const PlayerInfoEntrySerializer serializer{m_squad[i].second};
-                fixed += PlayerInfoEntrySerializer::fixedSize();
-                dynamic += serializer.dynamicSize();
+                fixedSize += PlayerInfoEntrySerializer::fixedSize();
+                dynamicSize += serializer.dynamicSize();
                 ++entries;
             }
         }
 
         // Allocate.
-        MessageBuffer buffer{MessageBuffer::Create(fixed + dynamic)};
-        constexpr auto headerOffset = MessageHeaderByteCount();
-        MessageBuffers buffers{buffer.ptr.get() + headerOffset, buffer.ptr.get() + headerOffset + fixed};
+        MessageBuffer buffer{MessageBuffer::Create(fixedSize + dynamicSize)};
+        MemoryLocation fixed{buffer.start};
+        MemoryLocation dynamic{buffer.start + fixedSize};
 
         // Write Self.
         {
@@ -201,17 +201,17 @@ namespace Squad
             uint32_t selfLength{0};
             if (!self.empty())
             {
-                selfIndex = static_cast<uint64_t>(buffers.dynamic - buffers.fixed);
+                selfIndex = MemoryHeadOffset(fixed, dynamic);
                 selfLength = static_cast<uint32_t>(self.size());
-                buffers.dynamic = serial_w_string(buffers.dynamic, self.data(), selfLength);
+                dynamic.writeString(self.data(), selfLength);
                 ++selfLength;
             }
-            buffers.fixed = serial_w_integral(buffers.fixed, selfIndex);
-            buffers.fixed = serial_w_integral(buffers.fixed, selfLength);
+            fixed.writeIntegral(selfIndex);
+            fixed.writeIntegral(selfLength);
         }
 
         // Write Entries count.
-        buffers.fixed = serial_w_integral(buffers.fixed, static_cast<uint8_t>(entries));
+        fixed.writeIntegral(static_cast<uint8_t>(entries));
 
         // Write Entries.
         for (std::size_t i{0}; i < m_squad.size(); ++i)
@@ -219,7 +219,7 @@ namespace Squad
             if (m_squad[i].first)
             {
                 const PlayerInfoEntrySerializer serializer{m_squad[i].second};
-                buffers = serializer.writeToBuffers(buffers);
+                serializer.writeToBuffers(fixed, dynamic);
             }
         }
 
